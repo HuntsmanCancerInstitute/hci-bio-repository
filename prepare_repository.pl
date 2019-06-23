@@ -21,7 +21,7 @@ use constant {
 	TYPE     => [qw(Other Analysis Alignment Fastq QC ArchiveZipped)],
 };
 
-my $VERSION = 6.1;
+my $VERSION = 7;
 
 # Documentation
 my $doc = <<DOC;
@@ -45,6 +45,14 @@ my $doc = <<DOC;
   
   It will optionally move the to-be-removed files into a hidden directory.
   
+  File rules:
+  	Fastq, Sam, Bam, bigWig, bigBed, USeq, and tabixed VCF files are never zip archived.
+  	Files under 100 MB are zip archived.
+  	BigWig and tabixed VCF files are not deleted.
+  	Sample and Library QC files are archived and not deleted.
+  	SRA files, .DS_Store, .thumbsdb files are immediately deleted and never reported.
+  
+  
   Execute under GNU parallel to speed up the process. Only one path per execution.
     sudo nohup /usr/local/bin/parallel -j 4 -a list.txt \
     $0 {} > out.txt
@@ -55,20 +63,26 @@ my $doc = <<DOC;
     3.  Perform Snowball or aws transfer.
     4.  Chmod directories as "read only".
     5.  Chmod directories as writeable. Re-run with --mvdel option to "remove" 
-        files. Chmod back to read only.
+        files. Alternatively, run with --delete to immediately remove. 
+        Chmod back to read only.
     5.  Clean up repository by deleting the "hidden" _ZIPPED_FILES and _DELETED_FILES
-        directories. Only thing left are MANIFEST, ARCHIVE_LIST, and REMOVE_LIST 
-        files, as well as bigWig, tabixed VCF files.
+        directories by running with --delzip and --delete. Only files left are 
+        MANIFEST, ARCHIVE_LIST, and REMOVE_LIST files, as well as bigWig, tabixed VCF files.
   
   Usage: $0 [options] <path>
   
   Options:  
     --scan    Scan the project directory for new files
-    --hide    Boolean 1 or 0 to hide or not hide the files in parent directory
+    --noalist Do not write an archive list
+    --nodlist Do not write a delete list
+    --hide    Hide the list files in parent directory
     --zip     Create and/or update the zip archive
-    --mvzip   Move the zipped files out of the project folder to hidden folder 
-    --mvdel   Move the to-delete files out of the project folder to hidden folder
-    <path>    Path of the project folder, example
+    --mvzip   Move the zipped files out of the project folder to hidden parent folder 
+    --mvdel   Move the to-delete files out of the project folder to hidden parent folder
+    --delzip  Delete the hidden zipped files
+    --delete  Delete the to-delete files from the project or hidden folder
+    --verbose Tell me everything!
+    <path>    Path of the project folder from root, example
                /Repository/MicroarrayData/2010/1234R
                /Repository/AnalysisData/2010/A5678
 DOC
@@ -84,28 +98,42 @@ unless (@ARGV) {
 
 # Process command line options
 my $scan;
+my $write_delete_list;
+my $write_zip_list;
 my $hidden; 
 my $to_zip;
 my $given_dir;
 my $move_zip_files;
 my $move_del_files;
+my $delete_zip_files;
+my $delete_del_files;
+my $verbose;
 
 if (scalar(@ARGV) > 1) {
 	GetOptions(
 		'scan!'     => \$scan,
+		'alist!'    => \$write_zip_list,
+		'dlist!'    => \$write_delete_list,
 		'hide!'     => \$hidden,
 		'zip!'      => \$to_zip,
 		'mvzip!'    => \$move_zip_files,
 		'mvdel!'    => \$move_del_files,
+		'delzip!'   => \$delete_zip_files,
+		'delete!'   => \$delete_del_files,
+		'verbose!'  => \$verbose,
 	) or die "please recheck your options!\n\n$doc\n";
 }
 $given_dir = shift @ARGV;
 
 # check options
+if ($scan) {
+	$write_zip_list = 1 if not defined $write_zip_list;
+	$write_delete_list = 1 if not defined $write_delete_list;
+}
 die "must scan if you zip!\n" if ($to_zip and not $scan);
 die "can't move zipped files if hidden!\n" if ($hidden and $move_zip_files);
 die "can't move deleted files if hidden!\n" if ($hidden and $move_del_files);
-
+die "can't both move deleted files and delete them!\n" if ($move_del_files and $delete_del_files);
 
 
 # global arrays for storing file names
@@ -126,12 +154,12 @@ if ($given_dir =~ m/(A\d{1,5}|\d{3,5}R)\/?$/) {
 	# this ignores Request digit suffixes such as 1234R1, 
 	# when clients submitted replacement samples
 	$project = $1;
-	print " >working on $project at $given_dir\n";
+	print " > working on $project at $given_dir\n";
 }
 elsif ($given_dir =~ m/(\d{2,4})\/?$/) {
 	# old style naming convention without an A prefix or R suffix
 	$project = $1;
-	print " >working on $project at $given_dir\n";
+	print " > working on $project at $given_dir\n";
 }
 else {
 	die "unable to identify project ID for $given_dir!\n";
@@ -144,34 +172,49 @@ unless (-e $given_dir) {
 
 
 # check directory and move into the parent directory if we're not there
-my $start_dir = './';
-if ($given_dir =~ s/^(\/Repository\/(?:MicroarrayData|AnalysisData)\/\d{4})\/?//) {
-	# this also removes the base
-	$start_dir = $1;
-	print " >changing to $start_dir\n";
-	chdir $start_dir or die "can not change to $start_dir!\n";
+my $parent_dir = './';
+if ($given_dir =~ m/^(\/Repository\/(?:MicroarrayData|AnalysisData)\/\d{4})\/?/) {
+	$parent_dir = $1;
+# 	print " >changing to $parent_dir\n";
+# 	chdir $parent_dir or die "can not change to $parent_dir!\n";
 }
-else {
-	print " keeping start directory $start_dir\n";
+elsif ($given_dir =~ m/^(.+)$project\/?$/) {
+	$parent_dir = $1;
 }
+print " >> using parent directory $parent_dir\n" if $verbose;
 
+# change to the given directory
+print " > changing to $given_dir\n";
+chdir $given_dir or die "cannot change to $given_dir!\n";
 
 
 # prepare file names in project directory
-my $manifest_file = File::Spec->catfile($given_dir, $project . "_MANIFEST.txt");
-my $ziplist_file  = File::Spec->catfile($given_dir, $project . "_ARCHIVE_LIST.txt");
-my $upload_file   = File::Spec->catfile($given_dir, $project . "_UPLOAD_LIST.txt");
-my $remove_file   = File::Spec->catfile($given_dir, $project . "_REMOVE_LIST.txt");
-my $zip_file      = File::Spec->catfile($given_dir, $project . "_ARCHIVE.zip");
+my $manifest_file = $project . "_MANIFEST.txt";
+my $ziplist_file  = $project . "_ARCHIVE_LIST.txt";
+my $upload_file   = $project . "_UPLOAD_LIST.txt";
+my $remove_file   = $project . "_REMOVE_LIST.txt";
+my $zip_file      = $project . "_ARCHIVE.zip";
+# my $manifest_file = File::Spec->catfile($given_dir, $project . "_MANIFEST.txt");
+# my $ziplist_file  = File::Spec->catfile($given_dir, $project . "_ARCHIVE_LIST.txt");
+# my $upload_file   = File::Spec->catfile($given_dir, $project . "_UPLOAD_LIST.txt");
+# my $remove_file   = File::Spec->catfile($given_dir, $project . "_REMOVE_LIST.txt");
+# my $zip_file      = File::Spec->catfile($given_dir, $project . "_ARCHIVE.zip");
 # prepare hidden file names in parent directory
-my $alt_manifest  = File::Spec->catfile($start_dir, $project . "_MANIFEST.txt");
-my $alt_zip       = File::Spec->catfile($start_dir, $project . "_ARCHIVE.zip");
-my $alt_ziplist   = File::Spec->catfile($start_dir, $project . "_ARCHIVE_LIST.txt");
-my $alt_upload    = File::Spec->catfile($start_dir, $project . "_UPLOAD_LIST.txt");
-my $alt_remove    = File::Spec->catfile($start_dir, $project . "_REMOVE_LIST.txt");
+my $alt_manifest  = File::Spec->catfile($parent_dir, $project . "_MANIFEST.txt");
+my $alt_zip       = File::Spec->catfile($parent_dir, $project . "_ARCHIVE.zip");
+my $alt_ziplist   = File::Spec->catfile($parent_dir, $project . "_ARCHIVE_LIST.txt");
+my $alt_upload    = File::Spec->catfile($parent_dir, $project . "_UPLOAD_LIST.txt");
+my $alt_remove    = File::Spec->catfile($parent_dir, $project . "_REMOVE_LIST.txt");
+if ($verbose) {
+	print " =>  manifest file: $manifest_file or $alt_manifest\n";
+	print " =>  zip list file: $ziplist_file or $alt_ziplist\n";
+	print " =>       zip file: $zip_file or $alt_zip\n";
+	print " =>    remove file: $remove_file or $alt_remove\n";
+}
 
 # zipped file hidden folder
-my $zipped_folder = File::Spec->catfile($start_dir, $project . "_ZIPPED_FILES");
+my $zipped_folder = File::Spec->catfile($parent_dir, $project . "_ZIPPED_FILES");
+print " =>  zipped folder: $zipped_folder\n" if $verbose;
 if (-e $zipped_folder) {
 	print "zipped files hidden folder already exists! Will not zip\n" if $to_zip;
 	$to_zip = 0; # do not want to rezip
@@ -182,7 +225,8 @@ if (-e $zipped_folder) {
 }
 
 # removed file hidden folder
-my $deleted_folder = File::Spec->catfile($start_dir, $project . "_DELETED_FILES");
+my $deleted_folder = File::Spec->catfile($parent_dir, $project . "_DELETED_FILES");
+print " => deleted folder: $deleted_folder\n" if $verbose;
 if (-e $deleted_folder) {
 	print "deleted files hidden folder already exists! Will not move deleted files\n" if $move_del_files;
 	$move_del_files = 0; # do not want to move zipped files
@@ -194,27 +238,34 @@ if (-e $deleted_folder) {
 
 # scan the project directory for new files
 if ($scan) {
-	print " >scanning $given_dir\n";
+	print " > scanning $project in directory $given_dir\n";
 	# first unhide or remove existing files
 	if (-e $alt_zip) {
+		print " >> moving $zip_file to $alt_zip\n" if $verbose;
 		move($alt_zip, $zip_file);
 	}
 	if (-e $alt_ziplist) {
+		print " >> removing $alt_ziplist\n" if $verbose;
 		unlink($alt_ziplist);
 	}
 	if (-e $ziplist_file) {
+		print " >> removing $ziplist_file\n" if $verbose;
 		unlink($ziplist_file);
 	}
 	if (-e $alt_upload) {
+		print " >> removing $alt_upload\n" if $verbose;
 		unlink($alt_upload);
 	}
 	if (-e $alt_remove) {
+		print " >> removing $alt_remove\n" if $verbose;
 		unlink($alt_remove);
 	}
 	if ($remove_file) {
+		print " >> removing $remove_file\n" if $verbose;
 		unlink($remove_file);
 	}
 	if (-e $alt_manifest) {
+		print " >> moving $alt_manifest to $manifest_file\n" if $verbose;
 		move($alt_manifest, $manifest_file);
 	}
 	if (-e $upload_file) {
@@ -229,7 +280,7 @@ if ($scan) {
 	}
 
 	# search directory using File::Find 
-	find(\&callback, $given_dir);
+	find(\&callback, '.');
 	
 	# fill out the removelist based on age
 	if (time - $youngest_age < THREEMOS) {
@@ -248,15 +299,15 @@ if ($scan) {
 		# otherwise remove everything
 		foreach my $m (@manifest) {
 			my @fields = split("\t", $m);
-			next if ($fields[3] eq 'Analysis' or $fields[3] eq 'QC' or 
-				$fields[3] eq 'ArchiveZipped');
+			next if ($fields[3] eq 'Analysis' or $fields[3] eq 'ArchiveZipped');
 			push @removelist, $fields[4];
 		}
 	}
+	printf " >> identified %d files to remove\n", scalar(@removelist) if $verbose;
 
 	
 	# write files
-	write_file($ziplist_file, \@ziplist) if @ziplist;
+	write_file($ziplist_file, \@ziplist) if (@ziplist and $write_zip_list);
 	if (-e $ziplist_file) {
 		my ($date, $size, $md5, $age) = get_file_stats($ziplist_file, $ziplist_file);
 		push @manifest, join("\t", $md5, $size, $date, 'meta', $ziplist_file);
@@ -266,7 +317,7 @@ if ($scan) {
 			# we will zip zip with fastest compression for speed
 			# use file sync option to add, update, and/or delete members in zip archive
 			# regardless if it's present or new
-			print " >zipping\n";
+			print " > zipping\n";
 			my $command = sprintf("cat %s | zip -1 -FS -@ %s", $ziplist_file, $zip_file);
 			print "  executing: $command\n";
 			system($command);
@@ -277,7 +328,7 @@ if ($scan) {
 			}
 		}
 	}
-	write_file($remove_file, \@removelist) if @removelist;
+	write_file($remove_file, \@removelist) if (scalar(@removelist) and $write_delete_list);
 	write_file($manifest_file, \@manifest);
 }
 
@@ -286,20 +337,20 @@ if ($scan) {
 
 # temporarily move files out of directory
 if ($hidden) {
-	print " >hiding files\n";
+	print " > hiding files\n";
 	move($manifest_file, $alt_manifest) if (-e $manifest_file);
 	move($ziplist_file, $alt_ziplist) if (-e $ziplist_file);
 	move($zip_file, $alt_zip) if (-e $zip_file);
 }
 # but we always hide the remove list unless we've already removed
-move($remove_file, $alt_remove) if (-e $remove_file and not -e $deleted_folder);
+move($remove_file, $alt_remove) if ($scan and -e $remove_file and not -e $deleted_folder);
 
 
 
 
 # move the zipped files
 if ($move_zip_files and -e $ziplist_file) {
-	print " >moving zipped files to $zipped_folder\n";
+	print " > moving zipped files to $zipped_folder\n";
 	die "no zip archive! Best not move!" if not -e $zip_file;
 	
 	# move the zipped files
@@ -325,11 +376,37 @@ if ($move_zip_files and -e $ziplist_file) {
 }
 
 
+if ($delete_zip_files and -e $zipped_folder) {
+	print " > deleting files in $zipped_folder\n";
+	
+	# load the ziplist file contents
+	# I can't trust that we have a ziplist array in memory, so read it from file
+	@ziplist = get_file_list($ziplist_file);
+	
+	# process the ziplist
+	foreach my $file (@ziplist) {
+		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
+		my $targetfile = File::Spec->catfile($zipped_folder, $dir, $basefile);
+		print " >> DELETING $targetfile\n" if $verbose;
+		unlink($targetfile);
+	}
+	
+	# clean up empty directories
+	my $command = sprintf("find %s -type d -empty -delete", $zipped_folder);
+	print "  executing: $command\n";
+	system($command);
+	rmdir $zipped_folder;
+}
+elsif ($delete_zip_files and not -e $zipped_folder) {
+	print " > zipped files not put into hidden zip folder, cannot delete!\n";
+}
+
+
 
 
 # move the deleted files
 if ($move_del_files and -e $alt_remove) {
-	print " >moving files to $deleted_folder\n";
+	print " > moving files to $deleted_folder\n";
 	
 	# move the deleted files
 	mkdir $deleted_folder;
@@ -357,38 +434,90 @@ if ($move_del_files and -e $alt_remove) {
 }
 
 
+# actually delete the files
+if ($delete_del_files and -e $deleted_folder and -e $remove_file) {
+	print " > deleting files in hidden delete folder $deleted_folder\n";
+	
+	# load the delete file contents
+	# I can't trust that we have a removelist array in memory, so read it from file
+	@removelist = get_file_list($remove_file);
+	
+	# process the removelist
+	foreach my $file (@removelist) {
+		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
+		my $targetfile = File::Spec->catfile($deleted_folder, $dir, $basefile);
+		print " >> DELETING $targetfile\n" if $verbose;
+		unlink($targetfile);
+	}
+	
+	# clean up empty directories
+	my $command = sprintf("find %s -type d -empty -delete", $deleted_folder);
+	print "  executing: $command\n";
+	system($command);
+	rmdir $deleted_folder;
+}
+elsif ($delete_del_files and -e $alt_remove and not -e $deleted_folder) {
+	print " > deleting files in $given_dir\n";
+	
+	# load the delete file contents
+	# I can't trust that we have a removelist array in memory, so read it from file
+	@removelist = get_file_list($alt_remove);
+	
+	# process the removelist
+	foreach my $file (@removelist) {
+		print " >> DELETING $file\n" if $verbose;
+		unlink $file;
+	}
+	
+	# clean up empty directories
+	my $command = sprintf("find %s -type d -empty -delete", $given_dir);
+	print "  executing: $command\n";
+	system($command);
+	
+	# move the deleted folder back into archive
+	move($alt_remove, $remove_file);
+}
+elsif ($delete_del_files) {
+	print " > nothing found to delete\n";
+}
 
 
 # finished
-printf " >finished with $project in %.1f minutes\n", (time - $start_time)/60;
+printf " > finished with $project in %.1f minutes\n", (time - $start_time)/60;
 
 
 
 # find callback
 sub callback {
 	my $file = $_;
+	print " >> find callback on $file for $fname\n" if $verbose;
+
 	
 	# ignore certain files
 	return unless -f $file; # skip directories and symlinks!
 	if ($file =~ /\.sra$/i) {
 		# what the hell are SRA files doing in here!!!????
+		print " >>   deleting SRA file\n" if $verbose;
 		unlink $file;
 		return;
 	}
 	elsif ($file =~ /libsnappyjava|fdt\.jar/) {
 		# devil java spawn, delete!!!!
+		print " >>   deleting java file\n" if $verbose;
 		unlink $file;
 		return;
 	}
 	elsif ($file eq '.DS_Store' or $file eq 'Thumbs.db') {
 		# Windows and Mac file browser devil spawn, delete these immediately
+		print " >>   deleting file browser metadata file\n" if $verbose;
 		unlink $file;
 		return;
 	}
-	return if ($fname eq $zip_file);
-	return if ($fname eq $manifest_file);
-	return if ($fname eq $ziplist_file);
-	return if ($fname eq $upload_file);
+	return if ($file eq $zip_file);
+	return if ($file eq $manifest_file);
+	return if ($file eq $ziplist_file);
+	return if ($file eq $upload_file);
+	print " >>   file doesn't match one of my repository preparation files\n" if $verbose;
 	
 	# stats on the file
 	my ($date, $size, $md5, $age) = get_file_stats($file, $fname);
@@ -431,7 +560,7 @@ sub callback {
 		# looks like a fastq file
 		$keeper = 3;
 	}
-	elsif ($fname =~ /^$project\/(?:bioanalysis|Sample QC|Library QC)\//) {
+	elsif ($fname =~ m/^.\/(?:bioanalysis|Sample QC|Library QC)\//) {
 		# these are QC samples in a bioanalysis or Sample of Library QC folder
 		# directly under the main project 
 		# hope there aren't any of these folders in Analysis!!!!!
@@ -457,12 +586,14 @@ sub callback {
 	}
 	
 	# record the manifest information
+	printf " >>   file is a %s file\n", TYPE->[$keeper] if $verbose;
 	push @manifest, join("\t", $md5, $size, $date, TYPE->[$keeper], $fname);
 }
 
 
 sub write_file {
 	my ($file, $data) = @_;
+	print " >> writing file $file\n" if $verbose;
 	
 	# open file
 	my $fh = IO::File->new($file, 'w') or 
@@ -486,6 +617,7 @@ sub write_file {
 
 sub load_manifest {
 	my $file = shift;
+	print " >> loading manifest file $file\n" if $verbose;
 	
 	# open file
 	my $fh = IO::File->new($file, 'r') or 
@@ -504,6 +636,7 @@ sub load_manifest {
 
 sub get_file_stats {
 	my ($file, $fname) = @_;
+	print " >> getting file stats on $file....\n" if $verbose;
 	
 	# stats on the file
 	my @st = stat($file);
@@ -534,11 +667,14 @@ sub get_file_stats {
 	}
 	
 	# finished
+	print " >>  $file: $size bytes, $age seconds, from $date, checksum $md5\n" if $verbose;
 	return ($date, $size, $md5, $age);
 }
 
 sub get_file_list {
 	my $file = shift;
+	print " >> loading list file $file\n" if $verbose;
+	
 	my $fh = IO::File->new($file, 'r') or 
 		die "can't read $file! $!\n";
 	
