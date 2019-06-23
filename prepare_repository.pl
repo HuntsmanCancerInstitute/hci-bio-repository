@@ -2,10 +2,11 @@
 
 
 use strict;
+use IO::File;
 use File::Spec;
 use File::Find;
-use IO::File;
 use File::Copy;
+use File::Path qw(make_path);
 use POSIX qw(strftime);
 use Getopt::Long;
 
@@ -20,7 +21,7 @@ use constant {
 	TYPE     => [qw(Other Analysis Alignment Fastq QC ArchiveZipped)],
 };
 
-my $VERSION = 5;
+my $VERSION = 6;
 
 # Documentation
 my $doc = <<DOC;
@@ -125,12 +126,12 @@ if ($given_dir =~ m/(A\d{1,5}|\d{3,5}R)\/?$/) {
 	# this ignores Request digit suffixes such as 1234R1, 
 	# when clients submitted replacement samples
 	$project = $1;
-	print " working on $project at $given_dir\n";
+	print " >working on $project at $given_dir\n";
 }
 elsif ($given_dir =~ m/(\d{2,4})\/?$/) {
 	# old style naming convention without an A prefix or R suffix
 	$project = $1;
-	print " working on $project at $given_dir\n";
+	print " >working on $project at $given_dir\n";
 }
 else {
 	die "unable to identify project ID for $given_dir!\n";
@@ -144,10 +145,14 @@ unless (-e $given_dir) {
 
 # check directory and move into the parent directory if we're not there
 my $start_dir = './';
-if ($given_dir =~ m/^(\/Repository\/(?:MicroarrayData|AnalysisData)\/\d{4})\/?/) {
+if ($given_dir =~ s/^(\/Repository\/(?:MicroarrayData|AnalysisData)\/\d{4})\/?//) {
+	# this also removes the base
 	$start_dir = $1;
-	# print " changing to $start_dir\n";
+	print " >changing to $start_dir\n";
 	chdir $start_dir or die "can not change to $start_dir!\n";
+}
+else {
+	print " keeping start directory $start_dir\n";
 }
 
 
@@ -189,6 +194,7 @@ if (-e $deleted_folder) {
 
 # scan the project directory for new files
 if ($scan) {
+	print " >scanning $given_dir\n";
 	# first unhide or remove existing files
 	if (-e $alt_zip) {
 		move($alt_zip, $zip_file);
@@ -260,8 +266,9 @@ if ($scan) {
 			# we will zip zip with fastest compression for speed
 			# use file sync option to add, update, and/or delete members in zip archive
 			# regardless if it's present or new
+			print " >zipping\n";
 			my $command = sprintf("cat %s | zip -1 -FS -@ %s", $ziplist_file, $zip_file);
-			print " executing: $command\n";
+			print "  executing: $command\n";
 			system($command);
 			if (-e $zip_file) {
 				my ($date, $size, $md5, $age) = get_file_stats($zip_file, $zip_file);
@@ -279,6 +286,7 @@ if ($scan) {
 
 # temporarily move files out of directory
 if ($hidden) {
+	print " >hiding files\n";
 	move($manifest_file, $alt_manifest) if (-e $manifest_file);
 	move($ziplist_file, $alt_ziplist) if (-e $ziplist_file);
 	move($zip_file, $alt_zip) if (-e $zip_file);
@@ -291,19 +299,28 @@ move($remove_file, $alt_remove) if (-e $remove_file and not -e $deleted_folder);
 
 # move the zipped files
 if ($move_zip_files and -e $ziplist_file) {
+	print " >moving zipped files to $zipped_folder\n";
 	die "no zip archive! Best not move!" if not -e $zip_file;
 	
 	# move the zipped files
 	mkdir $zipped_folder;
-	# we use rsync to maintain directory structure
-	my $command = sprintf("rsync -ptgoRWv --remove-source-files --files-from=%s %s %s/", 
-		$ziplist_file, $start_dir, $zipped_folder);
-	print " executing: $command\n";
-	system($command);
+	
+	# load the ziplist file contents
+	# I can't trust that we have a ziplist array in memory, so read it from file
+	@ziplist = get_file_list($ziplist_file);
+	
+	# process the ziplist
+	foreach my $file (@ziplist) {
+		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
+		my $targetdir = File::Spec->catdir($zipped_folder, $dir);
+		make_path($targetdir); # this should safely skip existing directories
+						# permissions and ownership inherit from user, not from source
+		move($file, $targetdir);
+	}
 	
 	# clean up empty directories
-	$command = sprintf("find %s -type d -empty -delete", $given_dir);
-	print " executing: $command\n";
+	my $command = sprintf("find %s -type d -empty -delete", $given_dir);
+	print "  executing: $command\n";
 	system($command);
 }
 
@@ -312,18 +329,27 @@ if ($move_zip_files and -e $ziplist_file) {
 
 # move the deleted files
 if ($move_del_files and -e $alt_remove) {
+	print " >moving files to $deleted_folder\n";
 	
 	# move the deleted files
 	mkdir $deleted_folder;
-	# we use rsync to maintain directory structure
-	my $command = sprintf("rsync -ptgoRWv --files-from=%s --remove-source-files %s %s/", 
-		$alt_remove, $start_dir, $deleted_folder);
-	print " executing: $command\n";
-	system($command);
+	
+	# load the delete file contents
+	# I can't trust that we have a removelist array in memory, so read it from file
+	@removelist = get_file_list($alt_remove);
+	
+	# process the removelist
+	foreach my $file (@removelist) {
+		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
+		my $targetdir = File::Spec->catdir($deleted_folder, $dir);
+		make_path($targetdir); # this should safely skip existing directories
+						# permissions and ownership inherit from user, not from source
+		move($file, $targetdir);
+	}
 	
 	# clean up empty directories
-	$command = sprintf("find %s -type d -empty -delete", $given_dir);
-	print " executing: $command\n";
+	my $command = sprintf("find %s -type d -empty -delete", $given_dir);
+	print "  executing: $command\n";
 	system($command);
 	
 	# move the deleted folder back into archive
@@ -334,7 +360,7 @@ if ($move_del_files and -e $alt_remove) {
 
 
 # finished
-printf " finished with $project in %.1f minutes\n", (time - $start_time)/60;
+printf " >finished with $project in %.1f minutes\n", (time - $start_time)/60;
 
 
 
@@ -510,3 +536,22 @@ sub get_file_stats {
 	# finished
 	return ($date, $size, $md5, $age);
 }
+
+sub get_file_list {
+	my $file = shift;
+	my $fh = IO::File->new($file, 'r') or 
+		die "can't read $file! $!\n";
+	
+	# process
+	my @list;
+	while (my $line = $fh->getline) {
+		chomp($line);
+		push @list, $line;
+	}
+	$fh->close;
+	return @list;
+}
+
+
+
+
