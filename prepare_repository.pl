@@ -19,9 +19,11 @@ use constant {
 	TYPE     => [qw(Other Analysis Alignment Fastq QC)],
 };
 
-my $VERSION = 2;
+my $VERSION = 3;
 
-
+# boolean value to hide the files
+# this will appease David and not tip off users by sudden appearance of additional files
+my $hidden = 1;
 
 # Documentation
 unless (@ARGV) {
@@ -48,6 +50,7 @@ DOC
 # global arrays for storing file names
 # these are needed since the File::Find callback doesn't accept pass through variables
 my @manifest;
+my %manifest2file; # hash for processing existing manifest
 my @ziplist;
 my @uploadlist;
 my @removelist;
@@ -93,9 +96,21 @@ while (my $given_dir = shift @ARGV) {
 	my $upload_file   = File::Spec->catfile($given_dir, $project . "_UPLOAD_LIST.txt");
 	my $remove_file   = File::Spec->catfile($given_dir, $project . "_REMOVE_LIST.txt");
 	my $zip_file      = File::Spec->catfile($given_dir, $project . "_ARCHIVE.zip");
+	my $alt_manifest  = File::Spec->catfile($start_dir, $project . "_MANIFEST.txt");
+	
+	# find existing manifest file
+	if (-e $manifest_file) {
+		# we have a manifest file from a previous run
+		load_manifest($manifest_file);
+	}
+	elsif (-e $alt_manifest) {
+		# we have a hidden manifest file from a previous run
+		load_manifest($alt_manifest);
+	}
 	
 	# search directory using File::Find 
 	find(\&callback, $given_dir);
+	
 	
 	# fill out the removelist based on age
 	if (time - $youngest_age < THREEMOS) {
@@ -119,23 +134,22 @@ while (my $given_dir = shift @ARGV) {
 	}
 	
 	# write files
+	push @uploadlist, $ziplist_file if @ziplist;
+	push @uploadlist, $zip_file if @ziplist;
+	push @uploadlist, $manifest_file if @uploadlist;
 	write_file($manifest_file, \@manifest);
 	write_file($ziplist_file, \@ziplist) if @ziplist;
 	write_file($remove_file, \@removelist) if @removelist;
-	if (@uploadlist or @ziplist) {
-		push @uploadlist, $manifest_file;
-		push @uploadlist, $ziplist_file if @ziplist;
-		push @uploadlist, $zip_file if @ziplist;
-		write_file($upload_file, \@uploadlist);
-	}
+	write_file($upload_file, \@uploadlist) if @uploadlist;
 	
 	
 	# temporarily move files out of directory
-	# this will appease David and not tip off users by sudden appearance of additional files
-	move($manifest_file, $start_dir);
-	move($ziplist_file, $start_dir);
-	move($upload_file, $start_dir);
-	move($remove_file, $start_dir);
+	if ($hidden) {
+		move($manifest_file, $start_dir);
+		move($ziplist_file, $start_dir);
+		move($upload_file, $start_dir);
+		move($remove_file, $start_dir);
+	}
 	
 	# finished
 	printf " finished with $project in %.1f minutes\n", (time - $start_time)/60;
@@ -149,7 +163,7 @@ sub callback {
 	my $file = $_;
 	
 	# ignore certain files
-	return if -d $file; # skip directories!
+	return unless -f $file; # skip directories and symlinks!
 	if ($file =~ /\.sra$/i) {
 		# what the hell are SRA files doing in here!!!????
 		push @removelist, $file;
@@ -167,25 +181,36 @@ sub callback {
 	
 	# stats on the file
 	my @st = stat($file);
+	my $date = strftime("%B %d, %Y %H:%M:%S", localtime($st[9]));
+	my $size = $st[7];
 	my $md5;
-	if (-e "$file\.md5") {
-		# looks like we have pre-calculated md5 file, so please use it
-		my $fh = IO::File->new("$file\.md5");
-		my $line = $fh->getline;
-		($md5, undef) = split(/\s+/, $line);
-		$fh->close;
+	
+	# check for existing file information from previous manifest file
+	if (exists $manifest2file{$fname}) {
+		$md5 = $manifest2file{$fname};
 	}
 	else {
-		# calculate the md5 with external utility
-		my $checksum = `md5sum \"$file\"`; # quote file, because we have files with ;
-		($md5, undef) = split(/\s+/, $checksum);
+		# we will have to calculate the md5 checksum
+		if (-e "$file\.md5") {
+			# looks like we have pre-calculated md5 file, so please use it
+			my $fh = IO::File->new("$file\.md5");
+			my $line = $fh->getline;
+			($md5, undef) = split(/\s+/, $line);
+			$fh->close;
+		}
+		else {
+			# calculate the md5 with external utility
+			my $checksum = `md5sum \"$file\"`; # quote file, because we have files with ;
+			($md5, undef) = split(/\s+/, $checksum);
+		}
 	}
 	
-	# check age
+	
+	# check age - we are comparing the time in seconds from epoch which is easier
 	$youngest_age = $st[9] if ($st[9] > $youngest_age);
 	
 	# check file type
-	my $keeper;
+	my $keeper = 0;
 	if ($file =~ /\.(?:bw|bigwig|bb|bigbed|useq)$/i) {
 		# an indexed analysis file
 		$keeper = 1;
@@ -201,13 +226,13 @@ sub callback {
 		$v =~ s/\.tbi$//i;
 		$keeper = 1 if -e $v;
 	}
-	elsif ($file =~ /\.(?:bam|bai|cram|crai|sam\.gz)$/i) {
+	elsif ($file =~ /\.(?:bam|bai|cram|crai|csi|sam\.gz)$/i) {
 		# an alignment file
 		$keeper = 2;
 	}
 	elsif (
 		$file =~ m/^.*\d{4,5}[xX]\d+_.+_(?:sequence|sorted)\.txt\.gz(?:\.md5)?$/ or 
-		$file =~ m/^\d{4,5}X\d+_.+\.txt\.gz(?:\.md5)?$/ or 
+		$file =~ m/^\d{4,5}[xX]\d+_.+\.txt\.gz(?:\.md5)?$/ or 
 		$file =~ m/\.(?:fastq|fq)(?:\.gz)?$/i
 	) {
 		# looks like a fastq file
@@ -221,12 +246,11 @@ sub callback {
 	}
 	
 	# record the manifest information
-	push @manifest, join("\t", $md5, $st[7], 
-		strftime("%B %d, %Y %H:%M:%S", localtime($st[9])), TYPE->[$keeper], $fname);
+	push @manifest, join("\t", $md5, $size, $date, TYPE->[$keeper], $fname);
 	
 	
 	# record in appropriate lists
-	if (int($st[7]) < 100_000_000 and not $keeper) {
+	if (int($size) < 100_000_000 and not $keeper) {
 		push @ziplist, $fname;
 # 		print "   archiving and removing $fname\n";
 	}
@@ -236,23 +260,6 @@ sub callback {
 # 		print "   uploading $fname\n";
 	}
 	
-# 	elsif ($keeper == 1) {
-# 		# we will archive these to amazon, but also keep locally for users, so don't remove
-# 		push @uploadlist, $fname;
-# 		print "   uploading $fname\n";
-# 	}
-# 	elsif ($keeper >= 2) {
-# 		# these will get archived and then removed locally
-# 		push @uploadlist, $fname;
-# 		# push @removelist, $fname;
-# 		print "   uploading and removing $fname\n";
-# 	}
-# 	else {
-# 		# everything else
-# 		push @uploadlist, $fname;
-# 		# push @removelist, $fname;
-# 		print "   uploading and removing $fname\n";
-# 	}
 }
 
 
@@ -279,6 +286,20 @@ sub write_file {
 }
 
 
-
+sub load_manifest {
+	my $file = shift;
+	
+	# open file
+	my $fh = IO::File->new($file, 'r') or 
+		die "can't read $file! $!\n";
+	
+	# process
+	while (my $line = $fh->getline) {
+		chomp($line);
+		my @bits = split('\t', $line);
+		$manifest2file{$bits[4]} = $bits[0];
+	}
+	$fh->close;
+}
 
 
