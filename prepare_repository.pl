@@ -16,8 +16,11 @@ use vars qw(*fname);
 use constant {
 	SIXMOS   => 60 * 60 * 24 * 180,
 	THREEMOS => 60 * 60 * 24 * 90,
-	TYPE     => [qw(Other Analysis Alignment Fastq)],
+	TYPE     => [qw(Other Analysis Alignment Fastq QC)],
 };
+
+my $VERSION = 2;
+
 
 
 # Documentation
@@ -49,6 +52,7 @@ my @ziplist;
 my @uploadlist;
 my @removelist;
 my $youngest_age = 0;
+my $project;
 
 
 
@@ -58,12 +62,15 @@ while (my $given_dir = shift @ARGV) {
 	my $start_time = time;
 	
 	# extract the project ID
-	my $project;
 	if ($given_dir =~ m/(A\d{1,5}|\d{3,5}R)\/?$/) {
+		# look for A prefix or R suffix project identifiers
+		# this ignores Request digit suffixes such as 1234R1, 
+		# when clients submitted replacement samples
 		$project = $1;
 		print " working on $project at $given_dir\n";
 	}
 	elsif ($given_dir =~ m/(\d{2,4})\/?$/) {
+		# old style naming convention without an A prefix or R suffix
 		$project = $1;
 		print " working on $project at $given_dir\n";
 	}
@@ -86,7 +93,6 @@ while (my $given_dir = shift @ARGV) {
 	my $upload_file   = File::Spec->catfile($given_dir, $project . "_UPLOAD_LIST.txt");
 	my $remove_file   = File::Spec->catfile($given_dir, $project . "_REMOVE_LIST.txt");
 	my $zip_file      = File::Spec->catfile($given_dir, $project . "_ARCHIVE.zip");
-	push @uploadlist, $manifest_file, $ziplist_file, $zip_file;
 	
 	# search directory using File::Find 
 	find(\&callback, $given_dir);
@@ -99,24 +105,32 @@ while (my $given_dir = shift @ARGV) {
 		# keep analysis and other files if date is less than six months
 		foreach my $m (@manifest) {
 			my @fields = split("\t", $m);
-			push @removelist, $fields[4] if ($fields[3] eq 'Alignment' or $fields[3] eq 'Fastq');
+			next if ($fields[3] eq 'Alignment' or $fields[3] eq 'Fastq' or $fields[3] eq 'QC');
+			push @removelist, $fields[4];
 		}
 	}
 	else {
 		# otherwise remove everything
 		foreach my $m (@manifest) {
 			my @fields = split("\t", $m);
-			push @removelist, $fields[4] unless ($fields[3] eq 'Analysis');
+			next if ($fields[3] eq 'Analysis' or $fields[3] eq 'QC');
+			push @removelist, $fields[4];
 		}
 	}
 	
 	# write files
 	write_file($manifest_file, \@manifest);
-	write_file($ziplist_file, \@ziplist);
-	write_file($upload_file, \@uploadlist);
-	write_file($remove_file, \@removelist);
+	write_file($ziplist_file, \@ziplist) if @ziplist;
+	write_file($remove_file, \@removelist) if @removelist;
+	if (@uploadlist or @ziplist) {
+		push @uploadlist, $manifest_file;
+		push @uploadlist, $ziplist_file if @ziplist;
+		push @uploadlist, $zip_file if @ziplist;
+		write_file($upload_file, \@uploadlist);
+	}
 	
-	# move files out of directory
+	
+	# temporarily move files out of directory
 	# this will appease David and not tip off users by sudden appearance of additional files
 	move($manifest_file, $start_dir);
 	move($ziplist_file, $start_dir);
@@ -126,6 +140,7 @@ while (my $given_dir = shift @ARGV) {
 	# finished
 	printf " finished with $project in %.1f minutes\n", (time - $start_time)/60;
 	$youngest_age = 0;
+	undef $project;
 }
 
 
@@ -143,6 +158,10 @@ sub callback {
 	elsif ($file =~ /libsnappyjava|fdt\.jar/) {
 		# devil java spawn, delete!!!!
 		push @removelist, $file;
+		return;
+	}
+	elsif ($file eq '.DS_Store' or $file eq 'Thumbs.db') {
+		# Windows and Mac file browser devil spawn, just ignore these, or maybe delete?
 		return;
 	}
 	
@@ -194,6 +213,12 @@ sub callback {
 		# looks like a fastq file
 		$keeper = 3;
 	}
+	elsif ($fname =~ /^$project\/(?:bioanalysis|Sample QC|Library QC)\//) {
+		# these are QC samples in a bioanalysis or Sample of Library QC folder
+		# directly under the main project 
+		# hope there aren't any of these folders in Analysis!!!!!
+		$keeper = 4;
+	}
 	
 	# record the manifest information
 	push @manifest, join("\t", $md5, $st[7], 
@@ -206,8 +231,8 @@ sub callback {
 # 		print "   archiving and removing $fname\n";
 	}
 	else {
-		# everything else
-		push @uploadlist, $fname;
+		# everything else except for sample quality files
+		push @uploadlist, $fname unless $keeper == 4;
 # 		print "   uploading $fname\n";
 	}
 	
