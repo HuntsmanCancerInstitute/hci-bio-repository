@@ -21,7 +21,7 @@ use constant {
 	TYPE     => [qw(Other Analysis Alignment Fastq QC ArchiveZipped)],
 };
 
-my $VERSION = 6;
+my $VERSION = 6.1;
 
 # Documentation
 my $doc = <<DOC;
@@ -425,7 +425,7 @@ sub callback {
 	}
 	elsif (
 		$file =~ m/^.*\d{4,5}[xX]\d+_.+_(?:sequence|sorted)\.txt\.gz(?:\.md5)?$/ or 
-		$file =~ m/^\d{4,5}[xX]\d+_.+\.txt\.gz(?:\.md5)?$/ or 
+		$file =~ m/^\d{4,5}[xX]\d+_.+\.(?:txt|fastq)\.gz(?:\.md5)?$/ or 
 		$file =~ m/\.(?:fastq|fq)(?:\.gz)?$/i
 	) {
 		# looks like a fastq file
