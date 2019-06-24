@@ -21,7 +21,7 @@ use constant {
 	TYPE     => [qw(Other Analysis Alignment Fastq QC ArchiveZipped)],
 };
 
-my $VERSION = 7.1;
+my $VERSION = 7.2;
 
 # Documentation
 my $doc = <<DOC;
@@ -324,10 +324,16 @@ if ($delete_del_files and -e $deleted_folder and -e $remove_file) {
 }
 elsif ($delete_del_files and -e $alt_remove and not -e $deleted_folder) {
 	print " > deleting files in $given_dir\n";
-	delete_project_files();
+	delete_project_files($alt_remove);
+}
+elsif ($delete_del_files and -e $remove_file) {
+	# this is unusual, it may be a processed folder, or a folder processed with 
+	# a very early version of this script
+	print " > folder appears processed, but attempting to delete files in $given_dir\n";
+	delete_project_files($remove_file);
 }
 elsif ($delete_del_files) {
-	print " > nothing found to delete\n";
+	print " > no remove file list found to delete files\n";
 }
 
 
@@ -360,11 +366,11 @@ sub scan_directory {
 		print " >> moving $zip_file to $alt_zip\n" if $verbose;
 		move($alt_zip, $zip_file);
 	}
-	if (-e $alt_ziplist) {
+	if (-e $alt_ziplist and $to_zip) {
 		print " >> removing $alt_ziplist\n" if $verbose;
 		unlink($alt_ziplist);
 	}
-	if (-e $ziplist_file) {
+	if (-e $ziplist_file and $to_zip) {
 		print " >> removing $ziplist_file\n" if $verbose;
 		unlink($ziplist_file);
 	}
@@ -417,7 +423,7 @@ sub scan_directory {
 		print " >> youngest file is more than 6 months\n" if $verbose;
 		foreach my $m (@manifest) {
 			my @fields = split("\t", $m);
-			next if ($fields[3] eq 'ArchiveZipped');
+			next if ($fields[3] eq 'ArchiveZipped' and not $everything);
 			next if ($fields[3] eq 'Analysis' and not $everything);
 			push @removelist, $fields[4];
 		}
@@ -550,7 +556,7 @@ sub callback {
 		# looks like a fastq file
 		$keeper = 3;
 	}
-	elsif ($fname =~ m/^.\/(?:bioanalysis|Sample QC|Library QC)\//) {
+	elsif ($fname =~ m/^\.\/(?:bioanalysis|Sample QC|Library QC)\//) {
 		# these are QC samples in a bioanalysis or Sample of Library QC folder
 		# directly under the main project 
 		# hope there aren't any of these folders in Analysis!!!!!
@@ -564,19 +570,21 @@ sub callback {
 	my $clean_name = $fname;
 	$clean_name =~ s/^\.\///; # strip the beginning ./ from the name to clean it up
 	
-	if ($file =~ /\.txt$/i and not $keeper) {
-		# all plain text files get zipped regardless of size
-		push @ziplist, $clean_name;
-		$keeper = 5;
-	}
-	elsif (int($size) < 100_000_000 and $keeper == 0) {
-		# all small files under 100 MB get zipped
-		push @ziplist, $clean_name;
-		$keeper = 5;
-	}
-	elsif (int($size) < 100_000_000 and $keeper == 4) {
-		# all bioanalysis files under 100MB get zipped
-		push @ziplist, $clean_name;
+	if ($to_zip) {
+		if ($file =~ /\.txt$/i and not $keeper) {
+			# all plain text files get zipped regardless of size
+			push @ziplist, $clean_name;
+			$keeper = 5;
+		}
+		elsif (int($size) < 100_000_000 and $keeper == 0) {
+			# all small files under 100 MB get zipped
+			push @ziplist, $clean_name;
+			$keeper = 5;
+		}
+		elsif (int($size) < 100_000_000 and $keeper == 4) {
+			# all bioanalysis files under 100MB get zipped
+			push @ziplist, $clean_name;
+		}
 	}
 	
 	# record the manifest information
@@ -597,9 +605,16 @@ sub move_the_zip_files {
 	# process the ziplist
 	foreach my $file (@ziplist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
+		unless (-e $basefile) {
+			# older versions may record the project folder in the name, so let's 
+			# try removing that
+			$basefile =~ s/^$project\///;
+			next unless -e $basefile; # give up if it's still not there
+		}
 		my $targetdir = File::Spec->catdir($zipped_folder, $dir);
 		make_path($targetdir); # this should safely skip existing directories
 						# permissions and ownership inherit from user, not from source
+		print " >> moving $file\n" if $verbose;
 		move($file, $targetdir);
 	}
 	
@@ -625,6 +640,12 @@ sub delete_zipped_file_folder {
 	foreach my $file (@ziplist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
 		my $targetfile = File::Spec->catfile($zipped_folder, $dir, $basefile);
+		unless (-e $targetfile) {
+			# older versions may record the project folder in the name, so let's 
+			# try removing that
+			$targetfile =~ s/$project\///;
+			next unless -e $targetfile; # give up if it's still not there
+		}
 		print " >> DELETING $targetfile\n" if $verbose;
 		unlink($targetfile);
 	}
@@ -648,9 +669,16 @@ sub hide_deleted_files {
 	# process the removelist
 	foreach my $file (@removelist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
+		unless (-e $basefile) {
+			# older versions may record the project folder in the name, so let's 
+			# try removing that
+			$basefile =~ s/^$project\///;
+			next unless -e $basefile; # give up if it's still not there
+		}
 		my $targetdir = File::Spec->catdir($deleted_folder, $dir);
 		make_path($targetdir); # this should safely skip existing directories
 						# permissions and ownership inherit from user, not from source
+		print " >> moving $file\n" if $verbose;
 		move($file, $targetdir);
 	}
 	
@@ -679,6 +707,12 @@ sub delete_hidden_deleted_files {
 	foreach my $file (@removelist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
 		my $targetfile = File::Spec->catfile($deleted_folder, $dir, $basefile);
+		unless (-e $targetfile) {
+			# older versions may record the project folder in the name, so let's 
+			# try removing that
+			$targetfile =~ s/$project\///;
+			next unless -e $targetfile; # give up if it's still not there
+		}
 		print " >> DELETING $targetfile\n" if $verbose;
 		unlink($targetfile);
 	}
@@ -691,13 +725,20 @@ sub delete_hidden_deleted_files {
 }
 
 sub delete_project_files {
+	my $listfile = shift;
 	
 	# load the delete file contents
 	# I can't trust that we have a removelist array in memory, so read it from file
-	@removelist = get_file_list($alt_remove);
+	@removelist = get_file_list($listfile);
 	
 	# process the removelist
 	foreach my $file (@removelist) {
+		unless (-e $file) {
+			# older versions may record the project folder in the name, so let's 
+			# try removing that
+			$file =~ s/^$project\///;
+			next unless -e $file; # give up if it's still not there
+		}
 		print " >> DELETING $file\n" if $verbose;
 		unlink $file;
 	}
