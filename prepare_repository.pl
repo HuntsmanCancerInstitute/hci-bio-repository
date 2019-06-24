@@ -21,7 +21,7 @@ use constant {
 	TYPE     => [qw(Other Analysis Alignment Fastq QC ArchiveZipped)],
 };
 
-my $VERSION = 7.4;
+my $VERSION = 8;
 
 # Documentation
 my $doc = <<DOC;
@@ -61,8 +61,8 @@ my $doc = <<DOC;
     $0 {} > out.txt
   
   Intended usage:
-    1.  Execute with --scan --hide long before Snowball transfer
-    2.  Immediately before Snowball transfer, re-run with --scan --zip --mvzip
+    1.  Execute with --scan --hide long before Snowball transfer to prepare
+    2.  Immediately before transfer, re-run with --scan --zip --mvzip
     3.  Perform Snowball or aws transfer.
     4.  Chmod directories as "read only".
     5.  Chmod directories as writeable. Re-run with --mvdel option to "remove" 
@@ -72,20 +72,49 @@ my $doc = <<DOC;
         directories by running with --delzip and --delete. Only files left are 
         MANIFEST, ARCHIVE_LIST, and REMOVE_LIST files, and some indexed analysis files.
   
+  Problems and notes:
+        Scanning can take a while, but the only time-consuming part is the MD5 
+        checksum calculation for Analysis directories. Run multiple jobs at a time 
+        to speed it up slightly. 
+        
+        Scanning a directory for files to create the MANIFEST and other LIST files
+        always takes what is currently listed in the directory. It will reload an
+        original MANIFEST file to save time calculating MD5 checksums (if the time
+        stamp hasn't changed), but otherwise ignore anything else in there. If you've
+        already removed some files, add the --keep option to keep those pre-existing
+        records.
+        
+        For external labs, where we don't want to keep even certain analysis files, 
+        add the --all option to mark everything for deletion during scanning.
+        
+        When you want to unhide the LIST and ARCHIVE files, just rerun with --scan 
+        option without the --hide option. The REMOVE_LIST file is always hidden 
+        until the --delete option is given.
+        
+        Use the --unhide to restore any "hidden" zipped or deleted files stored in 
+        the parent directory. It uses the ARCHIVE_LIST and REMOVE_LIST files as a list 
+        of the files that have been hidden. No other functions can be performed.
+        
+        Always test first on a single directory, and turn on --verbose to check what is 
+        being done. Verbose is usually too much for production work.
+        
+        
   
   Usage: $0 [options] <path>
   
   Options:  
     --scan    Scan the project directory for new files
+    --keep    Keep existing manifest file entries when scanning
     --noalist Do not write an archive list when scanning
     --nodlist Do not write a delete list when scanning
+    --all     Mark everything, including Analysis files, for deletion when scanning
     --zip     Create and/or update the zip archive when scanning
-    --hide    Hide the list files in parent directory
+    --hide    Hide the LIST and ARCHIVE files in the parent directory
     --mvzip   Move the zipped files out of the project folder to hidden parent folder 
     --mvdel   Move the to-delete files out of the project folder to hidden parent folder
     --delzip  Delete the hidden zipped files
     --delete  Delete the to-delete files from the project or hidden folder
-    --all     Delete everything including Analysis files
+    --unhide  Unhide files, either _ZIPPED_FILES or _DELETED_FILES
     --verbose Tell me everything!
     <path>    Path of the project folder from root, example
                /Repository/MicroarrayData/2010/1234R
@@ -106,6 +135,7 @@ unless (@ARGV) {
 
 ######## Process command line options
 my $scan;
+my $keep_existing_manifest_entries;
 my $write_delete_list;
 my $write_zip_list;
 my $hidden; 
@@ -115,12 +145,14 @@ my $move_zip_files;
 my $move_del_files;
 my $delete_zip_files;
 my $delete_del_files;
+my $unhide_files;
 my $everything;
 my $verbose;
 
 if (scalar(@ARGV) > 1) {
 	GetOptions(
 		'scan!'     => \$scan,
+		'keep!'     => \$keep_existing_manifest_entries,
 		'alist!'    => \$write_zip_list,
 		'dlist!'    => \$write_delete_list,
 		'hide!'     => \$hidden,
@@ -129,6 +161,7 @@ if (scalar(@ARGV) > 1) {
 		'mvdel!'    => \$move_del_files,
 		'delzip!'   => \$delete_zip_files,
 		'delete!'   => \$delete_del_files,
+		'unhide!'   => \$unhide_files,
 		'all!'      => \$everything,
 		'verbose!'  => \$verbose,
 	) or die "please recheck your options!\n\n$doc\n";
@@ -144,7 +177,10 @@ die "must scan if you zip!\n" if ($to_zip and not $scan);
 die "can't move zipped files if hidden!\n" if ($hidden and $move_zip_files);
 die "can't move deleted files if hidden!\n" if ($hidden and $move_del_files);
 die "can't both move deleted files and delete them!\n" if ($move_del_files and $delete_del_files);
-
+if ($unhide_files) {
+	die "can't do anything else if unhiding files!\n" if $scan or $move_del_files or 
+		$move_zip_files or $delete_del_files or $delete_zip_files or $hidden or $to_zip;
+}
 
 
 
@@ -241,11 +277,11 @@ if ($verbose) {
 my $zipped_folder = File::Spec->catfile($parent_dir, $project . "_ZIPPED_FILES");
 print " =>  zipped folder: $zipped_folder\n" if $verbose;
 if (-e $zipped_folder) {
-	print "zipped files hidden folder already exists! Will not zip\n" if $to_zip;
+	print " ! zipped files hidden folder already exists! Will not zip\n" if $to_zip;
 	$to_zip = 0; # do not want to rezip
-	print "zipped files hidden folder already exists! Will not move zipped files\n" if $move_zip_files;
+	print " ! zipped files hidden folder already exists! Will not move zipped files\n" if $move_zip_files;
 	$move_zip_files = 0; # do not want to move zipped files
-	print "cannot re-scan if zipped files hidden folder exists!\n" if $scan;
+	print " ! cannot re-scan if zipped files hidden folder exists!\n" if $scan;
 	$scan = 0;
 }
 
@@ -253,9 +289,9 @@ if (-e $zipped_folder) {
 my $deleted_folder = File::Spec->catfile($parent_dir, $project . "_DELETED_FILES");
 print " => deleted folder: $deleted_folder\n" if $verbose;
 if (-e $deleted_folder) {
-	print "deleted files hidden folder already exists! Will not move deleted files\n" if $move_del_files;
+	print " ! deleted files hidden folder already exists! Will not move deleted files\n" if $move_del_files;
 	$move_del_files = 0; # do not want to move zipped files
-	print "cannot re-scan if deleted files hidden folder exists!\n" if $scan;
+	print "! cannot re-scan if deleted files hidden folder exists!\n" if $scan;
 	$scan = 0;
 }
 
@@ -271,9 +307,9 @@ else {
 	# primarily for testing purposes
 	$notice_source_file = "~/missing_file_notice.txt";
 }
-if (-e $notice_file and $scan) {
-	print "cannot re-scan if notice file is in place\n";
-	$scan = 0;
+if (-e $notice_file and $scan and not $keep_existing_manifest_entries) {
+	print " ! keeping existing manifest file entries since notice is in place\n";
+	$keep_existing_manifest_entries = 1;
 }
 
 
@@ -281,6 +317,37 @@ if (-e $notice_file and $scan) {
 
 
 ######## Main processing ###############
+
+# unhide files
+if ($unhide_files) {
+	if (-e $zipped_folder) {
+		print " > unhiding files for $project from directory $zipped_folder to $given_dir\n";
+		if (-e $ziplist_file) {
+			unhide_directory_files($zipped_folder, $ziplist_file);
+		}
+		else {
+			die " no zip list file $ziplist_file, can't unhide!\n";
+		}
+	}
+	if (-e $deleted_folder) {
+		print " > unhiding files for $project from directory $deleted_folder to $given_dir\n";
+		if (-e $remove_file) {
+			unhide_directory_files($deleted_folder, $remove_file);
+			move($remove_file, $alt_remove) or print "   failed to hide $remove_file! $!\n";
+		}
+		else {
+			if (-e $alt_remove) {
+				print "   wierd! no delete list file, but have alternate remove file! trying with that\n";
+				unhide_directory_files($deleted_folder, $alt_remove);
+			}
+			else {
+				die " no delete list files found!\n";
+			}
+		}
+		
+	}
+}
+
 
 # scan the directory
 if ($scan) {
@@ -296,7 +363,7 @@ if ($move_zip_files and -e $ziplist_file) {
 	move_the_zip_files();
 }
 elsif ($move_zip_files and not -e $ziplist_file) {
-	print " > no zipped files to move\n";
+	print " ! no zipped files to move\n";
 }
 
 
@@ -306,7 +373,7 @@ if ($delete_zip_files and -e $zipped_folder) {
 	delete_zipped_file_folder();
 }
 elsif ($delete_zip_files and not -e $zipped_folder) {
-	print " > zipped files not put into hidden zip folder, cannot delete!\n";
+	print " ! zipped files not put into hidden zip folder, cannot delete!\n";
 }
 
 
@@ -316,7 +383,7 @@ if ($move_del_files and -e $alt_remove) {
 	hide_deleted_files();
 }
 elsif ($move_del_files and not -e $alt_remove) {
-	print " > No deleted files to hide\n";
+	print " ! No deleted files to hide\n";
 }
 
 
@@ -336,7 +403,7 @@ elsif ($delete_del_files and -e $remove_file) {
 	delete_project_files($remove_file);
 }
 elsif ($delete_del_files) {
-	print " > no remove file list found to delete files\n";
+	print " ! no remove file list found to delete files\n";
 }
 
 
@@ -367,7 +434,7 @@ sub scan_directory {
 	### first unhide or remove existing files
 	if (-e $alt_zip) {
 		print "  > moving alternate $zip_file to $alt_zip\n" if $verbose;
-		move($alt_zip, $zip_file);
+		move($alt_zip, $zip_file) or print "    failed to move $alt_zip! $!\n";
 	}
 	if (-e $alt_ziplist and $to_zip) {
 		print "  > removing alternate $alt_ziplist\n" if $verbose;
@@ -391,7 +458,7 @@ sub scan_directory {
 	}
 	if (-e $alt_manifest) {
 		print "  > moving alternate $alt_manifest to $manifest_file\n" if $verbose;
-		move($alt_manifest, $manifest_file);
+		move($alt_manifest, $manifest_file) or print "    failed to move $alt_manifest! $!\n";
 	}
 	if (-e $upload_file) {
 		# we are no longer using or writing upload files
@@ -416,22 +483,15 @@ sub scan_directory {
 	
 	
 	
-	### fill out the removelist based on age
-	if (time - $youngest_age < SIXMOS) {
-		# keep everything here if date is less than six months
-		print "    youngest file is less than 6 months\n" if $verbose;
+	### fill out the removelist
+	# no longer doing this based on age - not a valid criteria, and messes up lists
+	foreach my $m (@manifest) {
+		my @fields = split("\t", $m);
+		next if ($fields[3] eq 'ArchiveZipped' and not $everything);
+		next if ($fields[3] eq 'Analysis' and not $everything);
+		push @removelist, $fields[4];
 	}
-	else {
-		# otherwise remove everything
-		print "    youngest file is more than 6 months\n" if $verbose;
-		foreach my $m (@manifest) {
-			my @fields = split("\t", $m);
-			next if ($fields[3] eq 'ArchiveZipped' and not $everything);
-			next if ($fields[3] eq 'Analysis' and not $everything);
-			push @removelist, $fields[4];
-		}
-	}
-	printf "   identified %d files to remove\n", scalar(@removelist) if $verbose;
+	printf "  > identified %d files to remove\n", scalar(@removelist) if $verbose;
 
 	
 	
@@ -450,7 +510,7 @@ sub scan_directory {
 				print "  > zipping files\n";
 				my $command = sprintf("cat %s | zip -1 -FS -@ %s", $ziplist_file, $zip_file);
 				print "  > executing: $command\n";
-				system($command);
+				print "    failed! $!\n" if (system($command));
 				if (-e $zip_file) {
 					my ($date, $size, $md5, $age) = get_file_stats($zip_file, $zip_file);
 					push @manifest, join("\t", $md5, $size, $date, 'meta', $zip_file);
@@ -460,6 +520,21 @@ sub scan_directory {
 		}
 	}
 	
+	
+	### Add back missing manifest file entries if requested
+	if ($keep_existing_manifest_entries) {
+		my %have;
+		# damn, the manifest has already been stringified, and now I have to destring it
+		foreach my $m (@manifest) {
+			my @bits = split "\t", $m;
+			$have{$bits[4]} = $m;
+		}
+		foreach my $f (sort {$a cmp $b} keys %file2manifest) {
+			unless (exists $have{$f}) {
+				push @manifest, join("\t", @{$file2manifest{$f}});
+			}
+		}
+	}
 	
 	
 	### Write remaining files
@@ -471,14 +546,20 @@ sub scan_directory {
 	### Hide files if requested
 	if ($hidden) {
 		print "  > hiding files\n";
-		move($manifest_file, $alt_manifest) if (-e $manifest_file);
-		move($ziplist_file, $alt_ziplist) if (-e $ziplist_file);
-		move($zip_file, $alt_zip) if (-e $zip_file);
+		if (-e $manifest_file) {
+			move($manifest_file, $alt_manifest) or print "   failed to hide $manifest_file! $!\n";
+		}
+		if (-e $ziplist_file) {
+			move($ziplist_file, $alt_ziplist) or print "   failed to hide $ziplist_file! $!\n";
+		}
+		if (-e $zip_file) {
+			move($zip_file, $alt_zip) or print "   failed to hide $zip_file! $!\n";
+		}
 	}
 
 	# always hide the remove list
 	if ($scan and -e $remove_file and not -e $deleted_folder) {
-		move($remove_file, $alt_remove);
+		move($remove_file, $alt_remove) or print "   failed to hide $remove_file! $!";
 	}
 }
 
@@ -622,21 +703,23 @@ sub move_the_zip_files {
 		}
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
 		my $targetdir = File::Spec->catdir($zipped_folder, $dir);
-		make_path($targetdir); # this should safely skip existing directories
-						# permissions and ownership inherit from user, not from source
+		make_path($targetdir); 
+			# this should safely skip existing directories
+			# permissions and ownership inherit from user, not from source
+			# return value is number of directories made, which in some cases could be 0!
 		print "   moving $file\n" if $verbose;
-		move($file, $targetdir);
+		move($file, $targetdir) or print "   failed to move $file! $!";
 	}
 	
 	# clean up empty directories
 	my $command = sprintf("find %s -type d -empty -delete", $given_dir);
 	print "  > executing: $command\n";
-	system($command);
+	print "    failed! $!\n" if (system($command));
 	
 	# put in notice
 	if (not -e $notice_file and $notice_source_file) {
 		$command = sprintf("ln -s %s %s", $notice_source_file, $notice_file);
-		system($command);
+		print "    failed to link notice file! $!\n" if (system($command));
 	}
 }
 
@@ -657,14 +740,18 @@ sub delete_zipped_file_folder {
 			next unless -e $targetfile; # give up if it's still not there
 		}
 		print "   DELETING $targetfile\n" if $verbose;
-		unlink($targetfile);
+		unlink($targetfile) or print "   failed to delete $targetfile! $!\n";
 	}
 	
 	# clean up empty directories
 	my $command = sprintf("find %s -type d -empty -delete", $zipped_folder);
 	print "  > executing: $command\n";
-	system($command);
-	rmdir $zipped_folder;
+	print "    failed! $!\n" if (system($command));
+	if (-e $zipped_folder) {
+		# the empty trim command above should take care of this, if not try again
+		# it may not be empty!
+		rmdir $zipped_folder or print "   failed to remove directory $zipped_folder! $!\n";
+	}
 }
 
 sub hide_deleted_files {
@@ -687,24 +774,63 @@ sub hide_deleted_files {
 			(undef, $dir, $basefile) = File::Spec->splitpath($file); # regenerate these
 		}
 		my $targetdir = File::Spec->catdir($deleted_folder, $dir);
-		make_path($targetdir); # this should safely skip existing directories
-						# permissions and ownership inherit from user, not from source
+		make_path($targetdir); 
+			# this should safely skip existing directories
+			# permissions and ownership inherit from user, not from source
+			# return value is number of directories made, which in some cases could be 0!
 		print "   moving $file\n" if $verbose;
-		move($file, $targetdir);
+		move($file, $targetdir) or print "   failed to move! $!\n";
 	}
 	
 	# clean up empty directories
 	my $command = sprintf("find %s -type d -empty -delete", $given_dir);
 	print "  > executing: $command\n";
-	system($command);
+	print "    failed! $!\n" if (system($command));
 	
 	# move the deleted folder back into archive
-	move($alt_remove, $remove_file);
+	move($alt_remove, $remove_file) or print "   failed to move $alt_remove! $!\n";
 	
 	# put in notice
 	if (not -e $notice_file and $notice_source_file) {
 		$command = sprintf("ln -s %s %s", $notice_source_file, $notice_file);
-		system($command);
+		print "    failed to link notice file! $!\n" if (system($command));
+	}
+}
+
+sub unhide_directory_files {
+	my ($hidden_dir, $hidden_list) = @_; # could be either zipped or deleted
+	
+	my @filelist = get_file_list($hidden_list);
+	
+	# process the removelist
+	foreach my $file (@filelist) {
+		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
+		my $hiddenfile = File::Spec->catdir($hidden_dir, $file);
+		unless (-e $hiddenfile) {
+			# older versions may record the project folder in the name, so let's 
+			# try removing that
+			$file =~ s/^$project\///;
+			$hiddenfile = File::Spec->catdir($hidden_dir, $file);
+			next unless -e $hiddenfile; # give up if it's still not there
+			(undef, $dir, $basefile) = File::Spec->splitpath($file); # regenerate these
+		}
+		my $targetdir = File::Spec->catdir($given_dir, $dir);
+		make_path($targetdir); 
+			# this should safely skip existing directories
+			# permissions and ownership inherit from user, not from source
+			# return value is number of directories made, which in some cases could be 0!
+		print "   moving $hiddenfile to $targetdir\n" if $verbose;
+		move($hiddenfile, $targetdir) or print "   failed to move $hiddenfile! $!\n";
+	}
+	
+	# clean up empty directories
+	my $command = sprintf("find %s -type d -empty -delete", $hidden_dir);
+	print "  > executing: $command\n";
+	print "    failed! $!\n" if (system($command));
+	if (-e $hidden_dir) {
+		# the empty trim command above should take care of this, if not try again
+		# it may not be empty!
+		rmdir $hidden_dir or print "   failed to remove directory $hidden_dir! $!\n";
 	}
 }
 
@@ -721,18 +847,23 @@ sub delete_hidden_deleted_files {
 		unless (-e $targetfile) {
 			# older versions may record the project folder in the name, so let's 
 			# try removing that
-			$targetfile =~ s/$project\///;
+			$dir =~ s/^$project\///;
+			$targetfile = File::Spec->catfile($deleted_folder, $dir, $basefile);
 			next unless -e $targetfile; # give up if it's still not there
 		}
 		print "   DELETING $targetfile\n" if $verbose;
-		unlink($targetfile);
+		unlink($targetfile) or print "   failed to remove $targetfile! $!\n";
 	}
 	
 	# clean up empty directories
 	my $command = sprintf("find %s -type d -empty -delete", $deleted_folder);
 	print "  > executing: $command\n";
-	system($command);
-	rmdir $deleted_folder;
+	print "    failed! $!\n" if (system($command));
+	if (-e $deleted_folder) {
+		# the empty trim command above should take care of this, if not try again
+		# it may not be empty!
+		rmdir $deleted_folder or print "   failed to remove directory $deleted_folder! $!\n";
+	}
 }
 
 sub delete_project_files {
@@ -751,21 +882,21 @@ sub delete_project_files {
 			next unless -e $file; # give up if it's still not there
 		}
 		print "   DELETING $file\n" if $verbose;
-		unlink $file;
+		unlink $file or print "   failed to remove $file! $!\n";
 	}
 	
 	# clean up empty directories
 	my $command = sprintf("find %s -type d -empty -delete", $given_dir);
 	print "  > executing: $command\n";
-	system($command);
+	print "    failed! $!\n" if (system($command));
 	
 	# move the deleted folder back into archive
-	move($alt_remove, $remove_file);
+	move($alt_remove, $remove_file) or print "   failed to move file $alt_remove! $!\n";
 	
 	# put in notice
 	if (not -e $notice_file and $notice_source_file) {
 		$command = sprintf("ln -s %s %s", $notice_source_file, $notice_file);
-		system($command);
+		print "    failed to link notice file! $!\n" if (system($command));
 	}
 }
 
@@ -788,8 +919,8 @@ sub write_file {
 	}
 	$fh->close;
 	
-	# change permissions to rw-r-r- 
-	chmod 0644, $file;
+	# change permissions to r--rw-r-- 
+	chmod 0464, $file;
 }
 
 
@@ -805,6 +936,8 @@ sub load_manifest {
 	while (my $line = $fh->getline) {
 		chomp($line);
 		my @bits = split('\t', $line);
+		next if $bits[0] eq 'MD5';
+		$bits[4] =~ s/^$project\///; # remove the project name in the path
 		next if $bits[4] eq $manifest_file; # this may change
 		next if $bits[4] eq $zip_file; # this may change
 		$file2manifest{$bits[4]} = \@bits;
@@ -825,11 +958,13 @@ sub get_file_stats {
 	
 	# check for existing file information from previous manifest file
 	# make sure the date matches
+	$fname =~ s/^\.\///;
 	if (exists $file2manifest{$fname} and $date eq $file2manifest{$fname}->[2]) {
 		$md5 = $file2manifest{$fname}->[0];
 	}
 	else {
 		# we will have to calculate the md5 checksum
+		
 		if (-e "$file\.md5") {
 			# looks like we have pre-calculated md5 file, so please use it
 			my $fh = IO::File->new("$file\.md5");
