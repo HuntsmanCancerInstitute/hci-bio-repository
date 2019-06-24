@@ -3,29 +3,64 @@
 
 use strict;
 use warnings;
-use IO::File;
 use File::Find;
-use File::Copy;
-use Getopt::Long;
 
-# shortcut variable name to use in the find callback
-use vars qw(*fname);
-*fname = *File::Find::name;
+my $VERSION = 2;
+
+# useful shortcut variable names to use in the find callback
+use vars qw(*fullname *curdir);
+*fullname = *File::Find::name;
+*curdir = *File::Find::dir;
 
 # variables
-my $verbose = 1;
-my $do_copy = 0;
+my $verbose = 0;
+my $do_copy = 1;
+my $check_prefix = qr|^/Repository/AnalysisData/\d{4}/|; # up to year
+my $restore_prefix = '/Repository/MicroarrayData/AnalysisRestore/'; 
 
-# basename for temporary md5 checksum files
-my $basename = '/tmp/temp.' . $$;
+unless (@ARGV) {
+	print <<END;
 
-find(
-	{
-		follow => 0,
+Script to find corrupted files by comparing current with 
+restored copies by checksum. Restores corrupted files from 
+the backup copy if enabled; otherwise prints equivalent command.
+Verbose mode prints status and skipped files.
+
+The check prefix is replaced with the backup prefix so that the 
+two file copies can be found and compared.
+
+Hardcoded values:
+   check prefix regex: $check_prefix    
+   restore prefix:     $restore_prefix
+   verbose:            $verbose         
+   copy:               $do_copy         
+
+Usage:
+  $0 <check_directory> 
+
+Example:
+  $0 /Repository/AnalysisData/2019/A1234 
+
+END
+	exit;
+}
+
+# directories
+my $check_directory = shift @ARGV;
+print "\n ==== Processing $check_directory\n\n";
+
+if (not -d $check_directory) {
+	die "given directory to check '$check_directory' doesn't exist!\n";
+}
+if (not -d $restore_prefix) {
+	die "restore prefix directory '$restore_prefix' doesn't exist!\n";
+}
+
+
+find( {
+		follow => 0, # do not follow symlinks
 		wanted => \&callback,
-	}, 
-# 	'/Repository/AnalysisData/2018',
-	'/Repository/AnalysisData/2019'
+	  }, $check_directory
 );
 
 
@@ -33,109 +68,108 @@ find(
 # find callback
 sub callback {
 	my $file = $_;
-	print "checking $fname\n" if $verbose;
+	print "checking $file\n" if $verbose;
 	
 	# skip directories and symlinks
-	if (not -f $file) {
+	if (-d $file or -l $file) {
 		print " > not a file, skipping\n" if $verbose;
 		return;
 	}
-	
-	# skip small files, about 4 kb in size or smaller
-	my $size = -s _;
-	if ($size < 4000) {
-		print " > too small, skipping\n" if $verbose;
-		return;
-	}
+	my $date = (stat($file))[9];
 	
 	# calculate and check for a corresponding restoration file
-	my $restore_file = $fname;
-	$restore_file =~ s|^/Repository/AnalysisData/\d{4}/|/Repository/MicroarrayData/AnalysisRestore/|;
-	if (not -f $file) {
-		print " > restored file not present, skipping\n" if $verbose;
-		return;
+	my $restore_file = $fullname;
+	$restore_file =~ s|$check_prefix|$restore_prefix|;
+	if (-e $restore_file) {
+		print " > restored file present\n" if $verbose;
 	}
 	else {
-		print "  restored file: $restore_file\n";
-	}
-	
-	# calculate checksums 
-	my ($check1, $check2);
-	# current file
-	my $checksum = `md5sum \"$file\"`;
-	($check1, undef) = split /\s+/, $checksum;
-	
-	# restored file
-	$checksum = `md5sum \"$restore_file\"`;
-	($check2, undef) = split /\s+/, $checksum;
-	
-# 	if ($size < 100000000) {
-# 		# file is under 100 MB, calculate serially, directly
-# 		
-# 	}
-# 	else {
-# 		# files are big, fork this 
-# 		
-# 		# THIS ISN'T WORKING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# 		
-# 		# first file
-# 		my $child1 = fork();
-# 		die "couldn't fork!" unless defined $child1;
-# 		if (not $child1) {
-# 			# child process
-# 			system("md5sum $file > $basename.1");
-# 			exit;
-# 		}
-# 
-# 		# check file2
-# 		my $child2 = fork();
-# 		die "couldn't fork!" unless defined $child2;
-# 		if (not $child2) {
-# 			# child process
-# 			system("md5sum $restore_file > $basename.2");
-# 			exit;
-# 		}
-# 
-# 		# collect checksums
-# 		wait;
-# 		sleep 5; # seems like I have to wait.... why?
-# 		if (-s "$basename.1" and -s "$basename.2") {
-# 			# both files are present and non-zero length, success
-# 		
-# 			# first file
-# 			my $fh = IO::File->new("$basename.1") or 
-# 				die "unable to read $basename.1! $!\n";
-# 			($check1, undef) = split(/\s+/, $fh->getline);
-# 			$fh->close;
-# 			unlink "$basename.1";
-# 		
-# 			# second file
-# 			$fh = IO::File->new("$basename.2") or 
-# 				die "unable to read $basename.2! $!\n";
-# 			($check2, undef) = split(/\s+/, $fh->getline);
-# 			$fh->close;
-# 			unlink "$basename.2";
-# 		
-# 		}
-# 		else {
-# 			die "can't find md5 output files $basename!\n";
-# 		}
-# 	}
-	
-	# compare
-	if ($check1 eq $check2) {
-		print " > file ok\n";
-		return;
-	}
-	else {
-		print " > file $fname corrupt!\n" if $verbose;
-		if ($do_copy) {
-			print " > copying $restore_file to $file\n" if $verbose;
-			cp($restore_file, $file);
+		if ($restore_file =~ /_REMOVE_LIST\.txt$/) {
+			# special case, may be hidden, try looking up one directory
+			$restore_file =~ s|A\d{4}/||;
+			if (-e $restore_file) {
+				print " > restored file present\n" if $verbose;
+			}
+			else {
+				# still not present
+				print " > restored file '$restore_file' NOT present, skipping\n" if $verbose;
+				return;
+			}
+		}
+		elsif ($restore_file =~ /_DELETED_FILES/) {
+			# special case, may be hidden, look in the parent directory
+			$restore_file =~ s|_DELETED_FILES||;
+			if (-e $restore_file) {
+				print " > restored file present\n" if $verbose;
+			}
+			else {
+				# still not present
+				print " > restored file '$restore_file' NOT present, skipping\n" if $verbose;
+				return;
+			}
+		}
+		else {
+			print " > restored file '$restore_file' NOT present, skipping\n" if $verbose;
+			return;
 		}
 	}
 	
+	# check dates - they should be the same
+	my $restore_date = (stat($restore_file))[9];
+	if ($date > $restore_date) {
+		if ($verbose) {
+			print " > current file is newer than restored file, skipping\n";
+		}
+		else {
+			print " Newer: $fullname\n";
+		}
+		return;
+	}
+	elsif ($date < $restore_date) {
+		if ($verbose) {
+			print " >  WARNING! current file is older than restored file! skipping\n";
+		}
+		else {
+			print " OLDER! $fullname\n";
+		}
+		return;
+	}
 	
+	# current file checksum
+	my $checksum = `md5sum \"$file\"`;
+	my ($check1, undef) = split /\s+/, $checksum;
+	
+	# restored file checksum
+	$checksum = `md5sum \"$restore_file\"`;
+	my ($check2, undef) = split /\s+/, $checksum;
+	
+	# compare
+	if ($check1 eq $check2) {
+		if ($verbose) {
+			print " > file OK\n";
+		}
+		else {
+			print " OK $fullname\n";
+		}
+		return;
+	}
+	else {
+		if ($verbose) {
+			print " > file CORRUPT\n";
+		}
+		else {
+			print " CORRUPT $fullname\n"
+		}
+		if ($do_copy) {
+			print "  > copying $restore_file to $file\n";
+			system('/usr/bin/cp', '-p', $restore_file, $file) == 0 or 
+				die " > WARNING! external cp failed!\n";
+			# if this fails something is wrong and I need to fix it!!!!
+		}
+		else {
+			print "  > should execute: cd $curdir && cp -p $restore_file $file\n";
+		}
+	}
 }
 
 
