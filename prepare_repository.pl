@@ -21,7 +21,7 @@ use constant {
 	TYPE     => [qw(Other Analysis Alignment Fastq QC ArchiveZipped)],
 };
 
-my $VERSION = 7.2;
+my $VERSION = 7.3;
 
 # Documentation
 my $doc = <<DOC;
@@ -202,7 +202,7 @@ if ($given_dir =~ m/^(\/Repository\/(?:MicroarrayData|AnalysisData)\/\d{4})\/?/)
 elsif ($given_dir =~ m/^(.+)$project\/?$/) {
 	$parent_dir = $1;
 }
-print " >> using parent directory $parent_dir\n" if $verbose;
+print "   using parent directory $parent_dir\n" if $verbose;
 
 # change to the given directory
 print " > changing to $given_dir\n";
@@ -363,31 +363,31 @@ printf " > finished with $project in %.1f minutes\n", (time - $start_time)/60;
 sub scan_directory {
 	### first unhide or remove existing files
 	if (-e $alt_zip) {
-		print " >> moving $zip_file to $alt_zip\n" if $verbose;
+		print "  > moving alternate $zip_file to $alt_zip\n" if $verbose;
 		move($alt_zip, $zip_file);
 	}
 	if (-e $alt_ziplist and $to_zip) {
-		print " >> removing $alt_ziplist\n" if $verbose;
+		print "  > removing alternate $alt_ziplist\n" if $verbose;
 		unlink($alt_ziplist);
 	}
 	if (-e $ziplist_file and $to_zip) {
-		print " >> removing $ziplist_file\n" if $verbose;
+		print "  > removing $ziplist_file\n" if $verbose;
 		unlink($ziplist_file);
 	}
 	if (-e $alt_upload) {
-		print " >> removing $alt_upload\n" if $verbose;
+		print "  > removing alternate $alt_upload\n" if $verbose;
 		unlink($alt_upload);
 	}
 	if (-e $alt_remove) {
-		print " >> removing $alt_remove\n" if $verbose;
+		print "  > removing alternate $alt_remove\n" if $verbose;
 		unlink($alt_remove);
 	}
 	if ($remove_file) {
-		print " >> removing $remove_file\n" if $verbose;
+		print "  > removing $remove_file\n" if $verbose;
 		unlink($remove_file);
 	}
 	if (-e $alt_manifest) {
-		print " >> moving $alt_manifest to $manifest_file\n" if $verbose;
+		print "  > moving alternate $alt_manifest to $manifest_file\n" if $verbose;
 		move($alt_manifest, $manifest_file);
 	}
 	if (-e $upload_file) {
@@ -416,11 +416,11 @@ sub scan_directory {
 	### fill out the removelist based on age
 	if (time - $youngest_age < SIXMOS) {
 		# keep everything here if date is less than six months
-		print " >> youngest file is less than 6 months\n" if $verbose;
+		print "    youngest file is less than 6 months\n" if $verbose;
 	}
 	else {
 		# otherwise remove everything
-		print " >> youngest file is more than 6 months\n" if $verbose;
+		print "    youngest file is more than 6 months\n" if $verbose;
 		foreach my $m (@manifest) {
 			my @fields = split("\t", $m);
 			next if ($fields[3] eq 'ArchiveZipped' and not $everything);
@@ -428,7 +428,7 @@ sub scan_directory {
 			push @removelist, $fields[4];
 		}
 	}
-	printf " >> identified %d files to remove\n", scalar(@removelist) if $verbose;
+	printf "   identified %d files to remove\n", scalar(@removelist) if $verbose;
 
 	
 	
@@ -444,9 +444,9 @@ sub scan_directory {
 				# we will zip zip with fastest compression for speed
 				# use file sync option to add, update, and/or delete members in zip archive
 				# regardless if it's present or new
-				print " > zipping files\n";
+				print "  > zipping files\n";
 				my $command = sprintf("cat %s | zip -1 -FS -@ %s", $ziplist_file, $zip_file);
-				print "  executing: $command\n";
+				print "  > executing: $command\n";
 				system($command);
 				if (-e $zip_file) {
 					my ($date, $size, $md5, $age) = get_file_stats($zip_file, $zip_file);
@@ -467,7 +467,7 @@ sub scan_directory {
 	
 	### Hide files if requested
 	if ($hidden) {
-		print " > hiding files\n";
+		print "  > hiding files\n";
 		move($manifest_file, $alt_manifest) if (-e $manifest_file);
 		move($ziplist_file, $alt_ziplist) if (-e $ziplist_file);
 		move($zip_file, $alt_zip) if (-e $zip_file);
@@ -483,26 +483,30 @@ sub scan_directory {
 # find callback
 sub callback {
 	my $file = $_;
-	print " >> find callback on $file for $fname\n" if $verbose;
+	print "  > find callback on $file for $fname\n" if $verbose;
 
 	
 	### Ignore certain files
-	return unless -f $file; # skip directories and symlinks!
+	if (not -f $file) {
+		# skip directories and symlinks
+		print "   > not a file, skipping\n" if $verbose;
+		return;
+	}
 	if ($file =~ /\.sra$/i) {
 		# what the hell are SRA files doing in here!!!????
-		print " >>   deleting SRA file\n" if $verbose;
+		print "   > deleting SRA file\n" if $verbose;
 		unlink $file;
 		return;
 	}
 	elsif ($file =~ /libsnappyjava|fdt\.jar/) {
 		# devil java spawn, delete!!!!
-		print " >>   deleting java file\n" if $verbose;
+		print "   > deleting java file\n" if $verbose;
 		unlink $file;
 		return;
 	}
 	elsif ($file eq '.DS_Store' or $file eq 'Thumbs.db') {
 		# Windows and Mac file browser devil spawn, delete these immediately
-		print " >>   deleting file browser metadata file\n" if $verbose;
+		print "   > deleting file browser metadata file\n" if $verbose;
 		unlink $file;
 		return;
 	}
@@ -511,7 +515,6 @@ sub callback {
 	return if ($file eq $ziplist_file);
 	return if ($file eq $upload_file);
 	return if ($file eq $notice_file);
-	print " >>   file doesn't match one of my repository preparation files\n" if $verbose;
 	
 	
 	
@@ -556,7 +559,7 @@ sub callback {
 		# looks like a fastq file
 		$keeper = 3;
 	}
-	elsif ($fname =~ m/^\.\/(?:bioanalysis|Sample QC|Library QC)\//) {
+	elsif ($fname =~ m/^\.\/(?:bioanalysis|Sample.QC|Library.QC|Sequence.QC|)\//) {
 		# these are QC samples in a bioanalysis or Sample of Library QC folder
 		# directly under the main project 
 		# hope there aren't any of these folders in Analysis!!!!!
@@ -588,7 +591,7 @@ sub callback {
 	}
 	
 	# record the manifest information
-	printf " >>   file is a %s file\n", TYPE->[$keeper] if $verbose;
+	printf "   > file is a %s file\n", TYPE->[$keeper] if $verbose;
 	push @manifest, join("\t", $md5, $size, $date, TYPE->[$keeper], $clean_name);
 }
 
@@ -604,23 +607,27 @@ sub move_the_zip_files {
 	
 	# process the ziplist
 	foreach my $file (@ziplist) {
-		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
-		unless (-e $basefile) {
+		unless (-e $file) {
 			# older versions may record the project folder in the name, so let's 
 			# try removing that
-			$basefile =~ s/^$project\///;
-			next unless -e $basefile; # give up if it's still not there
+			$file =~ s/^$project\///;
+			unless (-e $file) {
+				# give up if it's still not there
+				print "   $file not found!\n";
+				next;
+			}
 		}
+		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
 		my $targetdir = File::Spec->catdir($zipped_folder, $dir);
 		make_path($targetdir); # this should safely skip existing directories
 						# permissions and ownership inherit from user, not from source
-		print " >> moving $file\n" if $verbose;
+		print "   moving $file\n" if $verbose;
 		move($file, $targetdir);
 	}
 	
 	# clean up empty directories
 	my $command = sprintf("find %s -type d -empty -delete", $given_dir);
-	print "  executing: $command\n";
+	print "  > executing: $command\n";
 	system($command);
 	
 	# put in notice
@@ -646,13 +653,13 @@ sub delete_zipped_file_folder {
 			$targetfile =~ s/$project\///;
 			next unless -e $targetfile; # give up if it's still not there
 		}
-		print " >> DELETING $targetfile\n" if $verbose;
+		print "   DELETING $targetfile\n" if $verbose;
 		unlink($targetfile);
 	}
 	
 	# clean up empty directories
 	my $command = sprintf("find %s -type d -empty -delete", $zipped_folder);
-	print "  executing: $command\n";
+	print "  > executing: $command\n";
 	system($command);
 	rmdir $zipped_folder;
 }
@@ -678,13 +685,13 @@ sub hide_deleted_files {
 		my $targetdir = File::Spec->catdir($deleted_folder, $dir);
 		make_path($targetdir); # this should safely skip existing directories
 						# permissions and ownership inherit from user, not from source
-		print " >> moving $file\n" if $verbose;
+		print "   moving $file\n" if $verbose;
 		move($file, $targetdir);
 	}
 	
 	# clean up empty directories
 	my $command = sprintf("find %s -type d -empty -delete", $given_dir);
-	print "  executing: $command\n";
+	print "  > executing: $command\n";
 	system($command);
 	
 	# move the deleted folder back into archive
@@ -713,13 +720,13 @@ sub delete_hidden_deleted_files {
 			$targetfile =~ s/$project\///;
 			next unless -e $targetfile; # give up if it's still not there
 		}
-		print " >> DELETING $targetfile\n" if $verbose;
+		print "   DELETING $targetfile\n" if $verbose;
 		unlink($targetfile);
 	}
 	
 	# clean up empty directories
 	my $command = sprintf("find %s -type d -empty -delete", $deleted_folder);
-	print "  executing: $command\n";
+	print "  > executing: $command\n";
 	system($command);
 	rmdir $deleted_folder;
 }
@@ -739,13 +746,13 @@ sub delete_project_files {
 			$file =~ s/^$project\///;
 			next unless -e $file; # give up if it's still not there
 		}
-		print " >> DELETING $file\n" if $verbose;
+		print "   DELETING $file\n" if $verbose;
 		unlink $file;
 	}
 	
 	# clean up empty directories
 	my $command = sprintf("find %s -type d -empty -delete", $given_dir);
-	print "  executing: $command\n";
+	print "  > executing: $command\n";
 	system($command);
 	
 	# move the deleted folder back into archive
@@ -760,7 +767,7 @@ sub delete_project_files {
 
 sub write_file {
 	my ($file, $data) = @_;
-	print " >> writing file $file\n" if $verbose;
+	print "  > writing file $file\n" if $verbose;
 	
 	# open file
 	my $fh = IO::File->new($file, 'w') or 
@@ -784,7 +791,7 @@ sub write_file {
 
 sub load_manifest {
 	my $file = shift;
-	print " >> loading manifest file $file\n" if $verbose;
+	print "  > loading manifest file $file\n" if $verbose;
 	
 	# open file
 	my $fh = IO::File->new($file, 'r') or 
@@ -803,7 +810,7 @@ sub load_manifest {
 
 sub get_file_stats {
 	my ($file, $fname) = @_;
-	print " >> getting file stats on $file....\n" if $verbose;
+	print "  > getting file stats on $file....\n" if $verbose;
 	
 	# stats on the file
 	my @st = stat($file);
@@ -834,13 +841,13 @@ sub get_file_stats {
 	}
 	
 	# finished
-	print " >>  $file: $size bytes, $age seconds, from $date, checksum $md5\n" if $verbose;
+	print "    $file: $size bytes, $age seconds, from $date, checksum $md5\n" if $verbose;
 	return ($date, $size, $md5, $age);
 }
 
 sub get_file_list {
 	my $file = shift;
-	print " >> loading list file $file\n" if $verbose;
+	print "  > loading list file $file\n" if $verbose;
 	
 	my $fh = IO::File->new($file, 'r') or 
 		die "can't read $file! $!\n";
