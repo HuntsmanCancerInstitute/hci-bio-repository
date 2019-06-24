@@ -21,7 +21,7 @@ use constant {
 	TYPE     => [qw(Other Analysis Alignment Fastq QC ArchiveZipped)],
 };
 
-my $VERSION = 7.3;
+my $VERSION = 7.4;
 
 # Documentation
 my $doc = <<DOC;
@@ -264,14 +264,17 @@ my $notice_source_file;
 if ($given_dir =~ /MicroarrayData/) {
 	$notice_source_file = "/Repository/MicroarrayData/missing_file_notice.txt";
 }
-elsif ($given_dir =~ /AnalysisyData/) {
-	$notice_source_file = "/Repository/AnalysisyData/missing_file_notice.txt";
+elsif ($given_dir =~ /AnalysisData/) {
+	$notice_source_file = "/Repository/AnalysisData/missing_file_notice.txt";
 }
 else {
 	# primarily for testing purposes
 	$notice_source_file = "~/missing_file_notice.txt";
 }
-
+if (-e $notice_file and $scan) {
+	print "cannot re-scan if notice file is in place\n";
+	$scan = 0;
+}
 
 
 
@@ -342,7 +345,7 @@ elsif ($delete_del_files) {
 
 
 ######## Finished
-printf " > finished with $project in %.1f minutes\n", (time - $start_time)/60;
+printf " > finished with $project in %.1f minutes\n\n", (time - $start_time)/60;
 
 
 
@@ -676,11 +679,12 @@ sub hide_deleted_files {
 	# process the removelist
 	foreach my $file (@removelist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
-		unless (-e $basefile) {
+		unless (-e $file) {
 			# older versions may record the project folder in the name, so let's 
 			# try removing that
-			$basefile =~ s/^$project\///;
-			next unless -e $basefile; # give up if it's still not there
+			$file =~ s/^$project\///;
+			next unless -e $file; # give up if it's still not there
+			(undef, $dir, $basefile) = File::Spec->splitpath($file); # regenerate these
 		}
 		my $targetdir = File::Spec->catdir($deleted_folder, $dir);
 		make_path($targetdir); # this should safely skip existing directories
