@@ -11,6 +11,18 @@ These are specific to HCI infrastructure and not really applicable anywhere else
 
 A quick list of what is in here:
 
+- `SB.pm`
+
+A Perl module with wrapper functions around the Seven Bridges 
+[command line tool](https://docs.sevenbridges.com/docs/command-line-interface) `sb` 
+for use in Perl scripts. 
+
+- `check_legacy_sb_division`
+
+A script to modify legacy GNomEx projects on Seven Bridges by changing the display 
+name and adding a Markdown description to the project to helpfully educate users 
+about the project and avoid unnecessary, accidental deletions.
+
 - `compare_versions`
 
 A script for identifying corrupt file versions and replacing it with one restored from 
