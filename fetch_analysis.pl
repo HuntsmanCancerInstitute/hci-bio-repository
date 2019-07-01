@@ -103,17 +103,19 @@ appuser.lastname UserLastName,
 lab.firstname LabFirstName, 
 lab.lastname LabLastName, 
 lab.isExternalPricing, 
-lab.isExternalPricingCommercial 
+lab.isExternalPricingCommercial, 
+application.application Application
 FROM request 
 join project on project.idproject = request.idproject 
 join lab on lab.idlab = request.idlab 
 join appuser on appuser.idappuser = request.idappuser 
+join application on application.codeapplication = request.codeapplication
 WHERE request.idCoreFacility = 1 
 ORDER BY request.createDate;
 QUERY
 my @req_headers = ('RequestNumber', 'RequestName', 'RequestDate', 'ProjectName',
 	'UserFirstName', 'UserLastName', 'LabFirstName','LabLastName',
-	'isExternalPricing','isExternalCommercialPricing', 'Path');
+	'isExternalPricing','isExternalCommercialPricing', 'Application', 'Path');
 
 
 # prepare and execute query
