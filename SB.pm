@@ -17,15 +17,17 @@ But for limited stuff, it's (mostly) fine.
 
 =head2 SB Class
 
+Main Class. Inherited by subclasses. Start here.
+
 =over 4
 
 =item new
 
 Provide parameters as array:
 
-    sb       => $sb_path,
-    cred     => $credential_path,
-    division => $division
+    sb       => $sb_path, # default found in PATH
+    cred     => $credential_path, # default ~/.sevenbridges/credentials
+    division => $division # required
 
 =item sb_path
 
@@ -37,13 +39,25 @@ Provide parameters as array:
 
 =item execute(@options)
 
+Main function for executing the sb utility. Most users shouldn't need to 
+run this, unless a wrapper doesn't exist. Pass an array of command line options. 
+The C<--profile> is automatically set for the division name, as is the 
+credentials path. All results are returned as JSON and parsed into Perl hashes.
+Lists of results are parsed and placed into an array. Values returned as array 
+or array reference (if expecting more than one), or just the first value (when 
+expecting only one). Be careful on what you expect. 
+
 =item projects
 
 Return list of available projects as SB::Project objects within current division.
 
-=item create_project(name => $name, description => $description)
+=item create_project
 
-Make new project, need Name, description. Return SB::Project.
+Make new project. Returns SB::Project.
+Pass array of information.
+
+    name        => $name,
+    description => $description, # can be Markdown
 
 =item bulk_uploader($path_to_sbg-uploader.sh, @options)
 
@@ -53,6 +67,8 @@ Handles setting the division and providing the proper token from credentials fil
 
 =head2 SB::Project Class
 
+Most of these are read-only functions, except for 
+
 =over 4
 
 =item id
@@ -61,7 +77,14 @@ Handles setting the division and providing the proper token from credentials fil
 
 =item description
 
-=item update(name => $name, description => $description)
+=item update
+
+Pass array of information to update the project.
+Returns 1 if successful. Object metadata is updated.
+
+    name        => $new_name,
+    description => $text, # can be Markdown
+
 
 =item list_members
 
@@ -82,23 +105,28 @@ Returns new SB::File object.
 
 =head2 SB::Member Class
 
+These are all read-only functions. The sb tool doesn't allow modifying anyone 
+but yourself. 
+
 =over 4
 
 =item user
 
-=item admin permission
+=item admin
 
-=item read permission
+=item read
 
-=item copy permission
+=item copy
 
-=item write permission
+=item write
 
-=item exec permission
+=item exec
 
 =back
 
 =head2 SB::File Class
+
+Objects representing files. Most of these are read-only functions, except for update().
 
 =over 4 
 
@@ -108,7 +136,7 @@ Returns new SB::File object.
 
 =item project
 
-=item download
+=item download($path)
 
 =item size
 
@@ -116,6 +144,16 @@ Returns new SB::File object.
 
 =item url
 
+=item copy($new_project_id)
+
+=item update
+
+Pass array of information to update the file.
+Returns 1 if successful. 
+
+    name     => $new_name,
+    tags     => [qw(tag1 tag2)],
+    metadata => ????????
 
 =back
 
