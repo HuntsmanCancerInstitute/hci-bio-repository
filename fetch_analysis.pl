@@ -35,6 +35,7 @@ SELECT Analysis.idAnalysis AnalysisNumber,
 Analysis.name AnalysisName, 
 Analysis.createDate AnalysisDate, 
 AnalysisGroup.name GroupName, 
+appuser.email UserEMail,
 appuser.firstname UserFirstname, 
 appuser.lastname UserLastName, 
 lab.firstname LabFirstName, 
@@ -54,7 +55,7 @@ left join genomebuild on AnalysisGenomeBuild.idgenomebuild = genomebuild.idgenom
 order by Analysis.idAnalysis;
 QUERY
 my @anal_headers = ('AnalysisNumber', 'AnalysisName', 'AnalysisDate', 'GroupName',
-	'UserFirstName', 'UserLastName', 'LabFirstName', 'LabLastName',
+	'UserEMail', 'UserFirstName', 'UserLastName', 'LabFirstName', 'LabLastName',
 	'isExternalPricing','isExternalCommercialPricing','Organism','GenomeBuild', 'Path');
 
 
@@ -98,6 +99,7 @@ SELECT request.number  RequestNumber,
 request.name RequestName, 
 request.createDate RequestDate, 
 project.name ProjectName, 
+appuser.email UserEMail,
 appuser.firstname UserFirstname, 
 appuser.lastname UserLastName, 
 lab.firstname LabFirstName, 
@@ -114,7 +116,7 @@ WHERE request.idCoreFacility = 1
 ORDER BY request.createDate;
 QUERY
 my @req_headers = ('RequestNumber', 'RequestName', 'RequestDate', 'ProjectName',
-	'UserFirstName', 'UserLastName', 'LabFirstName','LabLastName',
+	'UserEMail','UserFirstName', 'UserLastName', 'LabFirstName','LabLastName',
 	'isExternalPricing','isExternalCommercialPricing', 'Application', 'Path');
 
 
