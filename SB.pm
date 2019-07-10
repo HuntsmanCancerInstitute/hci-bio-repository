@@ -59,7 +59,7 @@ Pass array of information.
     name        => $name,
     description => $description, # can be Markdown
 
-=item bulk_uploader($path_to_sbg-uploader.sh, @options)
+=item bulk_upload($path_to_sbg-uploader.sh, @options)
 
 Handles setting the division and providing the proper token from credentials file.
 
@@ -333,7 +333,7 @@ sub create_project {
 	return SB::Project->new($self, $result);
 }
 
-sub bulk_uploader {
+sub bulk_upload {
 	my $self = shift;
 	my $sbupload_path = shift;
 	my @options = @_;
@@ -368,8 +368,7 @@ sub bulk_uploader {
 	}
 	
 	# execute
-	my $command = join(" ", $sbupload_path, '--project', $self->division, '--token', 
-						$token, @options);
+	my $command = join(" ", $sbupload_path, '--token', $token, @options);
 	print " > executing: $command\n" if $VERBOSE;
 	my $result = qx($command);
 	return $result;
