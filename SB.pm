@@ -1,5 +1,5 @@
 package SB;
-our $VERSION = 1.1;
+our $VERSION = 2;
 
 =head1 NAME
 
@@ -59,10 +59,6 @@ Pass array of information.
     name        => $name,
     description => $description, # can be Markdown
 
-=item bulk_upload($path_to_sbg-uploader.sh, @options)
-
-Handles setting the division and providing the proper token from credentials file.
-
 =back
 
 =head2 SB::Project Class
@@ -100,6 +96,17 @@ no way to navigate beyond a folder. Flat file structure only!
 =upload($file)
 
 Returns new SB::File object.
+
+=item bulk_upload_path($path)
+
+Sets or returns the path to F<sbg-uploader.sh>, the shell script used to start 
+the Java executable. It will automatically be searched for in the F<PATH> 
+if not provided.
+
+=item bulk_upload(@options)
+
+Automatically handles setting the division, project, and token. Executes the 
+F<sbg-upload.sh> script and returns the standard out text results.
 
 =back
 
@@ -333,47 +340,6 @@ sub create_project {
 	return SB::Project->new($self, $result);
 }
 
-sub bulk_upload {
-	my $self = shift;
-	my $sbupload_path = shift;
-	my @options = @_;
-	
-	# Grab the token
-	my $token;
-	my $fh = IO::File->new($self->credentials) or 
-		die "unable to read credentials files!\n";
-	my $target = sprintf("[%s]", $self->division);
-	while (not defined $token) {
-		my $line = $fh->getline or last;
-		chomp $line;
-		if ($line eq $target) {
-			# we found the section!
-			while (my $line2 = $fh->getline) {
-				if ($line2 =~ /^\[/) {
-					# we've gone too far!!!??? start of next section
-					last;
-				}
-				elsif ($line2 =~ /^auth_token\s+=\s+(\w+)$/) {
-					# we found it!
-					$token = $1;
-					last;
-				}
-			}
-		}
-	}
-	$fh->close;
-	unless ($token) {
-		print " unable to get token from credentials!\n";
-		return;
-	}
-	
-	# execute
-	my $command = join(" ", $sbupload_path, '--token', $token, @options);
-	print " > executing: $command\n" if $VERBOSE;
-	my $result = qx($command);
-	return $result;
-}
-
 
 
 ####################################################################################
@@ -485,6 +451,70 @@ sub upload {
 	my @command = ('files', 'upload', $file, '--project', $self->{id});
 	my $result = $self->execute(@command);
 	return SB::File->new($self, $result);
+}
+
+sub bulk_upload_path {
+	my $self = shift;
+	$self->{sbupload_path} ||= undef;
+	
+	# check for passed path
+	if (defined $_[0] and -e $_[0]) {
+		# assume it's good
+		$self->{sbupload_path} = $_[0];
+	}
+	
+	# look for one if not exists
+	if (!defined $self->{sbupload_path}) {
+		my $path = qx(which sbg-uploader.sh);
+		chomp $path;
+		if ($path) {
+			$self->{sbupload_path} = $path;
+		}
+	}
+	 
+	return $self->{sbupload_path};
+}
+
+sub bulk_upload {
+	my $self = shift;
+	my @options = @_;
+	
+	# Grab the token
+	my $token;
+	my $fh = IO::File->new($self->credentials) or 
+		die "unable to read credentials files!\n";
+	my $target = sprintf("[%s]", $self->division);
+	while (not defined $token) {
+		my $line = $fh->getline or last;
+		chomp $line;
+		if ($line eq $target) {
+			# we found the section!
+			while (my $line2 = $fh->getline) {
+				if ($line2 =~ /^\[/) {
+					# we've gone too far!!!??? start of next section
+					last;
+				}
+				elsif ($line2 =~ /^auth_token\s+=\s+(\w+)$/) {
+					# we found it!
+					$token = $1;
+					last;
+				}
+			}
+		}
+	}
+	$fh->close;
+	unless ($token) {
+		print " unable to get token from credentials!\n";
+		return;
+	}
+	
+	# execute
+	my $path = $self->bulk_upload_path or return 'sbg-upload.sh path not set!';
+	my $command = join(" ", $path, '--project', $self->id, '--token', 
+		$token, @options);
+	print " > executing: $command\n" if $VERBOSE;
+	my $result = qx($command);
+	return $result;
 }
 
 
