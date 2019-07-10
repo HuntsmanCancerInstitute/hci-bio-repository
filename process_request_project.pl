@@ -10,7 +10,7 @@ use File::Path qw(make_path);
 use POSIX qw(strftime);
 use Getopt::Long;
 
-my $version = 1.1;
+my $version = 1.2;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -360,19 +360,6 @@ sub scan_directory {
 		}
 	}
 
-# 	# check for segments
-# 	my %segments;
-# 	foreach (keys %filedata) {
-# 		$segments{ $filedata{$_}{sample} }{ $filedata{$_}{laneID} } += 1;
-# 	}
-# 	my $is_segmented = 0;
-# 	foreach my $s (keys %segments) {
-# 		if (scalar keys %{ $segments{$s} } > 1) {
-# 			$is_segmented = 1;
-# 			last;
-# 		}
-# 	}
-	
 	# compile list
 	my @manifest;
 	push @manifest, join(',', qw(File sample_id investigation library_id platform 
@@ -478,21 +465,57 @@ sub callback {
 		$laneID = $3;
 		$pairedID = 3;
 	}
+	# new old style HiSeq: 15079X10_180427_D00294_0392_BCCEA1ANXX_R1.fastq.gz
+	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_([ADM]\d+)_\d+_[A-Z\d\-]+_R(\d)\.(?:txt|fastq)\.gz$/){
+		$sample = $1;
+		$machineID = $2;
+		$laneID = 1;
+		$pairedID = $3;
+	}
 	# old style, single-end: 15455X2_180920_D00294_0408_ACCFVWANXX_2.txt.gz
-	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_([ADM]\d+)_\d+_[A-Z\d]+_(\d)\.txt.gz$/) {
+	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_([ADM]\d+)_\d+_[A-Z\d]+_(\d)\.txt\.gz$/) {
 		$sample = $1;
 		$machineID = $2;
 		$laneID = $3;
 	}
-	# old style, paired-end: 15455X2_180920_D00294_0408_ACCFVWANXX_2_1.txt.gz
-	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_([ADM]\d+)_\d+_[A-Z\d]+_(\d)_[12]\.txt.gz$/) {
+	# old style, paired-end: 15066X1_180427_D00294_0392_BCCEA1ANXX_5_1.txt.gz
+	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_([ADM]\d+)_\d+_[A-Z\d]+_(\d)_[12]\.txt\.gz$/) {
 		$sample = $1;
 		$machineID = $2;
 		$laneID = $3;
 		$pairedID = $4;
 	}
-	# 10X genomics read file: 15454X1_S2_L001_R1_001.fastq.gz
-	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_S\d+_L(\d+)_R(\d)_001\.fastq\.gz$/) {
+	# 10X genomics and MiSeq read file: 15454X1_S2_L001_R1_001.fastq.gz, sometimes not gz????
+	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_S\d+_L(\d+)_R(\d)_001\.fastq(?:\.gz)?$/) {
+		$sample = $1;
+		$laneID = $2;
+		$pairedID = $3;
+		# must grab the machine ID from the read name
+		my $head = $file =~ m/\.gz$/ ? qx(gzip -dc $file | head -n 1) : qx(head -n 1 $file);
+		if ($head =~ /^@([ADM]\d+):/) {
+			$machineID = $1;
+		}
+	}
+	# 10X genomics index file: 15454X1_S2_L001_I1_001.fastq.gz
+	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_S\d+_L(\d+)_I1_001\.fastq\.gz$/) {
+		$sample = $1;
+		$laneID = $2;
+		$pairedID = 3;
+		# must grab the machine ID from the read name
+		my $head = qx(gzip -dc $file | head -n 1);
+		if ($head =~ /^@([ADM]\d+):/) {
+			$machineID = $1;
+		}
+	}
+	# another MiSeq file: 15092X7_180424_M00736_0255_MS6563328-300V2_R1.fastq.gz
+	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_([ADM]\d+)_\d+_[A-Z\d\-]+_R(\d)\.fastq\.gz$/) {
+		$sample = $1;
+		$machineID = $2;
+		$pairedID = $3;
+		$laneID = 1;
+	}
+	# crazy name: GUPTA_S1_L001_R1_001.fastq.gz
+	elsif ($file =~ m/^(\w+)_S\d+_L(\d+)_R(\d)_00\d\.fastq\.gz$/) {
 		$sample = $1;
 		$laneID = $2;
 		$pairedID = $3;
@@ -502,8 +525,8 @@ sub callback {
 			$machineID = $1;
 		}
 	}
-	# 10X genomics index file: 15454X1_S2_L001_I1_001.fastq.gz
-	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_S\d+_L(\d+)_I1_001\.fastq\.gz$/) {
+	# crazy index: GUPTA_S1_L001_I1_001.fastq.gz
+	elsif ($file =~ m/^(\w+)_S\d+_L(\d+)_I\d_00\d\.fastq\.gz$/) {
 		$sample = $1;
 		$laneID = $2;
 		$pairedID = 3;
