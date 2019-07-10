@@ -3,13 +3,7 @@
 These are scripts for working with the HCI bio repository file server, particularly 
 with respect in preparation and migration of GNomEx data to Seven Bridges. 
 
-## Internal use only
-
-These are specific to HCI infrastructure and not really applicable anywhere else.
-
-### Scripts
-
-A quick list of what is in here:
+## Modules
 
 - `SB.pm`
 
@@ -17,18 +11,31 @@ A Perl module with wrapper functions around the Seven Bridges
 [command line tool](https://docs.sevenbridges.com/docs/command-line-interface) `sb` 
 for use in Perl scripts. 
 
+## Scripts
+
+A quick list of what is in here:
+
+**NOTE** Most of these are specific to HCI infrastructure and not really applicable 
+anywhere else.
+
 - `check_legacy_sb_division`
 
 A script to modify legacy GNomEx projects on Seven Bridges by changing the display 
 name and adding a Markdown description to the project to helpfully educate users 
 about the project and avoid unnecessary, accidental deletions.
 
+- `combine_lab_sizes.pl`
+
+A script to concatenate information on both Analysis and Request projects per lab. 
+Requires input files containing LabFirstName, LabLastName, Size (in bytes), and 
+Date for every GNomEx project. Requires Bio::ToolBox.
+
 - `compare_versions`
 
 A script for identifying corrupt file versions and replacing it with one restored from 
 a tape backup restore. Runs MD5 checksum on every single file.
 
-- `fetch_analysis`
+- `fetch_gnomex_data`
 
 A script for running database queries against the GNomEx database to extract Request 
 and Analysis metadata for purposes of tagging Seven Bridges files.
