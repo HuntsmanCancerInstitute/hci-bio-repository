@@ -202,7 +202,7 @@ sub new {
 	# file and used
 	
 	# look for division or profile
-	$args{division} ||= $args{profile} || undef;
+	$args{division} ||= $args{div} || $args{profile} || undef;
 	if (defined $args{division}) {
 		$self->division($args{division});
 	}
