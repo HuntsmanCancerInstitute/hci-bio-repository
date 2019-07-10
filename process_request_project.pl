@@ -13,7 +13,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 
-my $version = 2;
+my $version = 2.1;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -90,8 +90,7 @@ my $title;
 my $group;
 my $sb_division;
 my $sb_path = q();
-my $sbupload_path = `which sbg-uploader.sh`;
-chomp $sbupload_path;
+my $sbupload_path = q();
 my $cred_path = q();
 my $verbose;
 
@@ -632,8 +631,8 @@ sub upload_files {
 	foreach my $p ($sb->projects) {
 		if ($p->name eq $project) {
 			# we found it
-			$sbproject = $p->id;
-			print "   > using existing SB project $sbproject\n";
+			$sbproject = $p;
+			printf "   > using existing SB project %s\n", $p->id;
 			last;
 		}
 	}
@@ -641,7 +640,7 @@ sub upload_files {
 	# create the project if it doesn't exist
 	if (not defined $sbproject) {
 		# generate description in markdown
-		if ($strategy eq 'Not available') {
+		if ($experimental_strategy eq 'Not available') {
 			# not available is not a suitable description. Substitute generic sequencing.
 			$strategy = 'sequencing';
 		}
@@ -649,13 +648,12 @@ sub upload_files {
 			$project, $title, $project, $strategy, $userfirst, $userlast, $group, $project; 
 		
 		# create project
-		my $project = $sb->create_project(
+		$sbproject = $sb->create_project(
 			name        => $project,
 			description => $description,
 		);
-		if ($project) {
-			$sbproject = $project->id;
-			print "   > created SB project $sbproject\n";
+		if ($sbproject) {
+			printf "   > created SB project %s\n", $sbproject->id;
 		}
 		else {
 			print "   ! failed to make SB project!\n";
@@ -666,14 +664,18 @@ sub upload_files {
 	
 	### Upload the files
 	# upload options
-	my @up_options = ($sbupload_path, '--project', $sbproject, 
-					'--manifest-file', $manifest_file, '--manifest-metadata', 
+	my @up_options = ('--manifest-file', $manifest_file, '--manifest-metadata', 
 					'sample_id', 'investigation', 'library_id', 'platform', 
 					'platform_unit_id', 'paired_end', 'quality_scale', 
 					'experimental_strategy', 'UserFirstName', 'UserLastName');
 	
 	# upload command
-	my $result = $sb->bulk_upload(@up_options);
+	my $path = $sbproject->bulk_upload_path($sbupload_path);
+	unless ($path) {
+		print "   ! no sbg-upload.sh executable path!\n";
+		return;
+	};
+	my $result = $sbproject->bulk_upload(@up_options);
 	print $result;
 	if ($result =~ /FAILED/) {
 		print "   ! upload failed!\n";
