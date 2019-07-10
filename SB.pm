@@ -1,5 +1,5 @@
 package SB;
-our $VERSION = 1;
+our $VERSION = 1.1;
 
 =head1 NAME
 
@@ -221,7 +221,7 @@ sub new {
 		$self->sb_path($p) or croak "bad sb path!";
 	}
 	
-	printf "> initialized: sb %s, cred %s, div %s\n", $self->{sb}, $self->{cred}, $self->{div} if $VERBOSE;
+	printf " > initialized: sb %s, cred %s, div %s\n", $self->{sb}, $self->{cred}, $self->{div} if $VERBOSE;
 	
 	return $self;
 }
@@ -255,7 +255,7 @@ sub credentials {
 			$self->{cred} = $f;
 		}
 		else {
-			croak "give credential file '$f' doesn't exist!";
+			croak "given credential file '$f' doesn't exist!";
 		}
 	}
 	return $self->{cred};
@@ -287,7 +287,7 @@ sub execute {
 						'--profile', $self->{div},
 						'--config', $self->{cred},
 						);
-	print "> executing: $command\n" if $VERBOSE;
+	print " > executing: $command\n" if $VERBOSE;
 	my $raw = qx($command);
 	chomp $raw;
 	my @results;
@@ -370,6 +370,7 @@ sub bulk_uploader {
 	# execute
 	my $command = join(" ", $sbupload_path, '--project', $self->division, '--token', 
 						$token, @options);
+	print " > executing: $command\n" if $VERBOSE;
 	my $result = qx($command);
 	return $result;
 }
@@ -497,7 +498,7 @@ use base 'SB';
 
 sub new {
 	my ($class, $parent, $result) = @_;
-	printf "> making member %s with admin %s, copy %s, read %s, write %s, exec %s\n", $result->{username}, $result->{permissions}{admin}, $result->{permissions}{copy}, $result->{permissions}{read}, $result->{permissions}{write}, $result->{permissions}{execute} if $VERBOSE;
+	printf " > making member %s with admin %s, copy %s, read %s, write %s, exec %s\n", $result->{username}, $result->{permissions}{admin}, $result->{permissions}{copy}, $result->{permissions}{read}, $result->{permissions}{write}, $result->{permissions}{execute} if $VERBOSE;
 	my $self = {
 		sb     => $parent->{sb},
 		div    => $parent->{div},
