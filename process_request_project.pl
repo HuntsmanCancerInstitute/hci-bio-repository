@@ -167,7 +167,7 @@ elsif ($strategy =~ /rna/i) {
 elsif ($strategy =~ /(?:methyl|bisulfite)/i) {
 	$experimental_strategy = 'Bisulfite-Seq';
 }
-elsif ($strategy =~ /(?:exome|capture)/i) {
+elsif ($strategy =~ /(?:exon|exome|capture)/i) {
 	$experimental_strategy = 'WXS';
 }
 elsif ($strategy =~ /(?:dna|chip|atac)/i) {
