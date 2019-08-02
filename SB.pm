@@ -1,5 +1,5 @@
 package SB;
-our $VERSION = 2;
+our $VERSION = 2.1;
 
 =head1 NAME
 
@@ -301,8 +301,16 @@ sub execute {
 	foreach (split "\n", $raw) {
 		push @results, decode_json($_);
 	}
-	return wantarray ? @results : scalar(@results) == 1 ? $results[0] : \@results;
 	
+	# check for error
+	if (exists $results[0]->{status} and $results[0]->{status} eq "error") {
+		my $message = $results[0]->{error}{message} || q();
+		my $cause   = $results[0]->{error}{cause}{message} || 'unknown';
+		carp "SB Error: $message, Cause: $cause\n";
+		return;
+	}
+	
+	return wantarray ? @results : scalar(@results) == 1 ? $results[0] : \@results;
 }
 
 
