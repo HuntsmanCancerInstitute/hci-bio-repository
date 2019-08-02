@@ -63,15 +63,21 @@ Pass array of information.
 
 =head2 SB::Project Class
 
-Most of these are read-only functions, except for 
+Object representing a Project in Seven Bridges.
 
 =over 4
 
 =item id
 
+Read-only function for the identifier of the project.
+
 =item name
 
+Gets the name of the project. Can set by passing text to L<update>.
+
 =item description
+
+Gets the description of the project. Can set by passing text to L<update>.
 
 =item update
 
@@ -93,7 +99,7 @@ Returns list of SB::File objects in current project.
 B<NOTE>: The stupid command line tool does not support folders! There is currently 
 no way to navigate beyond a folder. Flat file structure only!
 
-=upload($file)
+=item upload($file)
 
 Returns new SB::File object.
 
