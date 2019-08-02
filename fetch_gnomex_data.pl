@@ -9,6 +9,8 @@ use DBI;
 # DBD::ODBC is required as database driver
 # use GetOpt::Long;
 
+my $VERSION = 2;
+
 my $date = strftime("%Y-%B-%d", localtime);
 
 # database
@@ -106,6 +108,7 @@ lab.firstname LabFirstName,
 lab.lastname LabLastName, 
 lab.isExternalPricing, 
 lab.isExternalPricingCommercial, 
+request.codeRequestStatus,
 application.application Application
 FROM request 
 join project on project.idproject = request.idproject 
@@ -117,7 +120,8 @@ ORDER BY request.createDate;
 QUERY
 my @req_headers = ('RequestNumber', 'RequestName', 'RequestDate', 'ProjectName',
 	'UserEMail','UserFirstName', 'UserLastName', 'LabFirstName','LabLastName',
-	'isExternalPricing','isExternalCommercialPricing', 'Application', 'Path');
+	'isExternalPricing','isExternalCommercialPricing', 'RequestStatus', 'Application', 
+	'Path');
 
 
 # prepare and execute query
@@ -131,13 +135,16 @@ $outfh = IO::File->new($outfile, 'w') or
 $outfh->printf("%s\n", join("\t", @req_headers));
 $i = 0;
 while (my @row = $sth->fetchrow_array) {
-	# clean up row
-	$row[0] =~ s/\d+$//; # remove straggling number from request, ex 1234R1
-	$row[2] =~ s/ \d\d:\d\d:\d\d\.\d+$//; # clean up time from date
+	
+	# remove undefined nulls
 	foreach (@row) {
-		# remove undefined nulls
 		$_ = q() if not defined $_;
 	}
+	
+	# clean up things
+	$row[0] =~ s/\d+$//; # remove straggling number from request, ex 1234R1
+	$row[2] =~ s/ \d\d:\d\d:\d\d\.\d+$//; # clean up time from date
+	
 	# calculate path
 	my ($year) = $row[2] =~ /^(\d{4})/;
 	push @row, "/Repository/MicroarrayData/$year/$row[0]";
