@@ -720,14 +720,8 @@ sub hide_deleted_files {
 	
 	# process the removelist
 	foreach my $file (@removelist) {
+		next unless (-e $file);
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
-		unless (-e $file) {
-			# older versions may record the project folder in the name, so let's 
-			# try removing that
-			$file =~ s/^$project\///;
-			next unless -e $file; # give up if it's still not there
-			(undef, $dir, $basefile) = File::Spec->splitpath($file); # regenerate these
-		}
 		my $targetdir = File::Spec->catdir($deleted_folder, $dir);
 		make_path($targetdir); 
 			# this should safely skip existing directories
