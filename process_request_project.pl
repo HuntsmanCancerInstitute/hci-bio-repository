@@ -13,7 +13,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 
-my $version = 2.2;
+my $version = 2.3;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -452,6 +452,10 @@ sub callback {
 		return;
 	}
 	
+	# generate a clean name for recording
+	my $clean_name = $fname;
+	$clean_name =~ s|^\./||; # strip the beginning ./ from the name to clean it up
+	
 	
 	### Possible Fastq file types
 	my ($sample, $machineID, $laneID, $pairedID);
@@ -565,6 +569,7 @@ sub callback {
 		$file =~ s/\.md5$//;
 		$filedata{$file}{md5} = $md5;
 		print "   > processed md5 file\n" if $verbose;
+		push @removelist, $clean_name;
 		return; # do not continue
 	}
 	# multiple checksum file
@@ -577,6 +582,7 @@ sub callback {
 		}
 		$fh->close;
 		print "   > processed md5 file\n" if $verbose;
+		push @removelist, $clean_name;
 		return; # do not continue
 	}
 	else {
@@ -587,10 +593,6 @@ sub callback {
 	
 	# stats on the file
 	my @st = stat($file);
-	
-	# generate a clean name for recording
-	my $clean_name = $fname;
-	$clean_name =~ s|^\./||; # strip the beginning ./ from the name to clean it up
 	
 	### Record the collected file information
 	$filedata{$file}{clean} = $clean_name;
