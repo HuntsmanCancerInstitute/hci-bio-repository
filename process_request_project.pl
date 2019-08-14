@@ -417,6 +417,10 @@ sub callback {
 	my $file = $_;
 	print "  > find callback on $file for $fname\n" if $verbose;
 
+	# generate a clean name for recording
+	my $clean_name = $fname;
+	$clean_name =~ s|^\./||; # strip the beginning ./ from the name to clean it up
+	
 	
 	### Ignore certain files
 	if (-d $file) {
@@ -457,10 +461,6 @@ sub callback {
 		print "   > skipping bioanalysis file\n" if $verbose;
 		return;
 	}
-	
-	# generate a clean name for recording
-	my $clean_name = $fname;
-	$clean_name =~ s|^\./||; # strip the beginning ./ from the name to clean it up
 	
 	
 	### Possible Fastq file types
@@ -601,13 +601,13 @@ sub callback {
 	my @st = stat($file);
 	
 	### Record the collected file information
-	$filedata{$file}{clean} = $clean_name;
-	$filedata{$file}{sample} = $sample;
-	$filedata{$file}{machineID} = $machineID;
-	$filedata{$file}{laneID} = $laneID;
-	$filedata{$file}{pairedID} = $pairedID;
-	$filedata{$file}{date} = strftime("%B %d, %Y %H:%M:%S", localtime($st[9]));
-	$filedata{$file}{size} = $st[7];
+	$filedata{$fname}{clean} = $clean_name;
+	$filedata{$fname}{sample} = $sample;
+	$filedata{$fname}{machineID} = $machineID;
+	$filedata{$fname}{laneID} = $laneID;
+	$filedata{$fname}{pairedID} = $pairedID;
+	$filedata{$fname}{date} = strftime("%B %d, %Y %H:%M:%S", localtime($st[9]));
+	$filedata{$fname}{size} = $st[7];
 	
 	print "   > processed fastq file\n" if $verbose;
 }
