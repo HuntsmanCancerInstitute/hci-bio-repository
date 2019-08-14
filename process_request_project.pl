@@ -13,7 +13,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 
-my $version = 2.3;
+my $version = 2.4;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -419,9 +419,15 @@ sub callback {
 
 	
 	### Ignore certain files
-	if (not -f $file) {
-		# skip directories and symlinks
-		print "   > not a file, skipping\n" if $verbose;
+	if (-d $file) {
+		# skip directories
+		print "   > directory, skipping\n" if $verbose;
+		return;
+	}
+	elsif (-l $file) {
+		# we will delete symlinks
+		print "   > symlink, skipping\n" if $verbose;
+		push @removelist, $clean_name;
 		return;
 	}
 	elsif ($file =~ /libsnappyjava|fdt\.jar/) {
