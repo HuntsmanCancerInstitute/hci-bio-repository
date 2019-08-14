@@ -9,9 +9,19 @@ use DBI;
 # DBD::ODBC is required as database driver
 # use GetOpt::Long;
 
-my $VERSION = 2;
+my $VERSION = 3;
 
 my $date = strftime("%Y-%B-%d", localtime);
+
+
+
+
+####### Input
+my $year_to_pull;
+if (scalar @ARGV and $ARGV[0] =~ /^\d{4}$/) {
+	$year_to_pull = shift @ARGV;
+}
+
 
 # database
 # database driver was installed on my Mac with brew
@@ -81,6 +91,7 @@ while (my @row = $sth->fetchrow_array) {
 	}
 	# calculate path
 	my ($year) = $row[2] =~ /^(\d{4})/;
+	next if ($year_to_pull and $year < $year_to_pull);
 	push @row, "/Repository/AnalysisData/$year/$row[0]";
 	
 	# print
@@ -147,6 +158,7 @@ while (my @row = $sth->fetchrow_array) {
 	
 	# calculate path
 	my ($year) = $row[2] =~ /^(\d{4})/;
+	next if ($year_to_pull and $year < $year_to_pull);
 	push @row, "/Repository/MicroarrayData/$year/$row[0]";
 	
 	# print
