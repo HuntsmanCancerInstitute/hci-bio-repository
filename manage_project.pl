@@ -7,7 +7,7 @@ use File::Copy;
 use File::Path qw(make_path);
 use Getopt::Long;
 
-my $version = 1.0;
+my $version = 1.1;
 
 
 
@@ -311,11 +311,12 @@ sub move_the_zip_files {
 	
 	# process the ziplist
 	foreach my $file (@ziplist) {
-		unless (-e $file) {
+		unless (-e $file or -l $file) {
+			# handle both files and possibly broken symlinks
 			# older versions may record the project folder in the name, so let's 
 			# try removing that
 			$file =~ s/^$project\///;
-			unless (-e $file) {
+			unless (-e $file or -l $file) {
 				# give up if it's still not there
 				print "   $file not found!\n";
 				next;
@@ -353,11 +354,12 @@ sub delete_zipped_file_folder {
 	foreach my $file (@ziplist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
 		my $targetfile = File::Spec->catfile($zipped_folder, $dir, $basefile);
-		unless (-e $targetfile) {
+		unless (-e $targetfile or -l $targetfile) {
+			# handle both files and possibly broken symlinks
 			# older versions may record the project folder in the name, so let's 
 			# try removing that
 			$targetfile =~ s/$project\///;
-			next unless -e $targetfile; # give up if it's still not there
+			next unless (-e $targetfile or -l $targetfile); # give up if it's still not there
 		}
 		print "   DELETING $targetfile\n" if $verbose;
 		unlink($targetfile) or print "   failed to delete $targetfile! $!\n";
@@ -386,11 +388,12 @@ sub hide_deleted_files {
 	# process the removelist
 	foreach my $file (@removelist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
-		unless (-e $file) {
+		unless (-e $file or -l $file) {
+			# handle both files and possibly broken symlinks
 			# older versions may record the project folder in the name, so let's 
 			# try removing that
 			$file =~ s/^$project\///;
-			next unless -e $file; # give up if it's still not there
+			next unless (-e $file or -l $file); # give up if it's still not there
 			(undef, $dir, $basefile) = File::Spec->splitpath($file); # regenerate these
 		}
 		my $targetdir = File::Spec->catdir($deleted_folder, $dir);
@@ -426,12 +429,14 @@ sub unhide_directory_files {
 	foreach my $file (@filelist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
 		my $hiddenfile = File::Spec->catdir($hidden_dir, $file);
-		unless (-e $hiddenfile) {
+		unless (-e $hiddenfile or -l $hiddenfile) {
+			# handle both files and possibly broken symlinks
 			# older versions may record the project folder in the name, so let's 
 			# try removing that
 			$file =~ s/^$project\///;
 			$hiddenfile = File::Spec->catdir($hidden_dir, $file);
-			next unless -e $hiddenfile; # give up if it's still not there
+			next unless (-e $hiddenfile or -l $hiddenfile); 
+				# give up if it's still not there
 			(undef, $dir, $basefile) = File::Spec->splitpath($file); # regenerate these
 		}
 		my $targetdir = File::Spec->catdir($given_dir, $dir);
@@ -469,12 +474,13 @@ sub delete_hidden_deleted_files {
 	foreach my $file (@removelist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
 		my $targetfile = File::Spec->catfile($deleted_folder, $dir, $basefile);
-		unless (-e $targetfile) {
+		unless (-e $targetfile or -l $targetfile) {
+			# handle both files and possibly broken symlinks
 			# older versions may record the project folder in the name, so let's 
 			# try removing that
 			$dir =~ s/^$project\///;
 			$targetfile = File::Spec->catfile($deleted_folder, $dir, $basefile);
-			next unless -e $targetfile; # give up if it's still not there
+			next unless (-e $targetfile or -l $targetfile); # give up if it's still not there
 		}
 		print "   DELETING $targetfile\n" if $verbose;
 		unlink($targetfile) or print "   failed to remove $targetfile! $!\n";
@@ -499,11 +505,12 @@ sub delete_project_files {
 	
 	# process the removelist
 	foreach my $file (@removelist) {
-		unless (-e $file) {
+		unless (-e $file or -l $file) {
+			# handle both files and possibly broken symlinks
 			# older versions may record the project folder in the name, so let's 
 			# try removing that
 			$file =~ s/^$project\///;
-			next unless -e $file; # give up if it's still not there
+			next unless (-e $file or -l $file); # give up if it's still not there
 		}
 		print "   DELETING $file\n" if $verbose;
 		unlink $file or print "   failed to remove $file! $!\n";
