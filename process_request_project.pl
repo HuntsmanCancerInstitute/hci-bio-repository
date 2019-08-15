@@ -372,7 +372,7 @@ sub scan_directory {
 								experimental_strategy UserFirstName UserLastName Size Date MD5));
 	foreach my $f (sort {$a cmp $b} keys %filedata) {
 		push @manifest, join(',', 
-			$filedata{$f}{clean},
+			sprintf("\"%s\"", $filedata{$f}{clean}),
 			$filedata{$f}{sample},
 			$project,
 			$filedata{$f}{sample},
