@@ -13,7 +13,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 
-my $version = 1.0;
+my $version = 1.1;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -137,6 +137,9 @@ else {
 $given_dir = shift @ARGV;
 
 
+# Start up message for log tracking
+print " > working on $given_dir\n";
+
 
 
 
@@ -239,9 +242,9 @@ else {
 
 # empirical directories
 if ($verbose) {
-	print " => SB path: $sb_path\n";
-	print " => SB uploader path: $sbupload_path\n";
-	print " => SB credentials path: $cred_path\n";
+	print " => SB path: $sb_path\n" if $sb_path;
+	print " => SB uploader path: $sbupload_path\n" if $sbupload_path;
+	print " => SB credentials path: $cred_path\n" if $cred_path;
 }
 
 # check directory
@@ -268,7 +271,6 @@ else {
 	my @dir = File::Spec->splitdir($given_dir);
 	$project = @dir[-1];
 }
-print " > working on $project at $given_dir\n";
 
 
 # check directory and move into the parent directory if we're not there
@@ -282,7 +284,7 @@ elsif ($given_dir =~ m/^(.+)$project\/?$/) {
 print "   using parent directory $parent_dir\n" if $verbose;
 
 # change to the given directory
-print " > changing to $given_dir\n";
+print " > changing to $given_dir\n" if $verbose;
 chdir $given_dir or die "cannot change to $given_dir!\n";
 
 
@@ -365,7 +367,7 @@ else {
 # scan the directory
 if ($scan) {
 	# this will also run the zip function
-	print " > scanning $project in directory $given_dir\n";
+	print " > scanning project $project in directory $parent_dir\n";
 	scan_directory();
 }
 
@@ -373,7 +375,7 @@ if ($scan) {
 # upload files to Seven Bridges
 if ($upload) {
 	if (-e $manifest_file) {
-		print " > uploading $project files to $sb_division\n";
+		print " > uploading project $project files to $sb_division\n";
 		upload_files();
 	}
 	else {
@@ -385,7 +387,7 @@ if ($upload) {
 # hide files
 if ($hide_files) {
 	if (-e $alt_remove) {
-		print " > moving files to $deleted_folder\n";
+		print " > moving project $project files to $deleted_folder\n";
 		hide_deleted_files();
 	}
 	else {
@@ -424,8 +426,11 @@ sub scan_directory {
 	
 	# confirm
 	if (not scalar keys %filedata) {
-		print " > nothing found!\n";
+		print "  > nothing found!\n";
 		return;
+	}
+	else {
+		printf "  > processed %d files\n", scalar keys %filedata;
 	}
 	
 	### Generate manifest file
