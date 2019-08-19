@@ -438,7 +438,7 @@ sub callback {
 		push @removelist, $clean_name;
 		return;
 	}
-	elsif ($file =~ /libsnappyjava|fdt\.jar/) {
+	elsif ($file =~ /(?:libsnappyjava|fdt|fdtCommandLine)\.jar/) {
 		# devil java spawn, delete!!!!
 		print "   > deleting java file\n" if $verbose;
 		unlink $file;
@@ -464,6 +464,12 @@ sub callback {
 		# directly under the main project 
 		print "   > skipping bioanalysis file\n" if $verbose;
 		return;
+	}
+	elsif ($fname =~ /^\.\/RunFolder/) {
+		# a few external requesters want the entire original RunFolder 
+		# these folders typically have over 100K files!!!!
+		# immediately stop processing and print warning. These must be handled manually
+		die " ! Illumina RunFolder present! Terminating\n\n";
 	}
 	
 	
@@ -570,6 +576,16 @@ sub callback {
 			$machineID = $1;
 		}
 	}
+	# I give up! catchall for other weirdo fastq files!!!
+	elsif ($file =~ m/.+\.fastq\.gz$/i) {
+		# I can't extract metadata information
+		# but at least it will get recorded in the manifest and list files
+		print "   ! processing unrecognized Fastq file $fname!\n";
+		$sample = '';
+		$laneID = '';
+		$pairedID = '';
+		$machineID = '';
+	}
 	# single checksum file
 	elsif ($file =~ m/\.gz\.md5$/) {
 		my $fh = IO::File->new($file);
@@ -594,6 +610,11 @@ sub callback {
 		print "   > processed md5 file\n" if $verbose;
 		push @removelist, $clean_name;
 		return; # do not continue
+	}
+	elsif ($fname =~ /^\.\/Fastq\/.+\.(?:xml|csv)$/) {
+		# other left over files from de-multiplexing
+		print "   ! skipping demultiplexing file $fname!\n";
+		return;
 	}
 	else {
 		# programmer error!
