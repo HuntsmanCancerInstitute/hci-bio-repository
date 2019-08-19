@@ -575,7 +575,7 @@ sub callback {
 		$filedata{$fname}{size}  = '';
 		return;
 	}
-	elsif ($file =~ /libsnappyjava|fdt\.jar/) {
+	elsif ($file =~ /(?:libsnappyjava|fdt|fdtCommandLine)\.jar/) {
 		# devil java spawn, delete!!!!
 		print "   > deleting java file\n" if $verbose;
 		unlink $file;
@@ -661,6 +661,10 @@ sub callback {
 		# 10X genomics loupe file
 		$filetype = 'Analysis';
 	}
+	elsif ($file =~ /\.fastq\.gz$/i) {
+		# somebody dumped fastq files in here!!!????
+		$filetype = 'Sequence';
+	}
 	else {
 		# catchall
 		$filetype = 'Other';
@@ -668,7 +672,7 @@ sub callback {
 	
 	# Check other file types for eligibility for compression
 	if ($filetype eq 'Other') {
-		if ($file =~ /\.(?:txt|tsv|csv|gff|gtf|sam|vcf|bed|bdg|bedgraph|bg|wig|mpileup)$/i) {
+		if ($file =~ /\.(?:txt|tsv|csv|gff|gtf|sam|vcf|bed|bdg|bedgraph|bg|wig|mpileup|fa|fasta)$/i) {
 			# uncompressed text file always gets zipped
 			$filetype = 'ArchiveZipped' unless $everything;
 		}
