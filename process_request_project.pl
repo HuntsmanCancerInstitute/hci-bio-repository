@@ -592,8 +592,8 @@ sub callback {
 		my $line = $fh->getline;
 		my ($md5, undef) = split(/\s+/, $line);
 		$fh->close;
-		$file =~ s/\.md5$//;
-		$filedata{$file}{md5} = $md5;
+		$fname =~ s/\.md5$//;
+		$filedata{$fname}{md5} = $md5;
 		print "   > processed md5 file\n" if $verbose;
 		push @removelist, $clean_name;
 		return; # do not continue
@@ -603,8 +603,8 @@ sub callback {
 		my $fh = IO::File->new($file);
 		while (my $line = $fh->getline) {
 			my ($md5, $fastqpath) = split(/\s+/, $line);
-			my (undef, undef, $fastqfile) = File::Spec->splitpath($fastqpath);
-			$filedata{$fastqfile}{md5} = $md5;
+			$fastqpath =~ s/$given_dir/\./; # remove parent directory
+			$filedata{$fastqpath}{md5} = $md5;
 		}
 		$fh->close;
 		print "   > processed md5 file\n" if $verbose;
