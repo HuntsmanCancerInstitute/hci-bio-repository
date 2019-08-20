@@ -13,7 +13,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 
-my $version = 1.1;
+my $version = 1.2;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -523,6 +523,12 @@ sub scan_directory {
 		my $command = sprintf("find %s -type d -empty -delete", $given_dir);
 		print "  > executing: $command\n";
 		print "    failed! $!\n" if (system($command));
+		
+		# clean up broken symlinks
+		# sometimes they refer to a zipped file, and thus breaks the sbg_uploader
+		$command = sprintf("find %s -xtype l -delete", $given_dir);
+		print "  > executing: $command\n";
+		print "    failed! $!\n" if (system($command));
 	}
 	
 	
@@ -563,11 +569,21 @@ sub callback {
 		print "   > directory, skipping\n" if $verbose;
 		return;
 	}
+	elsif ($file eq $remove_file) {
+		return;
+	}
+	elsif ($file eq $notice_file) {
+		return;
+	}
+	elsif ($file eq $manifest_file) {
+		return;
+	}
 	elsif (-l $file) {
-		# we will delete symlinks
 		print "   > symbolic link\n" if $verbose;
-		
-		# skip all the metadata, but record as a zipped file
+		# not sure if this is the best thing to do or not....
+		# for now we will store this in the zip file
+		# the alternative is to just delete it
+		# skip most metadata
 		$filedata{$fname}{clean} = $clean_name;
 		$filedata{$fname}{type}  = 'ArchiveZipped';
 		$filedata{$fname}{md5}   = '';
@@ -591,15 +607,6 @@ sub callback {
 		# Windows and Mac file browser devil spawn, delete these immediately
 		print "   > deleting file browser metadata file\n" if $verbose;
 		unlink $file;
-		return;
-	}
-	elsif ($file eq $remove_file) {
-		return;
-	}
-	elsif ($file eq $notice_file) {
-		return;
-	}
-	elsif ($file eq $manifest_file) {
 		return;
 	}
 	
