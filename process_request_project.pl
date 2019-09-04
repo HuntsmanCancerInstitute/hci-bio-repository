@@ -13,7 +13,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 
-my $version = 2.5;
+my $version = 2.6;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -148,6 +148,7 @@ my $start_time = time;
 my @removelist;
 my $project;
 my %filedata;
+my %checksums;
 
 # our sequence machine IDs to platform technology lookup
 my %machinelookup = (
@@ -371,10 +372,39 @@ sub scan_directory {
 
 	# compile list
 	my @manifest;
+	my %dupmd5; # for checking for errors
 	push @manifest, join(',', qw(File sample_id investigation library_id platform 
 								platform_unit_id paired_end quality_scale 
 								experimental_strategy UserFirstName UserLastName Size Date MD5));
 	foreach my $f (sort {$a cmp $b} keys %filedata) {
+		
+		# first check for md5 checksum
+		my $md5;
+		if (exists $filedata{$f}{md5}) {
+			$md5 = $filedata{$f}{md5};
+		}
+		else {
+			# we don't have a checksum for this file yet
+			# check in the checksums hash for the file name without the path
+			my (undef, undef, $filename) = File::Spec->splitpath($f);
+			if (exists $checksums{$filename}) {
+				# we have it
+				$md5 = $checksums{$filename};
+			}
+			else {
+				# don't have it!!!????? geez. ok, calculate it, this might take a while
+				my $checksum = `md5sum \"$f\"`; # quote file
+				($md5, undef) = split(/\s+/, $checksum);
+			}
+		}
+		
+		# check for accidental duplicate checksums - this is a problem
+		if (exists $dupmd5{$md5}) {
+			print "  ! duplicate md5 checksum $md5 for $f\n";
+		}
+		$dupmd5{$md5} += 1;
+		
+		# add to the list
 		push @manifest, join(',', 
 			sprintf("\"%s\"", $filedata{$f}{clean}),
 			$filedata{$f}{sample},
@@ -389,7 +419,7 @@ sub scan_directory {
 			sprintf("\"%s\"", $userlast),
 			$filedata{$f}{size},
 			sprintf("\"%s\"", $filedata{$f}{date}),
-			$filedata{$f}{md5},
+			$md5,
 		);
 		push @removelist, $filedata{$f}{clean};
 	}	
@@ -603,8 +633,11 @@ sub callback {
 		my $fh = IO::File->new($file);
 		while (my $line = $fh->getline) {
 			my ($md5, $fastqpath) = split(/\s+/, $line);
-			$fastqpath =~ s/$given_dir/\./; # remove parent directory
-			$filedata{$fastqpath}{md5} = $md5;
+			# unfortunately, this may or may not be the current given file path
+			# so we must go solely on the filename, with the assumption that there 
+			# are not additional files with the same name!!!!
+			my (undef, undef, $fastqname) = File::Spec->splitpath($fastqpath);
+			$checksums{$fastqname} = $md5;
 		}
 		$fh->close;
 		print "   > processed md5 file\n" if $verbose;
