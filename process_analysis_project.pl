@@ -13,7 +13,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 
-my $version = 1.2;
+my $version = 2.0;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -27,20 +27,31 @@ my $doc = <<END;
 A script to process GNomEx Analysis project folders for 
 Seven Bridges upload.
 
-This will scan an Analysis project and zip small files into a 
-bulk archive zip file for convenient archival storage. Analysis 
-files, including Bam, BigWig, VCF, and others, are excluded from 
-the zip archive.
+It will inventory files, classify them based on known file 
+type extensions, and calculate basic metadata, including size 
+in bytes, date, and MD5 checksum. It will write a CSV manifest 
+file. It will also a write a list of all files targeted for 
+deletion at a later date. The deletion list file is written in 
+the parent directory.
+
+Options to compress and/or archive small files are available. 
+Known files that exceed a minimum specified size may be gzip 
+compressed. All files, except known indexed Analysis files, 
+below a specified maximum file size may be compressed into a 
+single Zip archive. Files that are zip archived are moved into 
+a hidden folder in the parent directory.
 
 This requires collecting data from the GNomEx LIMS database and 
 passing certain values on to this script for inclusion as metadata 
 in the metadata Manifest CSV file. However, the current bulk 
 uploader does not simultaneously handle CSV metadata and recursive 
-paths. This program therefore prioritizes recursive paths.
+paths. Therefore metadata is not set upon uploading to Seven Bridges.
 
-A Markdown description is generated for the Seven Bridges Project 
-using the GNomEx metadata, including user name, title, group name, 
-and genome version.
+A Seven Bridges Project is automatically generated when uploading,
+using the project identifier as the name. A Markdown description is
+generated for the Project using the GNomEx metadata, including user
+name, title, group name, and genome version. 
+
 
 Usage:
     process_analysis_project.pl [options] /Repository/AnalysisData/2019/A5678
@@ -49,9 +60,10 @@ Options:
 
  Mode
     --scan              Scan the project folder and generate the manifest
-    --zip               Zip archive small files
+    --gz                GZip compress known text files while scanning
+    --zip               Zip archive small files when scanning
     --upload            Run the sbg-uploader program to upload
-    --hide              Hide the deleted files in hidden deletion folder
+    --hide              Hide the deleted files in hidden folder
 
  Metadata
     --first <text>      User first name for the owner of the project
@@ -71,6 +83,8 @@ Options:
     --all               Mark everything, including Analysis files, for deletion
     --desc "text"       Description for new SB project when uploading. 
                         Can be Markdown text.
+    --mingz <integer>   Minimum size in bytes to gzip text files (10 KB)
+    --maxzip <integer>  Maximum size in bytes to avoid zip archiving (100 MB)
     --verbose           Tell me everything!
  
  Seven Bridges
@@ -93,6 +107,7 @@ END
 my $given_dir;
 my $scan;
 my $zip;
+my $gzip;
 my $hide_files;
 my $upload;
 my $userfirst           = q();
@@ -102,6 +117,8 @@ my $group               = q();
 my $species             = q();
 my $genome              = q();
 my $description         = q();
+my $min_gz_size         = 10000;
+my $max_zip_size        = 100000000;
 my $sb_division         = q(default);
 my $sb_path             = q();
 my $sbupload_path       = q();
@@ -113,6 +130,7 @@ if (scalar(@ARGV) > 1) {
 	GetOptions(
 		'scan!'         => \$scan,
 		'zip!'          => \$zip,
+		'gz!'           => \$gzip,
 		'hide!'         => \$hide_files,
 		'upload!'       => \$upload,
 		'first=s'       => \$userfirst,
@@ -122,13 +140,14 @@ if (scalar(@ARGV) > 1) {
 		'species=s'     => \$species,
 		'genome=s'      => \$genome,
 		'desc=s'        => \$description,
+		'mingz=i'       => \$min_gz_size,
 		'all!'          => \$everything,
 		'division=s'    => \$sb_division,
 		'sb=s'          => \$sb_path,
 		'sbup=s'        => \$sbupload_path,
 		'cred=s'        => \$cred_path,
 		'verbose!'      => \$verbose,
-	) or die "please recheck your options!\n\n$doc\n";
+	) or die "please recheck your options!\n\n";
 }
 else {
 	print $doc;
@@ -163,6 +182,35 @@ my @removelist;
 my @ziplist;
 my $project;
 my %filedata;
+
+
+# external commands
+my ($gzipper, $zipper);
+if ($gzip) {
+	$gzipper = `which pigz`;
+	chomp $gzipper;
+	if ($gzipper) {
+		$gzipper .= ' -p 4'; # run with four cores
+	}
+	else {
+		$gzipper = 'gzip';
+	}
+	if ($verbose) {
+		print " => gzip compression: $gzipper\n";
+	}
+}
+if ($zip) {
+	$zipper = `which zip`;
+	chomp $zipper;
+	unless ($zipper) {
+		print " ! no zip compression utility, disabling\n";
+		$zip = 0;
+	}
+	if ($verbose) {
+		print " => zip archiving utility: $zipper\n";
+	}
+}
+
 
 ### Species
 # the SB metadata expects simple values, so define this by matching with regex
@@ -439,21 +487,40 @@ sub scan_directory {
 	my @manifest;
 	push @manifest, join(',', qw(File Type species reference_genome UserFirstName UserLastName Size Date MD5));
 	foreach my $f (sort {$a cmp $b} keys %filedata) {
+		
+		# set genome information for files that need it
+		my ($file_species, $file_genome) = ('','');
+		my $type = $filedata{$f}{type};
+		if (
+			$type eq 'IndexedAnalysis' or 
+			$type eq 'Alignment' or 
+			$type eq 'Analysis' or 
+			$type eq 'Wiggle'
+		) {
+			$file_species = $sb_species;
+			$file_genome  = $sb_genome;
+		}
+		
+		# manifest list
 		push @manifest, join(',', 
 			sprintf("\"%s\"", $filedata{$f}{clean}),
 			$filedata{$f}{type},
-			sprintf("\"%s\"", $sb_species),
-			sprintf("\"%s\"", $sb_genome),
+			sprintf("\"%s\"", $file_species),
+			sprintf("\"%s\"", $file_genome),
 			sprintf("\"%s\"", $userfirst),
 			sprintf("\"%s\"", $userlast),
 			$filedata{$f}{size},
 			sprintf("\"%s\"", $filedata{$f}{date}),
 			$filedata{$f}{md5},
 		);
-		if ($filedata{$f}{type} eq 'ArchiveZipped') {
+		
+		# zip list
+		if ($filedata{$f}{zip} == 1) {
 			push @ziplist, $filedata{$f}{clean};
 		}
-		elsif ($filedata{$f}{type} eq 'IndexedAnalysis') {
+		
+		# remove list
+		if ($filedata{$f}{type} eq 'IndexedAnalysis') {
 			# we are keeping the bigWig and USeq files around, for good or bad,
 			# out of benefit to users who happen to use GNomEx as a track hub
 			# only delete if specifying everything must go
@@ -483,12 +550,17 @@ sub scan_directory {
 		# use file sync option to add, update, and/or delete members in zip archive
 		# regardless if it's present or new
 		print "  > zipping files\n";
-		my $command = sprintf("cat %s | zip -1 --symlinks -FS -@ %s", $ziplist_file, $zip_file);
+		my $command = sprintf("cat %s | $zipper -1 --symlinks -FS -@ %s", $ziplist_file, $zip_file);
 		print "  > executing: $command\n";
-		print "    failed!\n" if (system($command));
+		my $result = system($command);
+		if ($result) {
+			print "     failed!\n" ;
+		}
+		
 		if (-e $zip_file) {
 			# add zip archive data to lists
-			my ($date, $size, $md5) = get_file_stats($zip_file);
+			my ($date, $size) = get_file_stats($zip_file);
+			my $md5 = calculate_checksum($zip_file);
 			push @manifest, join(",", 
 				$zip_file, 
 				'Archive', 
@@ -506,29 +578,34 @@ sub scan_directory {
 		
 		## Now move the zipped files
 		# move the the files
-		print "  > moving zipped files\n";
-		mkdir $zipped_folder;
-		foreach my $file (@ziplist) {
-			my (undef, $dir, $basefile) = File::Spec->splitpath($file);
-			my $targetdir = File::Spec->catdir($zipped_folder, $dir);
-			make_path($targetdir); 
-				# this should safely skip existing directories
-				# permissions and ownership inherit from user, not from source
-				# return value is number of directories made, which in some cases could be 0!
-			print "   moving $file\n" if $verbose;
-			move($file, $targetdir) or print "   failed to move $file! $!\n";
+		if ($result) {
+			print "  ! not moving zipped files\n";
 		}
+		else {
+			print "  > moving zipped files\n";
+			mkdir $zipped_folder;
+			foreach my $file (@ziplist) {
+				my (undef, $dir, $basefile) = File::Spec->splitpath($file);
+				my $targetdir = File::Spec->catdir($zipped_folder, $dir);
+				make_path($targetdir); 
+					# this should safely skip existing directories
+					# permissions and ownership inherit from user, not from source
+					# return value is number of directories made, which in some cases could be 0!
+				print "     moving $file\n" if $verbose;
+				move($file, $targetdir) or print "     ! failed to move $file! $!\n";
+			}
 	
-		# clean up empty directories
-		my $command = sprintf("find %s -type d -empty -delete", $given_dir);
-		print "  > executing: $command\n";
-		print "    failed! $!\n" if (system($command));
+			# clean up empty directories
+			my $command = sprintf("find %s -type d -empty -delete", $given_dir);
+			print "  > executing: $command\n";
+			print "    ! failed $!\n" if (system($command));
 		
-		# clean up broken symlinks
-		# sometimes they refer to a zipped file, and thus breaks the sbg_uploader
-		$command = sprintf("find %s -xtype l -delete", $given_dir);
-		print "  > executing: $command\n";
-		print "    failed! $!\n" if (system($command));
+			# clean up broken symlinks
+			# sometimes they refer to a zipped file, and thus breaks the sbg_uploader
+			$command = sprintf("find %s -xtype l -delete", $given_dir);
+			print "  > executing: $command\n";
+			print "    ! failed $!\n" if (system($command));
+		}
 	}
 	
 	
@@ -556,7 +633,7 @@ sub scan_directory {
 # find callback
 sub callback {
 	my $file = $_;
-	print "  > find callback on $file for $fname\n" if $verbose;
+	print "  > find callback for $fname\n" if $verbose;
 
 	# generate a clean name for recording
 	my $clean_name = $fname;
@@ -566,29 +643,27 @@ sub callback {
 	### Ignore certain files
 	if (-d $file) {
 		# skip directories
-		print "   > directory, skipping\n" if $verbose;
-		return;
-	}
-	elsif ($file eq $remove_file) {
-		return;
-	}
-	elsif ($file eq $notice_file) {
-		return;
-	}
-	elsif ($file eq $manifest_file) {
+		print "     directory, skipping\n" if $verbose;
 		return;
 	}
 	elsif (-l $file) {
-		print "   > symbolic link\n" if $verbose;
-		# not sure if this is the best thing to do or not....
-		# for now we will store this in the zip file
-		# the alternative is to just delete it
-		# skip most metadata
-		$filedata{$fname}{clean} = $clean_name;
-		$filedata{$fname}{type}  = 'ArchiveZipped';
-		$filedata{$fname}{md5}   = '';
-		$filedata{$fname}{date}  = '';
-		$filedata{$fname}{size}  = '';
+		print "     symbolic link, skipping\n" if $verbose;
+		return;
+	}
+	elsif ($file eq $remove_file) {
+		print "     skipping project metadata file\n" if $verbose;
+		return;
+	}
+	elsif ($file eq $notice_file) {
+		print "     skipping project metadata file\n" if $verbose;
+		return;
+	}
+	elsif ($file eq $manifest_file) {
+		print "     skipping project metadata file\n" if $verbose;
+		return;
+	}
+	elsif ($file eq $ziplist_file) {
+		print "     skipping project metadata file\n" if $verbose;
 		return;
 	}
 	elsif ($file =~ /(?:libsnappyjava|fdt|fdtCommandLine)\.jar/) {
@@ -599,7 +674,7 @@ sub callback {
 	}
 	elsif ($file =~ /\.sra$/i) {
 		# what the hell are SRA files doing in here!!!????
-		print "   > deleting SRA file\n" if $verbose;
+		print "   > deleting SRA file\n";
 		unlink $file;
 		return;
 	}
@@ -611,7 +686,7 @@ sub callback {
 	}
 	
 	### Stats on the file
-	my ($date, $size, $md5) = get_file_stats($file);
+	my ($date, $size) = get_file_stats($file);
 	
 	
 	### Possible file types
@@ -624,7 +699,7 @@ sub callback {
 		# an alignment file
 		$filetype = 'Alignment';
 	}
-	elsif ($file =~ /\.vcf\.gz$/i) {
+	elsif ($file =~ /\.vcf(?:\.gz)?$/i) {
 		# possibly an indexed file, check to see if there is a corresponding tabix index
 		my $i = $file . '.tbi';
 		if (-e $i) {
@@ -668,24 +743,69 @@ sub callback {
 		# 10X genomics loupe file
 		$filetype = 'Analysis';
 	}
-	elsif ($file =~ /\.fastq\.gz$/i) {
-		# somebody dumped fastq files in here!!!????
+	elsif ($file =~ /\.(?:fa|fq|fasta|fastq|fai)(?:\.gz)?$/i) {
 		$filetype = 'Sequence';
+	}
+	elsif ($file =~ /\.(?:bed|bed\d+|gtf|gff|gff\d|narrowpeak|broadpeak|refflat|genepred|ucsc)(?:\.gz)?$/i) {
+		$filetype = 'Annotation';
+	}
+	elsif ($file =~ /\.(?:txt|tsv|tab|csv|cdt|counts|results|cns|cnr|cnn|md|sam)(?:\.gz)?$/i) {
+		# yes, uncompressed sam files get thrown in here as text files!
+		$filetype = 'Text';
+	}
+	elsif ($file =~ /\.(?:wig|bg|bdg|bedgraph)(?:\.gz)?$/i) {
+		$filetype = 'Wiggle';
+	}
+	elsif ($file =~ /\.(?:bar|bar\.zip|swi|egr|mpileup|mpileup\.gz)$/i) {
+		$filetype = 'Analysis';
+	}
+	elsif ($file =~ /\.(?:xls|xlsx|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|out|rout|rdata|xml|json|json\.gz|html|pzfx)$/i) {
+		$filetype = 'Results';
+	}
+	elsif ($file =~ /\.(?:sh|pl|py|pyc|r|rmd|rscript)$/i) {
+		$filetype = 'Script';
+	}
+	elsif ($file =~ /\.(?:tar|tar\.gz|tar\.bz2|zip)$/i) {
+		$filetype = 'Archive';
 	}
 	else {
 		# catchall
 		$filetype = 'Other';
 	}
 	
-	# Check other file types for eligibility for compression
-	if ($filetype eq 'Other') {
-		if ($file =~ /\.(?:txt|tsv|csv|gff|gtf|sam|vcf|bed|bdg|bedgraph|bg|wig|mpileup|fa|fasta)$/i) {
-			# uncompressed text file always gets zipped
-			$filetype = 'ArchiveZipped' unless $everything;
+	# Compress individual files
+	if (
+		$gzip and 
+		($filetype eq 'Text' or $filetype eq 'Annotation' or $filetype eq 'Wiggle') and 
+		$file !~ /\.gz$/i and 
+		$size > $min_gz_size
+	) {
+		# We have a known, big, text file that is not compressed and needs to be
+		my $command = sprintf "%s \"%s\"", $gzipper, $file;
+		if (system($command)) {
+			print "   ! gzip command '$command' failed!\n";
 		}
-		elsif ($size <= 100_000_000) {
-			# anything else under 100 MB in size gets zipped
-			$filetype = 'ArchiveZipped' unless $everything;
+		else {
+			# succesfull compression! update values
+			print "   > gzip compressed $file\n" if $verbose;
+			$file .= '.gz';
+			$clean_name .= '.gz';
+			($date, $size) = get_file_stats($file);
+		}
+	}
+	
+	
+	# Check files for Zip archive files
+	$filedata{$fname}{zip} = 0; # default setting
+	if ($zip and ($filetype ne 'IndexedAnalysis' or $filetype ne 'Alignment') ) {
+		if ( ($filetype eq 'Text' or $filetype eq 'Annotation') and $file !~ /\.gz$/i) {
+			# uncompressed text and annotation files always gets zipped
+			# it's just the way it is!
+			$filedata{$fname}{zip} = 1;
+		}
+		elsif ($size <= $max_zip_size) {
+			# if it's small, it gets zipped, regardless of type
+			$filedata{$fname}{zip} = 1;
 		}
 	}
 	
@@ -693,27 +813,30 @@ sub callback {
 	### Record the collected file information
 	$filedata{$fname}{clean} = $clean_name;
 	$filedata{$fname}{type}  = $filetype;
-	$filedata{$fname}{md5}   = $md5;
+	$filedata{$fname}{md5}   = calculate_checksum($file) || q();
 	$filedata{$fname}{date}  = $date;
 	$filedata{$fname}{size}  = $size;
 	
-	print "   > processed file\n" if $verbose;
+	print "     processed $filetype file\n" if $verbose;
 }
 
 
 sub get_file_stats {
-	my ($file) = shift;
-	
 	# stats on the file
+	my $file = shift;
 	my @st = stat($file);
 	my $date = strftime("%B %d, %Y %H:%M:%S", localtime($st[9]));
-	
-	# calculate the md5 with external utility
-	my $checksum = `md5sum \"$file\"`; # quote file, because we have files with ;
-	my ($md5, undef) = split(/\s+/, $checksum);
-	return ($date, $st[7], $md5); # date, size, md5
+	return ($date, $st[7]); # date, size
 }
 
+
+sub calculate_checksum {
+	# calculate the md5 with external utility
+	my $file = shift;
+	my $checksum = `md5sum \"$file\"`; # quote file, because we have files with ;
+	my ($md5, undef) = split(/\s+/, $checksum);
+	return $md5;
+}
 
 
 sub upload_files {
