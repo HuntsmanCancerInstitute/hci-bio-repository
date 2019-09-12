@@ -4,6 +4,7 @@
 use strict;
 use File::Find;
 
+our $VERSION = 1.1;
 
 ######## Documentation
 my $doc = <<END;
@@ -85,8 +86,18 @@ exit;
 
 sub age_callback {
 	my $file = $_;
-	return if not -f $file;
-	return if substr($file,0,1) eq '.'; # skip dot files
+	
+	# skip specific files, including SB preparation files
+	return if -d $file;
+	return if -l $file;
+	return if substr($file,0,1) eq '.'; # dot files are often hidden, backup, or OS stuff
+	return if $file =~ /_MANIFEST\.csv$/; 
+	return if $file =~ /_MANIFEST\.txt$/; 
+	return if $file =~ /_ARCHIVE\.zip$/;
+	return if $file =~ /_ARCHIVE_LIST\.txt$/;
+	return if $file =~ /_REMOVE_LIST\.txt$/;
+	
+	# get age
 	my $age = (stat($file))[9];
 	
 	# initialize
