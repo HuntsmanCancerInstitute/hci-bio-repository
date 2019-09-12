@@ -40,6 +40,8 @@ A Markdown description is generated for the Seven Bridges Project
 using the GNomEx metadata, including user name, strategy, title, 
 and group name.
 
+Version: $version
+
 Usage:
     process_request_project.pl [options] /Repository/MicroarrayData/2019/1234R
 

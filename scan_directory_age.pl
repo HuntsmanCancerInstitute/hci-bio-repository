@@ -13,6 +13,8 @@ A script to report the ages in days for a give directory.
 It will scan all files in a given directory and sub-directories, 
 and report the age in days from now for the youngest file found.
 
+Version: $version
+
 Usage:
     scan_directory_age.pl [--verbose] /path/to/directory1 ...
 

@@ -21,6 +21,7 @@ uploading it to Seven Bridges.
 This does not scan folders or upload files. See scripts 
 process_analysis_project.pl and process_request_project.pl.
 
+Version: $version
 
 Usage:
     manage_project.pl [options] /Repository/AnalysisData/2019/A5678

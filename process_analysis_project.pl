@@ -52,6 +52,7 @@ using the project identifier as the name. A Markdown description is
 generated for the Project using the GNomEx metadata, including user
 name, title, group name, and genome version. 
 
+Version: $version
 
 Usage:
     process_analysis_project.pl [options] /Repository/AnalysisData/2019/A5678
