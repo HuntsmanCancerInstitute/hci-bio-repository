@@ -757,13 +757,13 @@ sub callback {
 	elsif ($file =~ /\.(?:wig|bg|bdg|bedgraph)(?:\.gz)?$/i) {
 		$filetype = 'Wiggle';
 	}
-	elsif ($file =~ /\.(?:bar|bar\.zip|swi|egr|mpileup|mpileup\.gz)$/i) {
+	elsif ($file =~ /\.(?:bar|bar\.zip|swi|egr|ser|mpileup|mpileup\.gz|motif)$/i) {
 		$filetype = 'Analysis';
 	}
-	elsif ($file =~ /\.(?:xls|xlsx|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|out|rout|rdata|xml|json|json\.gz|html|pzfx)$/i) {
+	elsif ($file =~ /\.(?:xls|xlsx|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|ai|out|rout|rdata|xml|json|json\.gz|html|pzfx)$/i) {
 		$filetype = 'Results';
 	}
-	elsif ($file =~ /\.(?:sh|pl|py|pyc|r|rmd|rscript)$/i) {
+	elsif ($file =~ /\.(?:sh|pl|py|pyc|r|rmd|rscript|awk)$/i) {
 		$filetype = 'Script';
 	}
 	elsif ($file =~ /\.(?:tar|tar\.gz|tar\.bz2|zip)$/i) {
@@ -777,8 +777,8 @@ sub callback {
 	# Compress individual files
 	if (
 		$gzip and 
-		($filetype eq 'Text' or $filetype eq 'Annotation' or $filetype eq 'Wiggle') and 
-		$file !~ /\.gz$/i and 
+		($filetype eq 'Text' or $filetype eq 'Annotation' or $filetype eq 'Wiggle' or $filetype eq 'Sequence') and 
+		$file !~ /\.(?:gz|fai)$/i and 
 		$size > $min_gz_size
 	) {
 		# We have a known, big, text file that is not compressed and needs to be
@@ -799,7 +799,7 @@ sub callback {
 	# Check files for Zip archive files
 	$filedata{$fname}{zip} = 0; # default setting
 	if ($zip and ($filetype ne 'IndexedAnalysis' or $filetype ne 'Alignment') ) {
-		if ( ($filetype eq 'Text' or $filetype eq 'Annotation') and $file !~ /\.gz$/i) {
+		if ( ($filetype eq 'Text' or $filetype eq 'Annotation' or $filetype eq 'Sequence') and $file !~ /\.gz$/i) {
 			# uncompressed text and annotation files always gets zipped
 			# it's just the way it is!
 			$filedata{$fname}{zip} = 1;
