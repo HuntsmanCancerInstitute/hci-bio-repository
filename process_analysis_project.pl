@@ -834,7 +834,7 @@ sub get_file_stats {
 sub calculate_checksum {
 	# calculate the md5 with external utility
 	my $file = shift;
-	my $checksum = `md5sum \"$file\"`; # quote file, because we have files with ;
+	my $checksum = qx(md5sum '$file'); # quote file, because we have files with nasty characters
 	my ($md5, undef) = split(/\s+/, $checksum);
 	return $md5;
 }

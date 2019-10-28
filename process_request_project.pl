@@ -395,7 +395,7 @@ sub scan_directory {
 			}
 			else {
 				# don't have it!!!????? geez. ok, calculate it, this might take a while
-				my $checksum = `md5sum \"$f\"`; # quote file
+				my $checksum = qx(md5sum '$f'); # quote file just in case
 				($md5, undef) = split(/\s+/, $checksum);
 			}
 		}
