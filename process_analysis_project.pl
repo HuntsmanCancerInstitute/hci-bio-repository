@@ -13,7 +13,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 
-my $version = 2.0;
+my $version = 2.1;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -719,6 +719,11 @@ sub callback {
 		else {
 			$filetype = 'Analysis';
 		}
+	}
+	elsif ($file =~ /\.vcf\.idx$/i) {
+		# a GATK-style index for non-tabix, uncompressed VCF files
+		# This index isn't useful for browsing, so do not classify as IndexedAnalysis
+		$filetype = 'Analysis';
 	}
 	elsif ($file =~ /\.tbi$/i) {
 		# a tabix index file, presumably alongside a vcf file
