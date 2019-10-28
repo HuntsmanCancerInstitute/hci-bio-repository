@@ -4,7 +4,7 @@
 use strict;
 use File::Find;
 
-our $VERSION = 1.1;
+our $version = 1.1;
 
 ######## Documentation
 my $doc = <<END;
