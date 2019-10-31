@@ -557,8 +557,9 @@ sub scan_directory {
 		if ($result) {
 			print "     failed!\n" ;
 		}
-		
-		if (-e $zip_file) {
+		elsif (not $result and -e $zip_file) {
+			# zip appears successful
+			
 			# add zip archive data to lists
 			my ($date, $size) = get_file_stats($zip_file);
 			my $md5 = calculate_checksum($zip_file);
@@ -574,15 +575,8 @@ sub scan_directory {
 				$md5,
 			);
 			push @removelist, $zip_file;
-		}
-		
-		
-		## Now move the zipped files
-		# move the the files
-		if ($result) {
-			print "  ! not moving zipped files\n";
-		}
-		else {
+			
+			# move the the files
 			print "  > moving zipped files\n";
 			mkdir $zipped_folder;
 			foreach my $file (@ziplist) {
