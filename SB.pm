@@ -373,7 +373,7 @@ sub new {
 	if (exists $result->{description}) {
 		$self->{description} = $result->{description};
 	}
-	if (exists $result->{description}) {
+	if (exists $result->{billing}) {
 		$self->{billing} = $result->{billing_group};
 	}
 	return bless $self, $class;
