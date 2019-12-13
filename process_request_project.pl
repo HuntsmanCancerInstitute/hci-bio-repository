@@ -13,7 +13,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 
-my $version = 2.6;
+my $version = 2.7;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -724,7 +724,7 @@ sub upload_files {
 			else {
 				$description .= ". ";
 			}
-			$description .= sprintf("Details on the experiment may be found in [GNomEx](https://hci-bio-app.hci.utah.edu/gnomex/gnomexFlex.jsp?requestNumber=%s).\n", 
+			$description .= sprintf("Details on the experiment may be found in [GNomEx](https://hci-bio-app.hci.utah.edu/gnomex/?requestNumber=%s).\n", 
 				$project);
 		}
 		
