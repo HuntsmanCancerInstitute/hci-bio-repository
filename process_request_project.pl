@@ -210,11 +210,15 @@ unless (-e $given_dir) {
 }
 
 # extract the project ID
-if ($given_dir =~ m/(A\d{1,5}|\d{3,5}R)\/?$/) {
-	# look for A prefix or R suffix project identifiers
+if ($given_dir =~ m/(\d{3,5}R)\/?$/) {
+	# look for R suffix project identifiers
 	# this ignores Request digit suffixes such as 1234R1, 
 	# when clients submitted replacement samples
 	$project = $1;
+}
+elsif ($given_dir =~ m/A\d{1,5}\/?$/) {
+	# looks like an analysis project
+	die "given path is an Analysis project! Stopping!\n";
 }
 elsif ($given_dir =~ m/(\d{2,4})\/?$/) {
 	# old style naming convention without an A prefix or R suffix
