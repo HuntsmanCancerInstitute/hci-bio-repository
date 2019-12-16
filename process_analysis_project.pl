@@ -774,7 +774,7 @@ sub callback {
 	elsif ($file =~ /\.(?:bed|bed\d+|gtf|gff|gff\d|narrowpeak|broadpeak|refflat|genepred|ucsc)(?:\.gz)?$/i) {
 		$filetype = 'Annotation';
 	}
-	elsif ($file =~ /\.(?:txt|tsv|tab|csv|cdt|counts|results|cns|cnr|cnn|md|sam)(?:\.gz)?$/i) {
+	elsif ($file =~ /\.(?:txt|tsv|tab|csv|cdt|counts|results|cns|cnr|cnn|md|sam|log)(?:\.gz)?$/i) {
 		# yes, uncompressed sam files get thrown in here as text files!
 		$filetype = 'Text';
 	}
@@ -787,7 +787,7 @@ sub callback {
 	elsif ($file =~ /\.(?:xls|xlsx|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|ai|out|rout|rdata|xml|json|json\.gz|html|pzfx)$/i) {
 		$filetype = 'Results';
 	}
-	elsif ($file =~ /\.(?:sh|pl|py|pyc|r|rmd|rscript|awk)$/i) {
+	elsif ($file =~ /\.(?:sh|pl|py|pyc|r|rmd|rscript|awk|sm)$/i) {
 		$filetype = 'Script';
 	}
 	elsif ($file =~ /\.(?:tar|tar\.gz|tar\.bz2|zip)$/i) {
