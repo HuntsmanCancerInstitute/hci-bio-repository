@@ -8,12 +8,13 @@ use File::Find;
 use File::Copy;
 use File::Path qw(make_path);
 use POSIX qw(strftime);
+use Digest::MD5;
 use Getopt::Long;
 use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 
-my $version = 2.7;
+my $version = 3;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -399,8 +400,7 @@ sub scan_directory {
 			}
 			else {
 				# don't have it!!!????? geez. ok, calculate it, this might take a while
-				my $checksum = qx(md5sum '$f'); # quote file just in case
-				($md5, undef) = split(/\s+/, $checksum);
+				$md5 = calculate_checksum($f);
 			}
 		}
 		
@@ -819,6 +819,17 @@ sub hide_deleted_files {
 }
 
 
+sub calculate_checksum {
+	# calculate the md5 checksum
+	my $file = shift;
+	open (my $fh, '<', $file) or return 1;
+		# if we can't open the file, just skip it and return a dummy value
+		# we'll likely have more issues with this file later
+	binmode ($fh);
+	my $md5 = Digest::MD5->new->addfile($fh)->hexdigest;
+	close $fh;
+	return $md5;
+}
 
 
 

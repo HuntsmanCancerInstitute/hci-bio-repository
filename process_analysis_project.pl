@@ -8,12 +8,15 @@ use File::Find;
 use File::Copy;
 use File::Path qw(make_path);
 use POSIX qw(strftime);
+use Digest::MD5;
 use Getopt::Long;
 use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 
-my $version = 2.2;
+
+
+my $version = 3;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -183,7 +186,7 @@ my @removelist;
 my @ziplist;
 my $project;
 my %filedata;
-
+my $Digest;
 
 # external commands
 my ($gzipper, $zipper);
@@ -465,6 +468,9 @@ sub scan_directory {
 	# remember that we are in the project directory, so we search current directory ./
 	# results from the recursive search are processed with callback() function and 
 	# written to global variables - the callback doesn't support passed data 
+	
+	# Initialize reusable checksum object
+	$Digest = Digest::MD5->new;
 	
 	# search
 	find( {
@@ -813,7 +819,7 @@ sub callback {
 	### Record the collected file information
 	$filedata{$fname}{clean} = $clean_name;
 	$filedata{$fname}{type}  = $filetype;
-	$filedata{$fname}{md5}   = calculate_checksum($file) || q();
+	$filedata{$fname}{md5}   = calculate_checksum($file);
 	$filedata{$fname}{date}  = $date;
 	$filedata{$fname}{size}  = $size;
 	
@@ -831,10 +837,14 @@ sub get_file_stats {
 
 
 sub calculate_checksum {
-	# calculate the md5 with external utility
+	# calculate the md5 checksum
 	my $file = shift;
-	my $checksum = qx(md5sum '$file'); # quote file, because we have files with nasty characters
-	my ($md5, undef) = split(/\s+/, $checksum);
+	open (my $fh, '<', $file) or return 1;
+		# if we can't open the file, just skip it and return a dummy value
+		# we'll likely have more issues with this file later
+	binmode ($fh);
+	my $md5 = $Digest->addfile($fh)->hexdigest;
+	close $fh;
 	return $md5;
 }
 

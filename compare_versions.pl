@@ -3,9 +3,10 @@
 
 use strict;
 use warnings;
+use Digest::MD5;
 use File::Find;
 
-my $VERSION = 2;
+my $VERSION = 3;
 
 # useful shortcut variable names to use in the find callback
 use vars qw(*fullname *curdir);
@@ -56,7 +57,8 @@ if (not -d $restore_prefix) {
 	die "restore prefix directory '$restore_prefix' doesn't exist!\n";
 }
 
-
+# search
+my $Digest = Digest::MD5->new;
 find( {
 		follow => 0, # do not follow symlinks
 		wanted => \&callback,
@@ -136,12 +138,10 @@ sub callback {
 	}
 	
 	# current file checksum
-	my $checksum = `md5sum \"$file\"`;
-	my ($check1, undef) = split /\s+/, $checksum;
+	my $check1 = calculate_checksum($file);
 	
 	# restored file checksum
-	$checksum = `md5sum \"$restore_file\"`;
-	my ($check2, undef) = split /\s+/, $checksum;
+	my $check2 = calculate_checksum($restore_file);
 	
 	# compare
 	if ($check1 eq $check2) {
@@ -173,4 +173,15 @@ sub callback {
 }
 
 
+sub calculate_checksum {
+	# calculate the md5 checksum
+	my $file = shift;
+	open (my $fh, '<', $file) or return 1;
+		# if we can't open the file, just skip it and return a dummy value
+		# we'll likely have more issues with this file later
+	binmode ($fh);
+	my $md5 = $Digest->addfile($fh)->hexdigest;
+	close $fh;
+	return $md5;
+}
 
