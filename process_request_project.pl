@@ -48,7 +48,7 @@ Usage:
 
 Options:
 
- Mode
+ Main functions - not exclusive
     --scan              Scan the project folder and generate the manifest
     --upload            Run the sbg-uploader program to upload
     --hide              Hide the Fastq files in hidden deletion folder

@@ -62,10 +62,8 @@ Usage:
 
 Options:
 
- Mode
+ Main functions - not exclusive
     --scan              Scan the project folder and generate the manifest
-    --gz                GZip compress known text files while scanning
-    --zip               Zip archive small files when scanning
     --upload            Run the sbg-uploader program to upload
     --hide              Hide the deleted files in hidden folder
 
@@ -84,6 +82,8 @@ Options:
                         Recognized forms will be simplified by regex.
 
  Options
+    --gz                GZip compress known text files while scanning
+    --zip               Zip archive small files when scanning
     --all               Mark everything, including Analysis files, for deletion
     --desc "text"       Description for new SB project when uploading. 
                         Can be Markdown text.
