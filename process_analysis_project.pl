@@ -231,6 +231,15 @@ elsif ($species =~ /zebrafish/i) {
 elsif ($species =~ /rat/i) {
 	$sb_species = 'Rattus norvegicus';
 }
+elsif ($species =~ /sheep/i) {
+	$sb_species = 'Ovis aries';
+}
+elsif ($species =~ /rabbit/i) {
+	$sb_species = 'Oryctolagus cuniculus';
+}
+elsif ($species =~ /pig/i) {
+	$sb_species = 'Sus scrofa';
+}
 elsif ($species =~ /fly|melanogaster/i) {
 	$sb_species = 'Drosophila melanogaster';
 }
@@ -282,6 +291,14 @@ elsif ($genome =~ /(dm\d+)/i) {
 }
 # worm
 elsif ($genome =~ /(ce\d+)/i) {
+	$sb_genome = $1;
+}
+# sheep
+elsif ($genome =~ /(ov\d\+)/i) {
+	$sb_genome = $1;
+}
+# rat
+elsif ($genome =~ /(rn\d\+)/i) {
 	$sb_genome = $1;
 }
 # what else?
