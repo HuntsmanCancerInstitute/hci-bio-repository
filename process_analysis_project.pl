@@ -16,7 +16,7 @@ use SB;
 
 
 
-my $version = 3;
+my $version = 3.1;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -435,6 +435,9 @@ else {
 
 ######## Main functions
 
+# keep track of failures
+my $failure_count = 0;
+
 # scan the directory
 if ($scan) {
 	# this will also run the zip function
@@ -444,32 +447,41 @@ if ($scan) {
 
 
 # upload files to Seven Bridges
-if ($upload) {
+if ($upload and not $failure_count) {
 	if (-e $manifest_file) {
 		print " > uploading project $project files to $sb_division\n";
 		upload_files();
 	}
 	else {
 		print " ! No manifest file! Cannot upload files\n";
+		$failure_count++;
 	}
 }
 
 
 # hide files
-if ($hide_files) {
+if ($hide_files and not $failure_count) {
 	if (-e $alt_remove) {
 		print " > moving project $project files to $deleted_folder\n";
 		hide_deleted_files();
 	}
 	else {
 		print " ! No deleted files to hide\n";
+		$failure_count++;
 	}
 }
 
 
 
 ######## Finished
-printf " > finished with $project in %.1f minutes\n\n", (time - $start_time)/60;
+if ($failure_count) {
+	printf " ! finished with $project with %d failures in %.1f minutes\n\n", 
+		$failure_count, (time - $start_time)/60;
+	
+}
+else {
+	printf " > finished with $project in %.1f minutes\n\n", (time - $start_time)/60;
+}
 
 
 
@@ -501,14 +513,14 @@ sub scan_directory {
 	# confirm
 	if (not scalar keys %filedata) {
 		print "  > nothing found!\n";
-		return;
+		return 0;
 	}
 	else {
 		printf "  > processed %d files\n", scalar keys %filedata;
 	}
 	
 	### Generate manifest file
-
+	
 	# compile lists
 	my @manifest;
 	push @manifest, join(',', qw(File Type species reference_genome UserFirstName UserLastName Size Date MD5));
@@ -580,7 +592,8 @@ sub scan_directory {
 		print "  > executing: $command\n";
 		my $result = system($command);
 		if ($result) {
-			print "     failed!\n" ;
+			print "     failed!\n";
+			$failure_count++;
 		}
 		elsif (not $result and -e $zip_file) {
 			# zip appears successful
@@ -612,19 +625,28 @@ sub scan_directory {
 					# permissions and ownership inherit from user, not from source
 					# return value is number of directories made, which in some cases could be 0!
 				print "     moving $file\n" if $verbose;
-				move($file, $targetdir) or print "     ! failed to move $file! $!\n";
+				move($file, $targetdir) or do {
+					print "     ! failed to move $file! $!\n";
+					$failure_count++;
+				};
 			}
 	
 			# clean up empty directories
 			my $command = sprintf("find %s -type d -empty -delete", $given_dir);
 			print "  > executing: $command\n";
-			print "    ! failed $!\n" if (system($command));
+			if (system($command)) {
+				print "    ! failed $!\n";
+				$failure_count++;
+			}
 		
 			# clean up broken symlinks
 			# sometimes they refer to a zipped file, and thus breaks the sbg_uploader
 			$command = sprintf("find %s -xtype l -delete", $given_dir);
 			print "  > executing: $command\n";
-			print "    ! failed $!\n" if (system($command));
+			if (system($command)) {
+				print "    ! failed $!\n";
+				$failure_count++;
+			}
 		}
 	}
 	
@@ -809,6 +831,7 @@ sub callback {
 		my $command = sprintf "%s \"%s\"", $gzipper, $file;
 		if (system($command)) {
 			print "   ! gzip command '$command' failed!\n";
+			$failure_count++;
 		}
 		else {
 			# succesfull compression! update values
@@ -921,6 +944,7 @@ sub upload_files {
 		}
 		else {
 			print "   ! failed to make SB project!\n";
+			$failure_count++;
 			return;
 		}
 	}
@@ -938,17 +962,20 @@ sub upload_files {
 	my $path = $sbproject->bulk_upload_path($sbupload_path);
 	unless ($path) {
 		print "   ! no sbg-upload.sh executable path!\n";
+		$failure_count++;
 		return;
 	};
 	my $result = $sbproject->bulk_upload(@up_options);
 	print $result;
 	if ($result =~ /FAILED/) {
+		$failure_count++;
 		print "   ! upload failed!\n";
 	}
 	elsif ($result =~ /Done\.\n$/) {
 		print "   > upload successful\n";
 	}
 	else {
+		$failure_count++;
 		print "   ! upload error!\n";
 	}
 	return 1;
@@ -980,21 +1007,33 @@ sub hide_deleted_files {
 			# permissions and ownership inherit from user, not from source
 			# return value is number of directories made, which in some cases could be 0!
 		print "   moving $file\n" if $verbose;
-		move($file, $targetdir) or print "   failed to move! $!\n";
+		move($file, $targetdir) or do {
+			print "   failed to move! $!\n";
+			$failure_count++;
+		};
 	}
 	
 	# clean up empty directories
 	my $command = sprintf("find %s -type d -empty -delete", $given_dir);
 	print "  > executing: $command\n";
-	print "    failed! $!\n" if (system($command));
+	if (system($command)) {
+		print "    failed! $!\n";
+		$failure_count++;
+	}
 	
 	# move the deleted folder back into archive
-	move($alt_remove, $remove_file) or print "   failed to move $alt_remove! $!\n";
+	move($alt_remove, $remove_file) or do {
+		print "   failed to move $alt_remove! $!\n";
+		$failure_count++;
+	};
 	
 	# put in notice
 	if (not -e $notice_file and $notice_source_file) {
 		$command = sprintf("ln -s %s %s", $notice_source_file, $notice_file);
-		print "   ! failed to link notice file! $!\n" if (system($command));
+		if (system($command)) {
+			print "   ! failed to link notice file! $!\n";
+			$failure_count++;
+		}
 	}
 }
 
