@@ -16,7 +16,7 @@ use SB;
 
 
 
-my $version = 3.1;
+my $version = 3.2;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -689,7 +689,9 @@ sub callback {
 		return;
 	}
 	elsif (-l $file) {
-		print "     symbolic link, skipping\n" if $verbose;
+		# the sbg uploader can't handle symbolic links safely, so just delete them
+		print "   ! deleting symbolic link: $clean_name\n";
+		unlink $file;
 		return;
 	}
 	elsif ($file eq $remove_file) {
