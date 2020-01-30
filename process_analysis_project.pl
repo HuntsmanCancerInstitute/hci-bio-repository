@@ -413,6 +413,10 @@ if (-e $deleted_folder) {
 		print "! cannot re-scan if deleted files hidden folder exists!\n";
 		$scan = 0;
 	}
+	if ($upload) {
+		print "! cannot upload if deleted files hidden folder exists!\n";
+		$upload = 0;
+	}
 }
 
 # notification file
