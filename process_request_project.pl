@@ -14,7 +14,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 
-my $version = 3;
+my $version = 3.1;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -272,10 +272,18 @@ if ($verbose) {
 my $deleted_folder = File::Spec->catfile($parent_dir, $project . "_DELETED_FILES");
 print " => deleted folder: $deleted_folder\n" if $verbose;
 if (-e $deleted_folder) {
-	print " ! deleted files hidden folder already exists! Will not move deleted files\n" if $hide_files;
-	$hide_files = 0; # do not want to move zipped files
-	print "! cannot re-scan if deleted files hidden folder exists!\n" if $scan;
-	$scan = 0;
+	if ($hide_files) {
+		print " ! deleted files hidden folder already exists! Will not move deleted files\n";
+		$hide_files = 0; # do not want to move zipped files
+	} 
+	if ($scan) {
+		print "! cannot re-scan if deleted files hidden folder exists!\n";
+		$scan = 0;
+	}
+	if ($upload) {
+		print "! cannot upload if deleted files hidden folder exists!\n";
+		$upload = 0;
+	}
 }
 
 # notification file
