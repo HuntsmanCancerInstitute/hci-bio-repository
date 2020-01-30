@@ -945,7 +945,7 @@ sub upload_files {
 			name        => $project,
 			description => $description,
 		);
-		if ($sbproject) {
+		if ($sbproject and $sbproject->id) {
 			printf "   > created SB project %s\n", $sbproject->id;
 		}
 		else {
