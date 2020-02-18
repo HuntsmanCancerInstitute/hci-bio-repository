@@ -260,9 +260,18 @@ printf " > finished with %s with %d failures in %.1f minutes\n\n", $Project->pro
 
 
 
+__END__
 
+=head1 AUTHOR
 
+ Timothy J. Parnell, PhD
+ Dept of Oncological Sciences
+ Huntsman Cancer Institute
+ University of Utah
+ Salt Lake City, UT, 84112
 
+This package is free software; you can redistribute it and/or modify
+it under the terms of the Artistic License 2.0.  
 
 
 

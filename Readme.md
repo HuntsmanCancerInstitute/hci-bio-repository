@@ -17,6 +17,10 @@ A Perl module with wrapper functions around the Seven Bridges
 [command line tool](https://docs.sevenbridges.com/docs/command-line-interface) `sb` 
 for use in Perl scripts. 
 
+- `RepoProject.pm`
+
+A module providing common code functions for working with Repository project folders.
+
 ## GNomEx Project Scripts
 
 - `fetch_gnomex_data.pl`
@@ -52,8 +56,8 @@ contents to it.
 
 A general purpose script for managing GNomEx Analysis and Request project folders on 
 the file server. It will hide files that were bundled into a Zip archive, hide files 
-targeted for deletion, restore hidden files, permanently delete hidden files, and insert 
-a symbolic link to a missing file notification. 
+targeted for deletion, restore hidden files, permanently delete hidden files, insert 
+a symbolic link to a missing file notification, and more. 
 
 ## General Scripts
 
@@ -130,10 +134,16 @@ External applications for working with Seven Bridges are also required.
 - Seven Bridges credentials file with division tokens
 
 
+# License
 
+This package is free software; you can redistribute it and/or modify
+it under the terms of the Artistic License 2.0.  
 
-
-
+ Timothy J. Parnell, PhD
+ Dept of Oncological Sciences
+ Huntsman Cancer Institute
+ University of Utah
+ Salt Lake City, UT, 84112
 
 
 
