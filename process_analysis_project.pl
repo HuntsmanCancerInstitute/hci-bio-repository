@@ -3,20 +3,16 @@
 
 use strict;
 use IO::File;
-use File::Spec;
 use File::Find;
-use File::Copy;
-use File::Path qw(make_path);
 use POSIX qw(strftime);
-use Digest::MD5;
 use Getopt::Long;
 use FindBin qw($Bin);
 use lib $Bin;
 use SB;
+use RepoProject;
 
 
-
-my $version = 3.2;
+my $version = 4.0;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -90,6 +86,8 @@ Options:
                         Can be Markdown text.
     --mingz <integer>   Minimum size in bytes to gzip text files (10 KB)
     --maxzip <integer>  Maximum size in bytes to avoid zip archiving (200 MB)
+    --keepzip           Do not hide files that have been zip archived
+    --delzip            Immediately delete files that have been zip archived
     --verbose           Tell me everything!
  
  Seven Bridges
@@ -109,7 +107,7 @@ END
 
 
 ######## Process command line options
-my $given_dir;
+my $path;
 my $scan;
 my $zip;
 my $gzip;
@@ -124,6 +122,8 @@ my $genome              = q();
 my $description         = q();
 my $min_gz_size         = 10000;     # 10 KB
 my $max_zip_size        = 200000000; # 200 MB
+my $keepzip             = 0;
+my $deletezip           = 0;
 my $sb_division         = q(default);
 my $sb_path             = q();
 my $sbupload_path       = q();
@@ -146,6 +146,8 @@ if (scalar(@ARGV) > 1) {
 		'genome=s'      => \$genome,
 		'desc=s'        => \$description,
 		'mingz=i'       => \$min_gz_size,
+		'keepzip!'      => \$keepzip,
+		'delzip!'       => \$deletezip,
 		'all!'          => \$everything,
 		'division=s'    => \$sb_division,
 		'sb=s'          => \$sb_path,
@@ -158,11 +160,8 @@ else {
 	print $doc;
 	exit;
 }
-$given_dir = shift @ARGV;
+$path = shift @ARGV;
 
-
-# Start up message for log tracking
-print " > working on $given_dir\n";
 
 
 
@@ -185,7 +184,7 @@ if ($upload) {
 my $start_time = time;
 my @removelist;
 my @ziplist;
-my $project;
+my $Project->project;
 my %filedata;
 my $Digest;
 
@@ -198,10 +197,8 @@ if ($gzip) {
 		$gzipper .= ' -p 4'; # run with four cores
 	}
 	else {
+		# hope it's available - should be
 		$gzipper = 'gzip';
-	}
-	if ($verbose) {
-		print " => gzip compression: $gzipper\n";
 	}
 }
 if ($zip) {
@@ -213,9 +210,6 @@ if ($zip) {
 	unless ($zipper) {
 		print " ! no zip compression utility, disabling\n";
 		$zip = 0;
-	}
-	if ($verbose) {
-		print " => zip archiving utility: $zipper\n";
 	}
 }
 
@@ -311,89 +305,43 @@ else {
 }
 
 
-####### Check directories
 
-# empirical directories
-if ($verbose) {
-	print " => SB path: $sb_path\n" if $sb_path;
-	print " => SB uploader path: $sbupload_path\n" if $sbupload_path;
-	print " => SB credentials path: $cred_path\n" if $cred_path;
-}
 
-# check directory
-unless ($given_dir =~ /^\//) {
-	die "given path does not begin with / Must use absolute paths!\n";
-}
-unless (-e $given_dir) {
-	die "given path $given_dir does not exist!\n";
-}
 
-# extract the project ID
-if ($given_dir =~ m/(A\d{2,5})\/?$/) {
-	# looks like an Analysis project
-	$project = $1;
-}
-elsif ($given_dir =~ m/\d{3,5}R\/?$/) {
+####### Initiate Project
+
+my $Project = RepoProject->new($path, $verbose) or 
+	die "unable to initiate Repository Project!\n";
+printf " > working on %s at %s\n", $Project->project, $Project->given_dir;
+printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
+
+# check project
+if ($Project->project =~ m/\d{3,5}R\/?$/) {
 	# looks like a Request project
 	die "given path is a Request project! Stopping!\n";
 }
-elsif ($given_dir =~ m/(\d{2,4})\/?$/) {
-	# old style naming convention without an A prefix or R suffix
-	$project = $1;
-}
-else {
-	# non-canonical path, take the last given directory
-	my @dir = File::Spec->splitdir($given_dir);
-	$project = @dir[-1];
-}
 
-
-# check directory and move into the parent directory if we're not there
-my $parent_dir = './';
-if ($given_dir =~ m/^(\/Repository\/(?:MicroarrayData|AnalysisData)\/\d{4})\/?/) {
-	$parent_dir = $1;
-}
-elsif ($given_dir =~ m/^(.+)$project\/?$/) {
-	$parent_dir = $1;
-}
-print "   using parent directory $parent_dir\n" if $verbose;
-
-# change to the given directory
-print " > changing to $given_dir\n" if $verbose;
-chdir $given_dir or die "cannot change to $given_dir!\n";
-
-
-
-
-
-
-
-####### Prepare file names
-
-# file names in project directory
-my $manifest_file = $project . "_MANIFEST.csv";
-my $remove_file   = $project . "_REMOVE_LIST.txt";
-my $ziplist_file  = $project . "_ARCHIVE_LIST.txt";
-my $zip_file      = $project . "_ARCHIVE.zip";
-my $notice_file   = "where_are_my_files.txt";
-
-# hidden file names in parent directory
-my $alt_remove    = File::Spec->catfile($parent_dir, $project . "_REMOVE_LIST.txt");
-my $alt_zip       = File::Spec->catfile($parent_dir, $project . "_ARCHIVE.zip");
-my $alt_ziplist   = File::Spec->catfile($parent_dir, $project . "_ARCHIVE_LIST.txt");
-
+# application paths
 if ($verbose) {
-	print " =>  manifest file: $manifest_file\n";
-	print " =>    remove file: $remove_file or $alt_remove\n";
-	print " =>  zip list file: $ziplist_file or $alt_ziplist\n";
-	print " =>       zip file: $zip_file or $alt_zip\n";
+	print " =>             SB path: $sb_path\n" if $sb_path;
+	print " =>    SB uploader path: $sbupload_path\n" if $sbupload_path;
+	print " => SB credentials path: $cred_path\n" if $cred_path;
+	print " =>    gzip compression: $gzipper\n" if $gzip;
+	print " =>         zip utility: $zipper\n" if $zip;
+}
+
+# file paths
+if ($verbose) {
+	printf " =>  manifest file: %s\n", $Project->manifest_file;
+	printf " =>    remove file: %s or %s\n", $Project->remove_file, $Project->alt_remove_file;
+	printf " =>  zip list file: %s or %s\n", $Project->ziplist_file, $Project->alt_ziplist_file;
+	printf " =>       zip file: %s or %s\n", $Project->zip_file, $Project->alt_zip_file;
 }
 
 
 # zipped file hidden folder
-my $zipped_folder = File::Spec->catfile($parent_dir, $project . "_ZIPPED_FILES");
-print " =>  zipped folder: $zipped_folder\n" if $verbose;
-if (-e $zipped_folder) {
+printf " =>  zipped folder: \n", $Project->zipped_folder if $verbose;
+if (-e $Project->zipped_folder) {
 	if ($scan) {
 		print " ! cannot re-scan if zipped files hidden folder exists!\n";
 		$scan = 0;
@@ -406,9 +354,8 @@ if (-e $zipped_folder) {
 
 
 # removed file hidden folder
-my $deleted_folder = File::Spec->catfile($parent_dir, $project . "_DELETED_FILES");
-print " => deleted folder: $deleted_folder\n" if $verbose;
-if (-e $deleted_folder) {
+printf " => deleted folder: %s\n", $Project->deleted_folder if $verbose;
+if (-e $Project->deleted_folder) {
 	if ($hide_files) {
 		print " ! deleted files hidden folder already exists! Will not move deleted files\n";
 		$hide_files = 0; # do not want to move zipped files
@@ -423,19 +370,6 @@ if (-e $deleted_folder) {
 	}
 }
 
-# notification file
-my $notice_source_file;
-if ($given_dir =~ /MicroarrayData/) {
-	$notice_source_file = "/Repository/MicroarrayData/missing_file_notice.txt";
-}
-elsif ($given_dir =~ /AnalysisData/) {
-	$notice_source_file = "/Repository/AnalysisData/missing_file_notice.txt";
-}
-else {
-	# primarily for testing purposes
-	$notice_source_file = "~/missing_file_notice.txt";
-}
-
 
 
 
@@ -443,21 +377,28 @@ else {
 
 ######## Main functions
 
+# change to the given directory
+printf " > changing to %s\n", $Project->given_dir if $verbose;
+chdir $Project->given_dir or 
+	die sprintf("cannot change to %s!\n", $Project->given_dir);
+
+
 # keep track of failures
 my $failure_count = 0;
 
 # scan the directory
 if ($scan) {
 	# this will also run the zip function
-	print " > scanning project $project in directory $parent_dir\n";
+	printf " > scanning project %s in directory %s\n", $Project->project, 
+		$Project->parent_dir;
 	scan_directory();
 }
 
 
 # upload files to Seven Bridges
 if ($upload and not $failure_count) {
-	if (-e $manifest_file) {
-		print " > uploading project $project files to $sb_division\n";
+	if (-e $Project->manifest_file) {
+		printf " > uploading project %s files to $sb_division\n", $Project->project;
 		upload_files();
 	}
 	else {
@@ -469,9 +410,10 @@ if ($upload and not $failure_count) {
 
 # hide files
 if ($hide_files and not $failure_count) {
-	if (-e $alt_remove) {
-		print " > moving project $project files to $deleted_folder\n";
-		hide_deleted_files();
+	if (-e $Project->alt_remove_file) {
+		print " > moving project %s files to %s\n", $Project->project, 
+			$Project->deleted_folder;
+		$failure_count += $Project->hide_deleted_files;
 	}
 	else {
 		print " ! No deleted files to hide\n";
@@ -483,12 +425,13 @@ if ($hide_files and not $failure_count) {
 
 ######## Finished
 if ($failure_count) {
-	printf " ! finished with $project with %d failures in %.1f minutes\n\n", 
+	printf " ! finished with %s with %d failures in %.1f minutes\n\n", $Project->project,
 		$failure_count, (time - $start_time)/60;
 	
 }
 else {
-	printf " > finished with $project in %.1f minutes\n\n", (time - $start_time)/60;
+	printf " > finished with %s in %.1f minutes\n\n", $Project->project, 
+		(time - $start_time)/60;
 }
 
 
@@ -508,8 +451,6 @@ sub scan_directory {
 	# results from the recursive search are processed with callback() function and 
 	# written to global variables - the callback doesn't support passed data 
 	
-	# Initialize reusable checksum object
-	$Digest = Digest::MD5->new;
 	
 	# search
 	find( {
@@ -586,8 +527,8 @@ sub scan_directory {
 	if ($zip and scalar @ziplist) {
 		
 		## write zip list file
-		my $fh = IO::File->new($ziplist_file, 'w') or 
-			die "unable to write zip list file $ziplist_file: $!\n";
+		my $fh = IO::File->new($Project->ziplist_file, 'w') or 
+			die sprintf("unable to write zip list file %s: $!\n", $Project->ziplist_file);
 		foreach (@ziplist) {
 			$fh->print("$_\n");
 		}
@@ -595,25 +536,26 @@ sub scan_directory {
 		
 		
 		## Zip the files
-		# we will zip zip with fastest compression for speed
+		# we will zip zip with fast compression for speed
 		# use file sync option to add, update, and/or delete members in zip archive
 		# regardless if it's present or new
 		print "  > zipping files\n";
-		my $command = sprintf("cat %s | $zipper -1 --symlinks -FS -@ %s", $ziplist_file, $zip_file);
+		my $command = sprintf("cat %s | $zipper -3 -FS -@ %s", $Project->ziplist_file, 
+			$Project->zip_file);
 		print "  > executing: $command\n";
 		my $result = system($command);
 		if ($result) {
 			print "     failed!\n";
 			$failure_count++;
 		}
-		elsif (not $result and -e $zip_file) {
+		elsif (not $result and -e $Project->zip_file) {
 			# zip appears successful
 			
 			# add zip archive data to lists
-			my ($date, $size) = get_file_stats($zip_file);
-			my $md5 = calculate_checksum($zip_file);
+			my ($date, $size) = get_file_stats($Project->zip_file);
+			my $md5 = $Project->calculate_file_checksum($Project->zip_file);
 			push @manifest, join(",", 
-				$zip_file, 
+				$Project->zip_file, 
 				'Archive', 
 				q(""), 
 				q(""), 
@@ -623,40 +565,16 @@ sub scan_directory {
 				sprintf("\"%s\"", $date),
 				$md5,
 			);
-			push @removelist, $zip_file;
+			push @removelist, $Project->zip_file;
 			
-			# move the the files
-			print "  > moving zipped files\n";
-			mkdir $zipped_folder;
-			foreach my $file (@ziplist) {
-				my (undef, $dir, $basefile) = File::Spec->splitpath($file);
-				my $targetdir = File::Spec->catdir($zipped_folder, $dir);
-				make_path($targetdir); 
-					# this should safely skip existing directories
-					# permissions and ownership inherit from user, not from source
-					# return value is number of directories made, which in some cases could be 0!
-				print "     moving $file\n" if $verbose;
-				move($file, $targetdir) or do {
-					print "     ! failed to move $file! $!\n";
-					$failure_count++;
-				};
+			# process the remaining files that were zipped
+			if ($deletezip) {
+				print "  > deleting zipped files\n";
+				$failure_count += $Project->delete_zipped_files;
 			}
-	
-			# clean up empty directories
-			my $command = sprintf("find %s -type d -empty -delete", $given_dir);
-			print "  > executing: $command\n";
-			if (system($command)) {
-				print "    ! failed $!\n";
-				$failure_count++;
-			}
-		
-			# clean up broken symlinks
-			# sometimes they refer to a zipped file, and thus breaks the sbg_uploader
-			$command = sprintf("find %s -xtype l -delete", $given_dir);
-			print "  > executing: $command\n";
-			if (system($command)) {
-				print "    ! failed $!\n";
-				$failure_count++;
+			elsif ($keepzip == 0) {
+				print "  > moving zipped files\n";
+				$failure_count += $Project->hide_zipped_files;
 			}
 		}
 	}
@@ -664,21 +582,23 @@ sub scan_directory {
 	
 	### Write files
 	# manifest
-	my $fh = IO::File->new($manifest_file, 'w') or 
-		die "unable to write manifest file $manifest_file: $!\n";
+	my $fh = IO::File->new($Project->manifest_file, 'w') or 
+		die sprintf("unable to write manifest file %s: $!\n", $Project->manifest_file);
 	foreach (@manifest) {
 		$fh->print("$_\n");
 	}
 	$fh->close;
 	
 	# remove list
-	$fh = IO::File->new($alt_remove, 'w') or 
-		die "unable to write manifest file $alt_remove: $!\n";
+	$fh = IO::File->new($Project->alt_remove_file, 'w') or 
+		die sprintf("unable to write manifest file : $!\n", $Project->alt_remove_file);
 	foreach (@removelist) {
 		$fh->print("$_\n");
 	}
 	$fh->close;
 	
+	
+	### Finished
 	return 1;
 }
 
@@ -705,19 +625,19 @@ sub callback {
 		unlink $file;
 		return;
 	}
-	elsif ($file eq $remove_file) {
+	elsif ($file eq $Project->remove_file) {
 		print "     skipping project metadata file\n" if $verbose;
 		return;
 	}
-	elsif ($file eq $notice_file) {
+	elsif ($file eq $Project->notice_file) {
 		print "     skipping project metadata file\n" if $verbose;
 		return;
 	}
-	elsif ($file eq $manifest_file) {
+	elsif ($file eq $Project->manifest_file) {
 		print "     skipping project metadata file\n" if $verbose;
 		return;
 	}
-	elsif ($file eq $ziplist_file) {
+	elsif ($file eq $Project->ziplist_file) {
 		print "     skipping project metadata file\n" if $verbose;
 		return;
 	}
@@ -915,7 +835,7 @@ sub callback {
 	### Record the collected file information
 	$filedata{$fname}{clean} = $clean_name;
 	$filedata{$fname}{type}  = $filetype;
-	$filedata{$fname}{md5}   = calculate_checksum($file);
+	$filedata{$fname}{md5}   = $Project->calculate_file_checksum($file);
 	$filedata{$fname}{date}  = $date;
 	$filedata{$fname}{size}  = $size;
 	
@@ -929,19 +849,6 @@ sub get_file_stats {
 	my @st = stat($file);
 	my $date = strftime("%B %d, %Y %H:%M:%S", localtime($st[9]));
 	return ($date, $st[7]); # date, size
-}
-
-
-sub calculate_checksum {
-	# calculate the md5 checksum
-	my $file = shift;
-	open (my $fh, '<', $file) or return 1;
-		# if we can't open the file, just skip it and return a dummy value
-		# we'll likely have more issues with this file later
-	binmode ($fh);
-	my $md5 = $Digest->addfile($fh)->hexdigest;
-	close $fh;
-	return $md5;
 }
 
 
@@ -961,7 +868,7 @@ sub upload_files {
 	
 	# check whether it exists
 	foreach my $p ($sb->projects) {
-		if ($p->name eq $project) {
+		if ($p->name eq $Project->project) {
 			# we found it
 			$sbproject = $p;
 			printf "   > using existing SB project %s\n", $p->id;
@@ -974,7 +881,7 @@ sub upload_files {
 		# generate description in markdown as necessary
 		if (not $description) {
 			$description = sprintf "# %s\n## %s\n GNomEx project %s is an Analysis project for %s %s",
-				$project, $title, $project, $userfirst, $userlast;
+				$Project->project, $title, $Project->project, $userfirst, $userlast;
 			if ($group) {
 				$description .= " in the group '$group'. ";
 			}
@@ -985,12 +892,12 @@ sub upload_files {
 				$description .= "Analysis files are for species $sb_species, genome build version $sb_genome. ";
 			}
 			$description .= sprintf("Details on the experiment may be found in [GNomEx](https://hci-bio-app.hci.utah.edu/gnomex/?analysisNumber=%s).\n",
-				$project);
+				$Project->project);
 		}
 		
 		# create project
 		$sbproject = $sb->create_project(
-			name        => $project,
+			name        => $Project->project,
 			description => $description,
 		);
 		if ($sbproject and $sbproject->id) {
@@ -1036,60 +943,6 @@ sub upload_files {
 }
 
 
-sub hide_deleted_files {
-	
-	# move the deleted files
-	mkdir $deleted_folder;
-	
-	unless (@removelist) {
-		# load the delete file contents
-		my $fh = IO::File->new($alt_remove, 'r') or die "can't read $alt_remove! $!\n";
-		while (my $line = $fh->getline) {
-			chomp($line);
-			push @removelist, $line;
-		}
-		$fh->close;
-	}
-	
-	# process the removelist
-	foreach my $file (@removelist) {
-		next unless (-e $file);
-		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
-		my $targetdir = File::Spec->catdir($deleted_folder, $dir);
-		make_path($targetdir); 
-			# this should safely skip existing directories
-			# permissions and ownership inherit from user, not from source
-			# return value is number of directories made, which in some cases could be 0!
-		print "   moving $file\n" if $verbose;
-		move($file, $targetdir) or do {
-			print "   failed to move! $!\n";
-			$failure_count++;
-		};
-	}
-	
-	# clean up empty directories
-	my $command = sprintf("find %s -type d -empty -delete", $given_dir);
-	print "  > executing: $command\n";
-	if (system($command)) {
-		print "    failed! $!\n";
-		$failure_count++;
-	}
-	
-	# move the deleted folder back into archive
-	move($alt_remove, $remove_file) or do {
-		print "   failed to move $alt_remove! $!\n";
-		$failure_count++;
-	};
-	
-	# put in notice
-	if (not -e $notice_file and $notice_source_file) {
-		$command = sprintf("ln -s %s %s", $notice_source_file, $notice_file);
-		if (system($command)) {
-			print "   ! failed to link notice file! $!\n";
-			$failure_count++;
-		}
-	}
-}
 
 
 

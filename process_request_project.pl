@@ -3,18 +3,16 @@
 
 use strict;
 use IO::File;
-use File::Spec;
 use File::Find;
-use File::Copy;
-use File::Path qw(make_path);
+use File::Spec;
 use POSIX qw(strftime);
-use Digest::MD5;
 use Getopt::Long;
 use FindBin qw($Bin);
 use lib $Bin;
 use SB;
+use RepoProject;
 
-my $version = 3.1;
+my $version = 4.0;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -86,7 +84,7 @@ END
 
 
 ######## Process command line options
-my $given_dir;
+my $path;
 my $scan;
 my $hide_files;
 my $upload;
@@ -119,16 +117,13 @@ if (scalar(@ARGV) > 1) {
 		'cred=s'        => \$cred_path,
 		'verbose!'      => \$verbose,
 	) or die "please recheck your options!\n\n$doc\n";
-	$given_dir = shift @ARGV;
+	$path = shift @ARGV;
 }
 else {
 	print $doc;
 	exit;
 }
 
-
-# Start up message for log tracking
-print " > working on $given_dir\n";
 
 
 
@@ -192,86 +187,39 @@ else {
 
 
 
+####### Initiate Project
 
-####### Check directories
+# Initialize
+my $Project = RepoProject->new($path, $verbose) or 
+	die "unable to initiate Repository Project!\n";
 
-# empirical directories
-if ($verbose) {
-	print " => SB path: $sb_path\n" if $sb_path;
-	print " => SB uploader path: $sbupload_path\n" if $sbupload_path;
-	print " => SB credentials path: $cred_path\n" if $cred_path;
-}
-
-# check directory
-unless ($given_dir =~ /^\//) {
-	die "given path does not begin with / Must use absolute paths!\n";
-}
-unless (-e $given_dir) {
-	die "given path $given_dir does not exist!\n";
-}
-
-# extract the project ID
-if ($given_dir =~ m/(\d{3,5}R)\/?$/) {
-	# look for R suffix project identifiers
-	# this ignores Request digit suffixes such as 1234R1, 
-	# when clients submitted replacement samples
-	$project = $1;
-}
-elsif ($given_dir =~ m/A\d{1,5}\/?$/) {
+# check project ID
+if ($Project->given_dir =~ m/A\d{1,5}\/?$/) {
 	# looks like an analysis project
 	die "given path is an Analysis project! Stopping!\n";
 }
-elsif ($given_dir =~ m/(\d{2,4})\/?$/) {
-	# old style naming convention without an A prefix or R suffix
-	$project = $1;
-}
-else {
-	# non-canonical path, take the last given directory
-	my @dir = File::Spec->splitdir($given_dir);
-	$project = @dir[-1];
-}
 
+printf " > working on %s at %s\n", $Project->project, $Project->given_dir;
+printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
-# check directory and move into the parent directory if we're not there
-my $parent_dir = './';
-if ($given_dir =~ m/^(\/Repository\/(?:MicroarrayData|AnalysisData)\/\d{4})\/?/) {
-	$parent_dir = $1;
-}
-elsif ($given_dir =~ m/^(.+)$project\/?$/) {
-	$parent_dir = $1;
-}
-print "   using parent directory $parent_dir\n" if $verbose;
-
-# change to the given directory
-print " > changing to $given_dir\n" if $verbose;
-chdir $given_dir or die "cannot change to $given_dir!\n";
-
-
-
-
-
-
-
-####### Prepare file names
-
-# file names in project directory
-my $manifest_file = $project . "_MANIFEST.csv";
-my $remove_file   = $project . "_REMOVE_LIST.txt";
-my $notice_file   = "where_are_my_files.txt";
-
-# hidden file names in parent directory
-my $alt_remove    = File::Spec->catfile($parent_dir, $project . "_REMOVE_LIST.txt");
-
+# given application paths
 if ($verbose) {
-	print " =>  manifest file: $manifest_file\n";
-	print " =>    remove file: $remove_file or $alt_remove\n";
+	print " =>             SB path: $sb_path\n" if $sb_path;
+	print " =>    SB uploader path: $sbupload_path\n" if $sbupload_path;
+	print " => SB credentials path: $cred_path\n" if $cred_path;
+}
+
+
+# file paths
+if ($verbose) {
+	printf " =>  manifest file: %s\n", $Project->manifest_file;
+	printf " =>    remove file: %s or %s\n", $Project->remove_file, $Project->alt_remove_file;
 }
 
 
 # removed file hidden folder
-my $deleted_folder = File::Spec->catfile($parent_dir, $project . "_DELETED_FILES");
-print " => deleted folder: $deleted_folder\n" if $verbose;
-if (-e $deleted_folder) {
+printf " => deleted folder: %s\n", $Project->deleted_folder if $verbose;
+if (-e $Project->deleted_folder) {
 	if ($hide_files) {
 		print " ! deleted files hidden folder already exists! Will not move deleted files\n";
 		$hide_files = 0; # do not want to move zipped files
@@ -286,37 +234,25 @@ if (-e $deleted_folder) {
 	}
 }
 
-# notification file
-my $notice_source_file;
-if ($given_dir =~ /MicroarrayData/) {
-	$notice_source_file = "/Repository/MicroarrayData/missing_file_notice.txt";
-}
-elsif ($given_dir =~ /AnalysisData/) {
-	$notice_source_file = "/Repository/AnalysisData/missing_file_notice.txt";
-}
-else {
-	# primarily for testing purposes
-	$notice_source_file = "~/missing_file_notice.txt";
-}
-
 
 
 
 
 
 ######## Main functions
+my $failure_count = 0;
 
 # scan the directory
 if ($scan) {
 	# this will also run the zip function
-	print " > scanning $project in directory $parent_dir\n";
+	printf " > scanning %s in directory %s\n", $Project->project, $Project->parent_dir;
 	scan_directory();
 }
 
 
 # upload files to Seven Bridges
 if ($upload) {
-	if (-e $manifest_file) {
+	if (-e $Project->manifest_file) {
 		print " > uploading $project project files to $sb_division\n";
 		upload_files();
 	}
@@ -328,9 +264,9 @@ if ($upload) {
 
 # hide files
 if ($hide_files) {
-	if (-e $alt_remove) {
-		print " > moving files to $deleted_folder\n";
-		hide_deleted_files();
+	if (-e $Project->alt_remove_file) {
+		printf " > moving files to %s\n", $Project->deleted_folder;
+		$failure_count += $Project->hide_deleted_files;
 	}
 	else {
 		print " ! No deleted files to hide\n";
@@ -340,7 +276,8 @@ if ($hide_files) {
 
 
 ######## Finished
-printf " > finished with $project in %.1f minutes\n\n", (time - $start_time)/60;
+printf " > finished $project with %d errors in %.1f minutes\n\n", $failure_count, 
+	(time - $start_time)/60;
 
 
 
@@ -408,7 +345,7 @@ sub scan_directory {
 			}
 			else {
 				# don't have it!!!????? geez. ok, calculate it, this might take a while
-				$md5 = calculate_checksum($f);
+				$md5 = $Project->calculate_file_checksum($f);
 			}
 		}
 		
@@ -441,16 +378,16 @@ sub scan_directory {
 	
 	### Write files
 	# manifest
-	my $fh = IO::File->new($manifest_file, 'w') or 
-		die "unable to write manifest file $manifest_file: $!\n";
+	my $fh = IO::File->new($Project->manifest_file, 'w') or 
+		die sprintf("unable to write manifest file %s: $!\n", $Project->manifest_file);
 	foreach (@manifest) {
 		$fh->print("$_\n");
 	}
 	$fh->close;
 	
 	# remove list
-	$fh = IO::File->new($alt_remove, 'w') or 
-		die "unable to write manifest file $alt_remove: $!\n";
+	$fh = IO::File->new($Project->alt_remove_file, 'w') or 
+		die sprintf("unable to write manifest file %s: $!\n", $Project->alt_remove_file);
 	foreach (@removelist) {
 		$fh->print("$_\n");
 	}
@@ -494,13 +431,13 @@ sub callback {
 		unlink $file;
 		return;
 	}
-	elsif ($file eq $remove_file) {
+	elsif ($file eq $Project->remove_file) {
 		return;
 	}
-	elsif ($file eq $notice_file) {
+	elsif ($file eq $Project->notice_file) {
 		return;
 	}
-	elsif ($file eq $manifest_file) {
+	elsif ($file eq $Project->manifest_file) {
 		return;
 	}
 	elsif ($fname =~ m/^\.\/(?:bioanalysis|Sample.?QC|Library.?QC|Sequence.?QC)\//) {
@@ -666,6 +603,7 @@ sub callback {
 	else {
 		# programmer error!
 		print "   ! unrecognized file $fname!\n";
+		$failure_count++;
 		return;
 	}
 	
@@ -690,7 +628,7 @@ sub upload_files {
 	### Grab missing information
 	unless ($userfirst and $userlast and $strategy) {
 		# this can be grabbed from the first data line in the manifest CSV
-		my $fh = IO::File->new($manifest_file) or die "unable to read manifest file!";
+		my $fh = IO::File->new($Project->manifest_file) or die "unable to read manifest file!";
 		my $h = $fh->getline;
 		my $l = $fh->getline;
 		my @d = split(',', $l);
@@ -714,7 +652,7 @@ sub upload_files {
 	
 	# check whether it exists
 	foreach my $p ($sb->projects) {
-		if ($p->name eq $project) {
+		if ($p->name eq $Project->project) {
 			# we found it
 			$sbproject = $p;
 			printf "   > using existing SB project %s\n", $p->id;
@@ -729,7 +667,7 @@ sub upload_files {
 		if (not $description) {
 			# generate simple description in markdown
 			$description = sprintf "# %s\n## %s\n GNomEx project %s is a %s experiment generated by %s %s",
-				$project, $title, $project, $strategy, $userfirst, $userlast;
+				$Project->project, $title, $project, $strategy, $userfirst, $userlast;
 			if ($group) {
 				$description .= " in the group '$group'. ";
 			}
@@ -737,12 +675,12 @@ sub upload_files {
 				$description .= ". ";
 			}
 			$description .= sprintf("Details on the experiment may be found in [GNomEx](https://hci-bio-app.hci.utah.edu/gnomex/?requestNumber=%s).\n", 
-				$project);
+				$Project->project);
 		}
 		
 		# create project
 		$sbproject = $sb->create_project(
-			name        => $project,
+			name        => $Project->project,
 			description => $description,
 		);
 		if ($sbproject and $sbproject->id) {
@@ -750,6 +688,7 @@ sub upload_files {
 		}
 		else {
 			print "   ! failed to make SB project!\n";
+			$failure_count++;
 			return;
 		}
 	}
@@ -757,7 +696,7 @@ sub upload_files {
 	
 	### Upload the files
 	# upload options
-	my @up_options = ('--manifest-file', $manifest_file, '--manifest-metadata', 
+	my @up_options = ('--manifest-file', $Project->manifest_file, '--manifest-metadata', 
 					'sample_id', 'investigation', 'library_id', 'platform', 
 					'platform_unit_id', 'paired_end', 'quality_scale', 
 					'experimental_strategy', 'UserFirstName', 'UserLastName');
@@ -766,78 +705,28 @@ sub upload_files {
 	my $path = $sbproject->bulk_upload_path($sbupload_path);
 	unless ($path) {
 		print "   ! no sbg-upload.sh executable path!\n";
+		$failure_count++;
 		return;
 	};
 	my $result = $sbproject->bulk_upload(@up_options);
 	print $result;
 	if ($result =~ /FAILED/) {
+		$failure_count++;
 		print "   ! upload failed!\n";
 	}
 	elsif ($result =~ /Done\.\n$/) {
 		print "   > upload successful\n";
 	}
 	else {
+		$failure_count++;
 		print "   ! upload error!\n";
 	}
 	return 1;
 }
 
 
-sub hide_deleted_files {
-	
-	# move the deleted files
-	mkdir $deleted_folder;
-	
-	unless (@removelist) {
-		# load the delete file contents
-		my $fh = IO::File->new($alt_remove, 'r') or die "can't read $alt_remove! $!\n";
-		while (my $line = $fh->getline) {
-			chomp($line);
-			push @removelist, $line;
-		}
-		$fh->close;
-	}
-	
-	# process the removelist
-	foreach my $file (@removelist) {
-		next unless (-e $file);
-		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
-		my $targetdir = File::Spec->catdir($deleted_folder, $dir);
-		make_path($targetdir); 
-			# this should safely skip existing directories
-			# permissions and ownership inherit from user, not from source
-			# return value is number of directories made, which in some cases could be 0!
-		print "   moving $file\n" if $verbose;
-		move($file, $targetdir) or print "   failed to move! $!\n";
-	}
-	
-	# clean up empty directories
-	my $command = sprintf("find %s -type d -empty -delete", $given_dir);
-	print "  > executing: $command\n";
-	print "    failed! $!\n" if (system($command));
-	
-	# move the deleted folder back into archive
-	move($alt_remove, $remove_file) or print "   failed to move $alt_remove! $!\n";
-	
-	# put in notice
-	if (not -e $notice_file and $notice_source_file) {
-		$command = sprintf("ln -s %s %s", $notice_source_file, $notice_file);
-		print "   ! failed to link notice file! $!\n" if (system($command));
-	}
-}
 
 
-sub calculate_checksum {
-	# calculate the md5 checksum
-	my $file = shift;
-	open (my $fh, '<', $file) or return 1;
-		# if we can't open the file, just skip it and return a dummy value
-		# we'll likely have more issues with this file later
-	binmode ($fh);
-	my $md5 = Digest::MD5->new->addfile($fh)->hexdigest;
-	close $fh;
-	return $md5;
-}
 
 
 
