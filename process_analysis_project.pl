@@ -41,8 +41,8 @@ Options to compress and/or archive small files are available.
 Known files that exceed a minimum specified size may be gzip 
 compressed. All files, except known indexed Analysis files, 
 below a specified maximum file size may be compressed into a 
-single Zip archive. Files that are zip archived are moved into 
-a hidden folder in the parent directory.
+single Zip archive. Files that are zip archived are automatically 
+moved into a hidden folder in the parent directory.
 
 This requires collecting data from the GNomEx LIMS database and 
 passing certain values on to this script for inclusion as metadata 
@@ -64,6 +64,7 @@ Options:
 
  Main functions - not exclusive
     --scan              Scan the project folder and generate the manifest
+                          also zip archives and/or compresses files
     --upload            Run the sbg-uploader program to upload
     --hide              Hide the deleted files in hidden folder
 
@@ -88,7 +89,7 @@ Options:
     --desc "text"       Description for new SB project when uploading. 
                         Can be Markdown text.
     --mingz <integer>   Minimum size in bytes to gzip text files (10 KB)
-    --maxzip <integer>  Maximum size in bytes to avoid zip archiving (100 MB)
+    --maxzip <integer>  Maximum size in bytes to avoid zip archiving (200 MB)
     --verbose           Tell me everything!
  
  Seven Bridges
@@ -121,8 +122,8 @@ my $group               = q();
 my $species             = q();
 my $genome              = q();
 my $description         = q();
-my $min_gz_size         = 10000;
-my $max_zip_size        = 100000000;
+my $min_gz_size         = 10000;     # 10 KB
+my $max_zip_size        = 200000000; # 200 MB
 my $sb_division         = q(default);
 my $sb_path             = q();
 my $sbupload_path       = q();
@@ -204,6 +205,9 @@ if ($gzip) {
 	}
 }
 if ($zip) {
+	# An extensive internet search reveals no parallelized zip archiver, despite
+	# there being a parallelized version of gzip, when both use the common DEFLATE 
+	# algorithm. So we just run plain old zip.
 	$zipper = `which zip`;
 	chomp $zipper;
 	unless ($zipper) {
@@ -537,6 +541,7 @@ sub scan_directory {
 			$type eq 'IndexedAnalysis' or 
 			$type eq 'Alignment' or 
 			$type eq 'Analysis' or 
+			$type eq 'Annotation' or
 			$type eq 'Wiggle'
 		) {
 			$file_species = $sb_species;
@@ -556,27 +561,29 @@ sub scan_directory {
 			$filedata{$f}{md5},
 		);
 		
-		# zip list
+		# zip and delete lists
 		if ($filedata{$f}{zip} == 1) {
+			# add to zip list but not delete list, since it'll be removed anyway
 			push @ziplist, $filedata{$f}{clean};
 		}
-		
-		# remove list
-		if ($filedata{$f}{type} eq 'IndexedAnalysis') {
-			# we are keeping the bigWig and USeq files around, for good or bad,
-			# out of benefit to users who happen to use GNomEx as a track hub
-			# only delete if specifying everything must go
-			push @removelist, $filedata{$f}{clean} if $everything;
-		}
 		else {
-			# we delete everything else
-			push @removelist, $filedata{$f}{clean};
+			# remove list
+			if ($filedata{$f}{type} eq 'IndexedAnalysis') {
+				# we are keeping the bigWig and tabixed vcf files around, for good or bad,
+				# out of benefit to users who happen to use GNomEx as a track hub
+				# only delete if specifying everything must go
+				push @removelist, $filedata{$f}{clean} if $everything;
+			}
+			else {
+				# we delete everything else
+				push @removelist, $filedata{$f}{clean};
+			}
 		}
 	}	
 	
 	
-	### Zip the files
-	if (@ziplist and $zip) {
+	### Zip archive the files
+	if ($zip and scalar @ziplist) {
 		
 		## write zip list file
 		my $fh = IO::File->new($ziplist_file, 'w') or 
@@ -738,14 +745,20 @@ sub callback {
 	
 	
 	### Possible file types
+	# assign general file category type based on the extension
+	# this should catch most files, but there's always weirdos and miscellaneous files
+	# this will also dictate zip file status
+	
 	my $filetype;
-	if ($file =~ /\.(?:bw|bigwig|bb|bigbed|useq)$/i) {
+	if ($file =~ /\.(?:bw|bigwig|bb|bigbed)$/i) {
 		# an indexed analysis file
 		$filetype = 'IndexedAnalysis';
+		$filedata{$fname}{zip} = 0;
 	}
 	elsif ($file =~ /\.(?:bam|bai|cram|crai|csi|sam\.gz)$/i) {
 		# an alignment file
 		$filetype = 'Alignment';
+		$filedata{$fname}{zip} = 0;
 	}
 	elsif ($file =~ /\.vcf(?:\.gz)?$/i) {
 		# possibly an indexed file, check to see if there is a corresponding tabix index
@@ -757,20 +770,24 @@ sub callback {
 				# looks like a genomic vcf, skip these, just want final vcf files
 				# this assumes people are naming their genomic vcfs like above
 				$filetype = 'Analysis';
+				$filedata{$fname}{zip} = 1;
 			}
 			else {
 				# regular vcf with index
 				$filetype = 'IndexedAnalysis';
+				$filedata{$fname}{zip} = 0;
 			}
 		} 
 		else {
 			$filetype = 'Analysis';
+			$filedata{$fname}{zip} = 1;
 		}
 	}
 	elsif ($file =~ /\.vcf\.idx$/i) {
 		# a GATK-style index for non-tabix, uncompressed VCF files
 		# This index isn't useful for browsing, so do not classify as IndexedAnalysis
 		$filetype = 'Analysis';
+		$filedata{$fname}{zip} = 1;
 	}
 	elsif ($file =~ /\.tbi$/i) {
 		# a tabix index file, presumably alongside a vcf file
@@ -782,48 +799,80 @@ sub callback {
 				# looks like a genomic vcf, skip these, just want final vcf files
 				# this assumes people are naming their genomic vcfs like above
 				$filetype = 'Analysis';
+				$filedata{$fname}{zip} = 1;
 			}
 			else {
 				# regular vcf with index
 				$filetype = 'IndexedAnalysis';
+				$filedata{$fname}{zip} = 0;
 			}
 		} 
 		else {
 			$filetype = 'Analysis';
+			$filedata{$fname}{zip} = 1;
 		}
 	}
 	elsif ($file =~ /\..*loupe$/i) {
 		# 10X genomics loupe file
 		$filetype = 'Analysis';
+		$filedata{$fname}{zip} = 0;
 	}
-	elsif ($file =~ /\.(?:fa|fq|fasta|fastq|fai)(?:\.gz)?$/i) {
+	elsif ($file =~ /\.(?:fq|fastq)(?:\.gz)?$/i) {
+		# fastq file
+		if ($file =~ /^\d+X\d+_\d+_/) {
+			print "   ! Possible HCI Fastq file detected! $clean_name\n";
+		}
 		$filetype = 'Sequence';
+		$filedata{$fname}{zip} = 0;
 	}
-	elsif ($file =~ /\.(?:bed|bed\d+|gtf|gff|gff\d|narrowpeak|broadpeak|refflat|genepred|ucsc)(?:\.gz)?$/i) {
+	elsif ($file =~ /\.(?:fa|fasta|fai)(?:\.gz)?$/i) {
+		# fasta file
+		$filetype = 'Sequence';
+		$filedata{$fname}{zip} = 1;
+	}
+	elsif ($file =~ /\.(?:bed|bed\d+|gtf|gff|gff\d|narrowpeak|broadpeak|gappedpeak|refflat|genepred|ucsc)(?:\.gz)?$/i) {
 		$filetype = 'Annotation';
-	}
-	elsif ($file =~ /\.(?:txt|tsv|tab|csv|cdt|counts|results|cns|cnr|cnn|md|sam|log)(?:\.gz)?$/i) {
-		# yes, uncompressed sam files get thrown in here as text files!
-		$filetype = 'Text';
-	}
-	elsif ($file =~ /\.(?:wig|bg|bdg|bedgraph)(?:\.gz)?$/i) {
-		$filetype = 'Wiggle';
-	}
-	elsif ($file =~ /\.(?:bar|bar\.zip|swi|egr|ser|mpileup|mpileup\.gz|motif)$/i) {
-		$filetype = 'Analysis';
-	}
-	elsif ($file =~ /\.(?:xls|xlsx|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|ai|out|rout|rdata|xml|json|json\.gz|html|pzfx)$/i) {
-		$filetype = 'Results';
+		$filedata{$fname}{zip} = 1;
 	}
 	elsif ($file =~ /\.(?:sh|pl|py|pyc|r|rmd|rscript|awk|sm)$/i) {
 		$filetype = 'Script';
+		$filedata{$fname}{zip} = 1;
+	}
+	elsif ($file eq 'cmd.txt') {
+		# pysano command script
+		$filetype = 'Script';
+		$filedata{$fname}{zip} = 1;
+	}
+	elsif ($file =~ /\.(?:txt|tsv|tab|csv|cdt|counts|results|cns|cnr|cnn|md|sam|log|biotypes)(?:\.gz)?$/i) {
+		# yes, uncompressed sam files get thrown in here as text files!
+		$filetype = 'Text';
+		$filedata{$fname}{zip} = 1;
+	}
+	elsif ($file =~ /\.(?:wig|bg|bdg|bedgraph)(?:\.gz)?$/i) {
+		$filetype = 'Wiggle';
+		$filedata{$fname}{zip} = 1;
+	}
+	elsif ($file =~ /\.(?:bar|bar\.zip|useq|swi|egr|ser|mpileup|mpileup\.gz|motif)$/i) {
+		$filetype = 'Analysis';
+		$filedata{$fname}{zip} = 1;
+	}
+	elsif ($file =~ /\.(?:xls|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|ai|out|rout|rda|rdata|xml|json|json\.gz|html|pzfx)$/i) {
+		$filetype = 'Results';
+		$filedata{$fname}{zip} = 1;
+	}
+	elsif ($file =~ /\.xlsx$/i) {
+		# leave out Excel spreadsheets from zip archive just to be nice
+		$filetype = 'Results';
+		$filedata{$fname}{zip} = 0;
 	}
 	elsif ($file =~ /\.(?:tar|tar\.gz|tar\.bz2|zip)$/i) {
 		$filetype = 'Archive';
+		$filedata{$fname}{zip} = 0;
 	}
 	else {
 		# catchall
 		$filetype = 'Other';
+		$filedata{$fname}{zip} = 1;
 	}
 	
 	# Compress individual files
@@ -850,17 +899,16 @@ sub callback {
 	
 	
 	# Check files for Zip archive files
-	$filedata{$fname}{zip} = 0; # default setting
-	if ($zip and ($filetype ne 'IndexedAnalysis' or $filetype ne 'Alignment') ) {
-		if ( ($filetype eq 'Text' or $filetype eq 'Annotation' or $filetype eq 'Sequence') and $file !~ /\.gz$/i) {
-			# uncompressed text and annotation files always gets zipped
-			# it's just the way it is!
-			$filedata{$fname}{zip} = 1;
+	if ($zip) {
+		# double check size to make sure it makes sense to zip
+		if ($filedata{$fname}{zip} == 1 and $size > $max_zip_size) { 
+			# it's greater than default, do not compress
+			$filedata{$fname}{zip} = 0; 
 		}
-		elsif ($size <= $max_zip_size) {
-			# if it's small, it gets zipped, regardless of type
-			$filedata{$fname}{zip} = 1;
-		}
+	}
+	else {
+		# we're not zipping anything so turn it off
+		$filedata{$fname}{zip} = 0; 
 	}
 	
 	
