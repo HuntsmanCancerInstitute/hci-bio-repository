@@ -28,13 +28,14 @@ Usage:
 Options:
 
  Mode
-    --check         Check inventoried files in manifest and list files
     --mvzip         Hide the zipped files by moving to hidden folder 
     --mvdel         Hide the to-delete files by moving to hidden folder
     --unhide        Unhide files, either _ZIPPED_FILES or _DELETED_FILES
+    --restorezip    Restore files from zip archive file
     --delzip        Delete the hidden zipped files
     --delete        Delete the to-delete files from the project or hidden folder
     --notice        Symlink the notice file in the project folder
+    --clean         Safely remove manifest and list files ONLY
     --verbose       Tell me everything!
 
 END
@@ -46,9 +47,11 @@ my $path;
 my $move_zip_files;
 my $move_del_files;
 my $unhide_files;
+my $restore_zip_files;
 my $delete_zip_files;
 my $delete_del_files;
 my $add_notice;
+my $clean_project_files;
 my $verbose = 0;
 
 if (scalar(@ARGV) > 1) {
@@ -56,9 +59,11 @@ if (scalar(@ARGV) > 1) {
 		'mvzip!'    => \$move_zip_files,
 		'mvdel!'    => \$move_del_files,
 		'unhide!'   => \$unhide_files,
+		'restorezip!' => \$restore_zip_files,
 		'delzip!'   => \$delete_zip_files,
 		'delete!'   => \$delete_del_files,
 		'notice!'   => \$add_notice,
+		'clean!'    => \$clean_project_files,
 		'verbose!'  => \$verbose,
 	) or die "please recheck your options!\n\n$doc\n";
 	$path = shift @ARGV;
@@ -145,6 +150,34 @@ if ($delete_zip_files) {
 } 
 
 
+# restore the zip archive
+if ($restore_zip_files) {
+	if (-e $Project->zip_file) {
+		if (-e $Project->zip_folder) {
+			printf " ! %s hidden zip folder %s exists!\n", $Project->project, 
+				$Project->zip_folder;
+			print  "    Restore from the zip folder\n";
+			$failure_count++;
+		}
+		else {
+			printf " > Restoring %s files from zip archive %s\n", $Project->project,
+				$Project->zip_file;
+			chdir $Project->given_dir;
+			my $command = sprintf "unzip -n %s", $Project->zip_file;
+			print  "  > executing: $command\n";
+			my $result = system($command);
+			if ($result) {
+				print "     failed!\n";
+				$failure_count++;
+			}
+		}
+	}
+	else {
+		printf " ! %s Zip archive not present!\n", $Project->project;
+	}
+}
+
+
 # move the deleted files
 if ($move_del_files) {
 	if (-e $Project->alt_remove_file) {
@@ -178,6 +211,47 @@ if ($add_notice) {
 	$failure_count += $Project->add_notice_file;
 }
 
+
+# clean project files
+if ($clean_project_files) {
+	printf " > Cleaning %s project files\n", $Project->project;
+	
+	# zip archive
+	if (-e $Project->zip_file) {
+		printf "  ! Archive file can not be cleaned automatically!\n";
+		$failure_count++;
+	}
+	
+	# zip list
+	if (-e $Project->zip_folder) {
+		printf "  ! Zip folder still exists! Not removing %s\n", $Project->ziplist_file;
+		$failure_count++;
+	}
+	elsif (-e $Project->ziplist_file) {
+		unlink $Project->ziplist_file;
+		printf "  Deleted %s\n", $Project->ziplist_file;
+	}
+	
+	# remove lists
+	if (-e $Project->delete_folder) {
+		printf "  ! Hidden delete folder still exists! Not removing %s\n", $Project->remove_file;
+		$failure_count++;
+	}
+	elsif (-e $Project->remove_file) {
+		unlink $Project->remove_file;
+		printf "  Deleted %s\n", $Project->remove_file;
+	}
+	if (-e $Project->alt_remove_file) {
+		unlink $Project->alt_remove_file;
+		printf "  Deleted %s\n", $Project->alt_remove_file;
+	}
+	
+	# manifest
+	if (-e $Project->manifest_file) {
+		unlink $Project->manifest_file;
+		printf "  Deleted %s\n", $Project->manifest_file;
+	}
+}
 
 
 ######## Finished
