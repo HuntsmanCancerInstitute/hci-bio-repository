@@ -78,18 +78,18 @@ sub new {
 	};
 	
 	# project files
-	my $self->{manifest} = $project . "_MANIFEST.csv";
-	my $self->{remove}   = $project . "_REMOVE_LIST.txt";
-	my $self->{ziplist}  = $project . "_ARCHIVE_LIST.txt";
-	my $self->{zip}      = $project . "_ARCHIVE.zip";
-	my $self->{notice}   = "where_are_my_files.txt";
+	$self->{manifest} = $project . "_MANIFEST.csv";
+	$self->{remove}   = $project . "_REMOVE_LIST.txt";
+	$self->{ziplist}  = $project . "_ARCHIVE_LIST.txt";
+	$self->{zip}      = $project . "_ARCHIVE.zip";
+	$self->{notice}   = "where_are_my_files.txt";
 
 	# hidden file names in parent directory
-	my $self->{alt_remove}    = File::Spec->catfile($parent_dir, $project . "_REMOVE_LIST.txt");
-	my $self->{alt_zip}       = File::Spec->catfile($parent_dir, $project . "_ARCHIVE.zip");
-	my $self->{alt_ziplist}   = File::Spec->catfile($parent_dir, $project . "_ARCHIVE_LIST.txt");
-	my $self->{zipfolder}     = File::Spec->catfile($parent_dir, $project . "_ZIPPED_FILES");
-	my $self->{delfolder}     = File::Spec->catfile($parent_dir, $project . "_DELETED_FILES");
+	$self->{alt_remove}    = File::Spec->catfile($parent_dir, $project . "_REMOVE_LIST.txt");
+	$self->{alt_zip}       = File::Spec->catfile($parent_dir, $project . "_ARCHIVE.zip");
+	$self->{alt_ziplist}   = File::Spec->catfile($parent_dir, $project . "_ARCHIVE_LIST.txt");
+	$self->{zipfolder}     = File::Spec->catfile($parent_dir, $project . "_ZIPPED_FILES");
+	$self->{delfolder}     = File::Spec->catfile($parent_dir, $project . "_DELETED_FILES");
 	
 	# notification file
 	if ($parent_dir =~ /MicroarrayData/) {
@@ -186,7 +186,7 @@ sub get_file_list {
 		push @list, $line;
 	}
 	$fh->close;
-	return @list;
+	return wantarray ? @list : \@list;
 }
 
 
@@ -215,15 +215,20 @@ sub hide_deleted_files {
 	my $self = shift;
 	
 	# move the deleted files
-	mkdir $self->deleted_folder;
-	my $failure_count = $self->_move_directory_files($self->given_dir, 
-		$self->deleted_folder, $self->alt_remove_file);
+	my $filelist = $self->get_file_list($self->alt_remove_file);
+	chdir $self->given_dir; # just in case
+	mkdir $self->delete_folder;
+	my $failure_count = $self->_move_directory_files('./', 
+		$self->delete_folder, $filelist);
 	
 	# move the hidden deletion list file into project
 	move($self->alt_remove_file, $self->remove_file) or do {
 		printf "   failed to move %s! $!\n", $self->alt_remove_file;
 		$failure_count++;
 	};
+	
+	# clean up empty directories
+	$failure_count += $self->clean_empty_directories($self->given_dir);
 	
 	# put in notice
 	$failure_count += $self->add_notice_file;
@@ -233,23 +238,38 @@ sub hide_deleted_files {
 
 sub hide_zipped_files {
 	my $self = shift;
+	chdir $self->given_dir; # just in case
+	if (not -e $self->ziplist_file) {
+		print "  ! no zip list file exists! Nothing to move\n" ;
+		return 1;
+	}
 	if (not -e $self->zip_file) {
-		print "no zip archive exists! Best not move!" ;
+		print "  ! no zip archive exists! Best not move!\n" ;
 		return 1;
 	}
 	
 	# move the zipped files
-	mkdir $self->zipped_folder;
-	return $self->_move_directory_files($self->given_dir, 
-		$self->zipped_folder, $self->zip_file);
+	my $filelist = $self->get_file_list($self->ziplist_file);
+	mkdir $self->zip_folder;
+	my $failure_count = $self->_move_directory_files('./', $self->zip_folder, $filelist);
+	
+	# clean up empty directories
+	$failure_count += $self->clean_empty_directories($self->given_dir);
+	
+	return $failure_count;
 }
 
 
 sub unhide_zip_files {
 	my $self = shift;
-	if (-e $self->ziplist_file) {
-		return $self->_move_directory_files($self->zip_folder, $self->given_dir, 
-			$self->ziplist_file);
+	if (-e $self->ziplist_file and -e $self->zip_folder) {
+		my $filelist = $self->get_file_list($self->ziplist_file);
+		chdir $self->zip_folder;
+		my $fc = $self->_move_directory_files('./', $self->given_dir, $filelist);
+		chdir $self->given_dir; # go back
+		$fc += $self->clean_empty_directories($self->zip_folder);
+	
+		return $fc;
 	}
 	else {
 		print "  ! No zip list file available!\n";
@@ -261,69 +281,103 @@ sub unhide_deleted_files {
 	my $self = shift;
 	my $failure_count;
 	
-	if (-e $self->remove_file and -e $self->delete_folder) {
+	if (-e $self->delete_folder) {
 		# we have remove and and deletion folder
 		
-		$failure_count = $self->_move_directory_files($self->delete_folder, 
-			$self->given_dir, $self->remove_file);
+		# collect from delete list
+		my $filelist;
+		if (-e $self->remove_file) {
+			$filelist = $self->get_file_list($self->remove_file);
+		}
+		elsif (-e $self->alt_remove_file) {
+			print "   wierd! no delete list file, but have alternate remove file! trying with that\n";
+			$filelist = $self->get_file_list($self->alt_remove_file);
+		}
+		else {
+			printf "  ! No deleted file list file available!\n";
+			return 1;
+		}
+		
+		chdir $self->delete_folder; 
+		$failure_count = $self->_move_directory_files('./', $self->given_dir, $filelist);
+		chdir $self->given_dir; # move back
+		
+		# clean up empty directories
+		$failure_count += $self->clean_empty_directories($self->delete_folder);
 		
 		# hide remove list
-		move($self->remove_file, $self->alt_remove_file) or 
+		move($self->remove_file, $self->alt_remove_file) or do {
 			printf "   failed to hide $%s! $!\n", $self->remove_file;
-	}
-	elsif (not -e $self->remove_file and -e $self->alt_remove_file and 
-		-e $self->delete_folder
-	) {
-		# alternate remove file!!!???? and deletion folder!!!
-		print "   wierd! no delete list file, but have alternate remove file! trying with that\n";
-		$failure_count = $self->_move_directory_files($self->delete_folder, 
-			$self->given_dir, $self->alt_remove_file);
+			$failure_count++;
+		};
+		
+		# remove notice file
+		if (-e $self->notice_file) {
+			print "  > deleting notice file\n" if $self->verbose;
+			unlink $self->notice_file;
+		}
 	}
 	else {
-		printf "  ! No deleted file list file available!\n";
+		print "  ! No deleted files folder! Nothing to unhide\n";
 		$failure_count += 1;
-	}
-	
-	# remove notice file
-	if (-e $self->notice_file) {
-		print "  > deleting notice file\n" if $self->verbose;
-		unlink $self->notice_file;
 	}
 	
 	return $failure_count;
 }
 
 
-sub delete_zipped_file_folder {
+sub delete_zipped_files_folder {
 	my $self = shift;
-	return $self->_delete_directory_files($self->zipped_folder, $self->ziplist_file);
+	if (-e $self->zip_folder and -e $self->ziplist_file) {
+		my $filelist = $self->get_file_list($self->ziplist_file);
+		my $fc = $self->_delete_directory_files($self->zip_folder, $filelist);
+		$fc += $self->clean_empty_directories($self->zip_folder);
+		return $fc;
+	}
+	else {
+		print "  ! No hidden zip folder and/or zip list file!\n";
+		return 1;
+	}
 }
 
 sub delete_hidden_deleted_files {
 	my $self = shift;
-	return $self->_delete_directory_files($self->deleted_folder, $self->remove_file);
+	if (-e $self->delete_folder and -e $self->remove_file) {
+		my $filelist = $self->get_file_list($self->remove_file);
+		my $fc = $self->_delete_directory_files($self->delete_folder, $filelist);
+		$fc += $self->clean_empty_directories($self->delete_folder);
+		return $fc;
+	}
+	else {
+		print "  ! No hidden delete folder and/or remove list file!\n";
+		return 1;
+	}
 }
 
 sub delete_project_files {
 	my $self = shift;
 	my $failure_count;
+	chdir $self->given_dir; # just in case
 	
 	if (-e $self->alt_remove_file) {
 		# normal situation
-		$failure_count = $self->_delete_directory_files($self->given_dir, 
-			$self->alt_remove_file);
+		my $filelist = $self->get_file_list($self->alt_remove_file);
+		$failure_count = $self->_delete_directory_files('./', $filelist);
 		
 		# move the deleted list file back into project
 		move($self->alt_remove_file, $self->remove_file) or do {
 			printf "   failed to move file %s! $!\n", $self->alt_remove_file;
 			$failure_count++;
 		};
+		
+		$failure_count += $self->clean_empty_directories($self->given_dir);
 	}
 	elsif (-e $self->remove_file) {
 		# unusual situation
 		# may be an already processed folder, or from an earlier management script????
-		$failure_count = $self->_delete_directory_files($self->given_dir, 
-			$self->remove_file);
+		my $filelist = $self->get_file_list($self->remove_file);
+		$failure_count = $self->_delete_directory_files('./', $filelist);
+		$failure_count += $self->clean_empty_directories($self->given_dir);
 	}
 	else {
 		print "  No remove file list found to delete files!\n";
@@ -338,8 +392,11 @@ sub delete_project_files {
 
 sub delete_zipped_files {
 	my $self = shift;
+	chdir $self->given_dir; # just in case
 	if (-e $self->ziplist_file) {
-		return $self->_delete_directory_files($self->given_dir, $self->ziplist_file);
+		my $filelist = $self->get_file_list($self->ziplist_file);
+		my $fc = $self->_delete_directory_files('./', $filelist);
+		$fc += $self->clean_empty_directories($self->given_dir);
 	}
 	else {
 		print "  No zip list file found to delete files!\n";
@@ -373,18 +430,10 @@ sub clean_empty_directories {
 	my $directory = shift;
 	
 	my $command = sprintf("find %s -type d -empty -delete", $directory);
-	print "  > executing: $command\n";
+	print "  > executing: $command\n" if $self->verbose;
 	if (system($command)) {
-		print "    failed! $!\n";
+		print "   ! find command '$command' failed! $!\n";
 		return 1;
-	}
-	if (-e $directory) {
-		# the empty trim command above should take care of this, if not try again
-		# it may not be empty!
-		rmdir $directory or do {
-			print "   failed to remove directory $directory! $!\n";
-			return 1;
-		};
 	}
 	return 0;
 }
@@ -395,13 +444,16 @@ sub clean_empty_directories {
 #### Internal functions
 
 sub _move_directory_files {
-	my ($self, $source, $destination, $listfile) = @_; # could be either zipped or deleted
+	my ($self, $source, $destination, $filelist) = @_; # could be either zipped or deleted
 	my $failure_count = 0;
 	
-	my @filelist = $self = get_file_list($listfile);
+	unless (scalar @$filelist) {
+		print "   no files in list! Nothing moving\n";
+		return 0;
+	}
 	
 	# process the removelist
-	foreach my $file (@filelist) {
+	foreach my $file (@$filelist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
 		my $sourcefile = $self->_check_file(
 			File::Spec->catfile($source, $dir, $basefile));
@@ -421,21 +473,15 @@ sub _move_directory_files {
 		};
 	}
 	
-	# clean up empty directories
-	$failure_count += $self->clean_empty_directories($source);
-	
 	return $failure_count;
 }
 
 sub _delete_directory_files {
-	my ($self, $target_dir, $target_list_file) = @_;
-	
-	# load the delete file contents
-	my @removelist = $self->get_file_list($target_list_file);
-	
+	my ($self, $target_dir, $filelist) = @_;
+		
 	# process the removelist
 	my $failure_count = 0;
-	foreach my $file (@removelist) {
+	foreach my $file (@$filelist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
 		my $targetfile = $self->_check_file(
 			File::Spec->catfile($target_dir, $dir, $basefile));
@@ -447,16 +493,14 @@ sub _delete_directory_files {
 		};
 	}
 	
-	# clean up empty directories
-	$failure_count += $self->clean_empty_directories($target_dir);
-	
 	return $failure_count;
 }
 
 sub _check_file {
 	my ($self, $file) = @_;
 	# check file exist and not a link
-	return if -l $file;
+	return undef unless $file;
+	return undef if -l $file;
 	return $file if -e $file;
 	# older versions may record the project folder in the name, so let's 
 	# try removing that

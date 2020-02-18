@@ -147,6 +147,7 @@ my @removelist;
 my $project;
 my %filedata;
 my %checksums;
+my $failure_count = 0;
 
 # our sequence machine IDs to platform technology lookup
 my %machinelookup = (
@@ -202,6 +203,7 @@ if ($Project->given_dir =~ m/A\d{1,5}\/?$/) {
 printf " > working on %s at %s\n", $Project->project, $Project->given_dir;
 printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
+
 # given application paths
 if ($verbose) {
 	print " =>             SB path: $sb_path\n" if $sb_path;
@@ -218,19 +220,22 @@ if ($verbose) {
 
 
 # removed file hidden folder
-printf " => deleted folder: %s\n", $Project->deleted_folder if $verbose;
-if (-e $Project->deleted_folder) {
+printf " => deleted folder: %s\n", $Project->delete_folder if $verbose;
+if (-e $Project->delete_folder) {
 	if ($hide_files) {
 		print " ! deleted files hidden folder already exists! Will not move deleted files\n";
 		$hide_files = 0; # do not want to move zipped files
+		$failure_count++;
 	} 
 	if ($scan) {
 		print "! cannot re-scan if deleted files hidden folder exists!\n";
 		$scan = 0;
+		$failure_count++;
 	}
 	if ($upload) {
 		print "! cannot upload if deleted files hidden folder exists!\n";
 		$upload = 0;
+		$failure_count++;
 	}
 }
 
@@ -240,7 +245,11 @@ if (-e $Project->deleted_folder) {
 
 
 ######## Main functions
-my $failure_count = 0;
+
+# change to the given directory
+printf " > changing to %s\n", $Project->given_dir if $verbose;
+chdir $Project->given_dir or die sprintf("cannot change to %s!\n", $Project->given_dir);
+
 
 # scan the directory
 if ($scan) {
@@ -258,6 +267,7 @@ if ($upload) {
 	}
 	else {
 		print " ! No manifest file! Cannot upload files\n";
+		$failure_count++;
 	}
 }
 
@@ -265,11 +275,12 @@ if ($upload) {
 # hide files
 if ($hide_files) {
 	if (-e $Project->alt_remove_file) {
-		printf " > moving files to %s\n", $Project->deleted_folder;
+		printf " > moving files to %s\n", $Project->delete_folder;
 		$failure_count += $Project->hide_deleted_files;
 	}
 	else {
 		print " ! No deleted files to hide\n";
+		$failure_count++;
 	}
 }
 
@@ -384,6 +395,8 @@ sub scan_directory {
 		$fh->print("$_\n");
 	}
 	$fh->close;
+	printf "  > wrote %d files to manifest %s\n", scalar(@manifest) - 1, 
+		$Project->manifest_file;
 	
 	# remove list
 	$fh = IO::File->new($Project->alt_remove_file, 'w') or 
@@ -392,6 +405,8 @@ sub scan_directory {
 		$fh->print("$_\n");
 	}
 	$fh->close;
+	printf "  > wrote %d files to remove list %s\n", scalar(@removelist), 
+		$Project->alt_remove_file;
 	
 	return 1;
 }

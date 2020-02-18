@@ -175,7 +175,9 @@ if ($upload) {
 	die "must provide a SB division name!\n" unless $sb_division;
 	die "must provide a title for SB project!\n" unless $title;
 }
-
+if ($keepzip and $deletezip) {
+	die "must choose one: --keepzip or --delzip   Not both!!!\n";
+}
 
 
 
@@ -184,7 +186,6 @@ if ($upload) {
 my $start_time = time;
 my @removelist;
 my @ziplist;
-my $Project->project;
 my %filedata;
 my $Digest;
 
@@ -334,14 +335,15 @@ if ($verbose) {
 if ($verbose) {
 	printf " =>  manifest file: %s\n", $Project->manifest_file;
 	printf " =>    remove file: %s or %s\n", $Project->remove_file, $Project->alt_remove_file;
-	printf " =>  zip list file: %s or %s\n", $Project->ziplist_file, $Project->alt_ziplist_file;
+	printf " =>  zip list file: %s or %s\n", $Project->ziplist_file;
 	printf " =>       zip file: %s or %s\n", $Project->zip_file, $Project->alt_zip_file;
+	printf " => deleted folder: %s\n", $Project->delete_folder;
+	printf " =>  zipped folder: %s\n", $Project->zip_folder;
 }
 
 
 # zipped file hidden folder
-printf " =>  zipped folder: \n", $Project->zipped_folder if $verbose;
-if (-e $Project->zipped_folder) {
+if (-e $Project->zip_folder) {
 	if ($scan) {
 		print " ! cannot re-scan if zipped files hidden folder exists!\n";
 		$scan = 0;
@@ -354,8 +356,7 @@ if (-e $Project->zipped_folder) {
 
 
 # removed file hidden folder
-printf " => deleted folder: %s\n", $Project->deleted_folder if $verbose;
-if (-e $Project->deleted_folder) {
+if (-e $Project->delete_folder) {
 	if ($hide_files) {
 		print " ! deleted files hidden folder already exists! Will not move deleted files\n";
 		$hide_files = 0; # do not want to move zipped files
@@ -412,7 +413,7 @@ if ($upload and not $failure_count) {
 if ($hide_files and not $failure_count) {
 	if (-e $Project->alt_remove_file) {
 		print " > moving project %s files to %s\n", $Project->project, 
-			$Project->deleted_folder;
+			$Project->delete_folder;
 		$failure_count += $Project->hide_deleted_files;
 	}
 	else {
@@ -776,7 +777,7 @@ sub callback {
 		$filetype = 'Analysis';
 		$filedata{$fname}{zip} = 1;
 	}
-	elsif ($file =~ /\.(?:xls|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|ai|out|rout|rda|rdata|xml|json|json\.gz|html|pzfx)$/i) {
+	elsif ($file =~ /\.(?:xls|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|ai|out|rout|rda|rdata|rds|xml|json|json\.gz|html|pzfx)$/i) {
 		$filetype = 'Results';
 		$filedata{$fname}{zip} = 1;
 	}
@@ -787,7 +788,7 @@ sub callback {
 	}
 	elsif ($file =~ /\.(?:tar|tar\.gz|tar\.bz2|zip)$/i) {
 		$filetype = 'Archive';
-		$filedata{$fname}{zip} = 0;
+		$filedata{$fname}{zip} = 1; # this is still subject to size constraints below
 	}
 	else {
 		# catchall
@@ -822,7 +823,7 @@ sub callback {
 	if ($zip) {
 		# double check size to make sure it makes sense to zip
 		if ($filedata{$fname}{zip} == 1 and $size > $max_zip_size) { 
-			# it's greater than default, do not compress
+			# it's greater than specified limit, do not compress
 			$filedata{$fname}{zip} = 0; 
 		}
 	}

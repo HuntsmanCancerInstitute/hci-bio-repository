@@ -105,14 +105,14 @@ my $failure_count = 0;
 
 # unhide files
 if ($unhide_files) {
-	if (-e $Project->zipped_folder) {
-		printf " > unhiding files for %s from directory %s to %s\n",
-			$Project->project, $Project->zipped_folder, $Project->given_dir;
+	if (-e $Project->zip_folder) {
+		printf " > unhiding %s zipped files from directory %s to %s\n",
+			$Project->project, $Project->zip_folder, $Project->given_dir;
 		$failure_count += $Project->unhide_zip_files;
 	}
-	if (-e $Project->deleted_folder) {
-		printf " > unhiding files for %s from directory %s to %s\n",
-			$Project->project, $Project->deleted_folder, $Project->given_dir;
+	if (-e $Project->delete_folder) {
+		printf " > unhiding %s deleted files from directory %s to %s\n",
+			$Project->project, $Project->delete_folder, $Project->given_dir;
 		$failure_count += $Project->unhide_deleted_files;
 	}
 }
@@ -121,23 +121,26 @@ if ($unhide_files) {
 # hide the zipped files
 if ($move_zip_files) {
 	if (-e $Project->ziplist_file) {
-		printf " > hiding zipped files to %s\n", $Project->zipped_folder;
+		printf " > hiding %s zipped files to %s\n", $Project->project, 
+			$Project->zip_folder;
 		$failure_count += $Project->hide_zipped_files;
 	}
 	else {
-		print " ! no zipped files to move\n";
+		printf " ! %s has no zipped files to move\n", $Project->project;
 	}
 } 
 
 
 # delete zipped files
 if ($delete_zip_files) {
-	if (-e $Project->zipped_folder) {
-		printf " > deleting files in %s\n", $Project->zipped_folder;
-		$failure_count +=  delete_zipped_file_folder();
+	if (-e $Project->zip_folder) {
+		printf " > deleting %s zipped files in %s\n", $Project->project, 
+			$Project->zip_folder;
+		$failure_count += $Project->delete_zipped_files_folder;
 	}
 	else {
-		print " ! zipped files not put into hidden zip folder, cannot delete!\n";
+		printf " ! %s zipped files not put into hidden zip folder, cannot delete!\n", 
+			$Project->project;
 	}
 } 
 
@@ -145,23 +148,25 @@ if ($delete_zip_files) {
 # move the deleted files
 if ($move_del_files) {
 	if (-e $Project->alt_remove_file) {
-		print " > moving files to %s\n", $Project->deleted_folder;
-		$failure_count +=  $Project->hide_deleted_files;
+		printf " > hiding %s deleted files to %s\n", $Project->project, 
+			$Project->delete_folder;
+		$failure_count += $Project->hide_deleted_files;
 	}
 	else {
-		print " ! No deleted files to hide\n";
+		printf " ! %s has no deleted files to hide!\n", $Project->project;
 	}
 } 
 
 
 # actually delete the files
 if ($delete_del_files) {
-	if (-e $Project->deleted_folder and -e $Project->remove_file) {
-		printf " > deleting files in hidden delete folder %s\n", $Project->deleted_folder;
+	if (-e $Project->delete_folder and -e $Project->remove_file) {
+		printf " > deleting %s files in hidden delete folder %s\n", $Project->project, 
+			$Project->delete_folder;
 		$failure_count += $Project->delete_hidden_deleted_files();
 	}
 	else  {
-		printf " > deleting files in %s\n", $Project->given_dir;
+		printf " > deleting %s files in %s\n", $Project->project, $Project->given_dir;
 		$failure_count += $Project->delete_project_files();
 	}
 }
@@ -169,7 +174,7 @@ if ($delete_del_files) {
 
 # add notice file
 if ($add_notice) {
-	print " > Linking notice\n";
+	printf " > Linking notice in %s\n", $Project->project;
 	$failure_count += $Project->add_notice_file;
 }
 
