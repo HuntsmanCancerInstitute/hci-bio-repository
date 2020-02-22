@@ -412,7 +412,7 @@ if ($upload and not $failure_count) {
 # hide files
 if ($hide_files and not $failure_count) {
 	if (-e $Project->alt_remove_file) {
-		print " > moving project %s files to %s\n", $Project->project, 
+		printf " > moving project %s files to %s\n", $Project->project, 
 			$Project->delete_folder;
 		$failure_count += $Project->hide_deleted_files;
 	}
