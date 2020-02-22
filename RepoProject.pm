@@ -501,12 +501,12 @@ sub _check_file {
 	# check file exist and not a link
 	return undef unless $file;
 	return undef if -l $file;
-	return $file if -e $file;
+	return $file if -f $file;
 	# older versions may record the project folder in the name, so let's 
 	# try removing that
 	my $p = $self->project;
 	$file =~ s/^$p\///;
-	return $file if -e $file;
+	return $file if -f $file;
 	return undef;	
 }
 
