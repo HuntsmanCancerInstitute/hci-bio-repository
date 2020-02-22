@@ -287,8 +287,15 @@ if ($hide_files) {
 
 
 ######## Finished
-printf " > finished $project with %d errors in %.1f minutes\n\n", $failure_count, 
-	(time - $start_time)/60;
+if ($failure_count) {
+	printf " ! finished with %s with %d failures in %.1f minutes\n\n", $Project->project,
+		$failure_count, (time - $start_time)/60;
+	
+}
+else {
+	printf " > finished with %s in %.1f minutes\n\n", $Project->project, 
+		(time - $start_time)/60;
+}
 
 
 
