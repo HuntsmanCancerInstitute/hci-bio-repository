@@ -430,19 +430,25 @@ sub callback {
 	}
 	elsif (-l $file) {
 		# we will delete symlinks
-		print "   > symlink, skipping\n" if $verbose;
-		push @removelist, $clean_name;
+		print "   ! deleting symbolic link $clean_name\n";
+		unlink $file;
 		return;
 	}
-	elsif ($file =~ /(?:libsnappyjava|fdt|fdtCommandLine)\.jar/) {
+	elsif ($file =~ /(?:libsnappyjava)\.so$/i) {
 		# devil java spawn, delete!!!!
-		print "   > deleting java file\n" if $verbose;
+		print "   ! deleting java file $clean_name\n";
+		unlink $file;
+		return;
+	}
+	elsif ($file =~ /(?:fdt|fdtCommandLine)\.jar/) {
+		# fdt files, don't need
+		print "   ! deleting java file $clean_name\n";
 		unlink $file;
 		return;
 	}
 	elsif ($file eq '.DS_Store' or $file eq 'Thumbs.db') {
 		# Windows and Mac file browser devil spawn, delete these immediately
-		print "   > deleting file browser metadata file\n" if $verbose;
+		print "   ! deleting file browser metadata file\n" if $verbose;
 		unlink $file;
 		return;
 	}
