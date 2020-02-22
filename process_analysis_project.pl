@@ -830,7 +830,12 @@ sub callback {
 		# double check size to make sure it makes sense to zip
 		if ($filedata{$fname}{zip} == 1 and $size > $max_zip_size) { 
 			# it's greater than specified limit, do not compress
-			$filedata{$fname}{zip} = 0; 
+			# unless it's known compressible data
+			unless ($filetype eq 'Text' or $filetype eq 'Annotation' or 
+					$filetype eq 'Wiggle' or $filetype eq 'Sequence'
+			) {
+				$filedata{$fname}{zip} = 0; 
+			}
 		}
 	}
 	else {
