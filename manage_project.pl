@@ -30,11 +30,11 @@ Options:
  Mode
     --mvzip         Hide the zipped files by moving to hidden folder 
     --mvdel         Hide the to-delete files by moving to hidden folder
-    --unhide        Unhide files, either _ZIPPED_FILES or _DELETED_FILES
-    --restorezip    Restore files from zip archive file
+    --unhide        Unhide files, _ZIPPED_FILES and/or _DELETED_FILES
+    --restorezip    Restore files from the zip archive file
     --delzip        Delete the hidden zipped files
-    --delete        Delete the to-delete files from the project or hidden folder
-    --notice        Symlink the notice file in the project folder
+    --delete        Delete the to-delete files from the project and/or hidden folder
+    --notice        Symlink the notice file into the project folder
     --clean         Safely remove manifest and list files ONLY
     --verbose       Tell me everything!
 
