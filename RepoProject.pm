@@ -12,7 +12,195 @@ All functions are exported by default.
 
 =head1 FUNCTIONS
 
-to be written....
+=head2 Initialize
+
+=over 4 
+
+=item new
+
+Initialize a Repository object. Must pass the full path to a directory. 
+Optionally pass a 1 or 0 for verbosity. The project identifier will be 
+the last directory in the path. All variables will be derived from this 
+path and identifier.
+
+    my $path    = '/Repository/MicroarrayData/2019/1234R';
+    my $verbose = 1;
+    my $Project = RepoProject->new($path, $verbose);
+
+=back
+
+=head2 Project Parameters
+
+These are all read-only functions.
+
+=over 4 
+
+=item given_dir
+
+Returns the given directory when initializing the object.
+Example: F</Repository/MicroarrayData/2019/1234R>.
+
+=item parent_dir
+
+Returns parent directory. Example: F</Repository/MicroarrayData/2019>.
+
+=item project
+
+Returns project identifier. Example: C<1234R>.
+
+=item manifest_file
+
+Returns name of the manifest file. Example: F<1234R_MANIFEST.csv>.
+
+=item remove_file
+
+Returns name of the remove list file. Example: F<1234R_REMOVE_LIST.txt>
+
+=item zip_file
+
+Returns name of the zip archive file. Example: F<1234R_ARCHIVE.zip>.
+
+=item ziplist_file
+
+Returns name of the zip archive list file. Example F<1234R_ARCHIVE_LIST.txt>.
+
+=item notice_file
+
+Returns name of the notice file. Example F<where_are_my_files.txt>
+
+=item alt_remove_file
+
+Returns path and name of alternate or hidden remove list file. Example: 
+F</Repository/MicroarrayData/2019/1234R_REMOVE_LIST.txt>
+
+=item zip_folder
+
+Returns path to the hidden zip folder where files are moved to after 
+being added into the zip archive. Example: 
+F</Repository/MicroarrayData/2019/1234R_ZIPPED_FILES>.
+
+=item delete_folder
+
+Returns path to the hidden delete folder where files are moved to after 
+being hidden. Example: 
+F</Repository/MicroarrayData/2019/1234R_DELETED_FILES>.
+
+=item notice_source_file
+
+Returns the path and name to the original notice text file that is 
+linked to the project folder. A notice file is kept at the root of 
+both Repository volumes, F<MicroarrayData> and F<AnalysisData>. 
+Example: F</Repository/MicroarrayData/missing_file_notice.txt>.
+
+=item verbose
+
+Returns the verbosity value.
+
+=back
+
+=head2 Utility functions
+
+General purpose utility functions that are not necessarily linked to 
+the project object.
+
+=over 4
+
+=item get_file_list
+
+Loads a list text file, such as the zip list or remove list, from disk 
+into memory. Returns array or array reference. Pass the file path.
+
+    my @filelist = $Project->get_file_list($Project->ziplist_file);
+
+=item calculate_file_checksum
+
+Calculates the MD5 checksum on a file. Pass the file path.
+
+    my $md5 = $Project->calculate_file_checksum($file);
+
+=item clean_empty_directories
+
+Executes an external C<find> command in a sub shell to recursively 
+search for and delete empty subdirectories. Pass the directory to 
+search. Returns the return status from the C<find> command.
+
+=back
+
+=head2 Repository functions
+
+These are functions to act on the files within a repository. 
+In all cases, the repository file must be scanned and list 
+files generated before any of these functions can be applied. 
+See the accompanying scripts for scanning Analysis and Request 
+projects. 
+
+When L<verbose> is set to true, file names are printed to
+standard out as they are being moved or deleted. When failures
+occur, file names are printed to standard out. 
+
+=over 4
+
+=item hide_deleted_files
+
+Moves the files listed in the remove list from the project folder
+into the hidden deleted files folder. Prints the files moved if
+verbose is true. Returns an integer for the number of failures; 0
+is success. Empty directories are removed after moving files.
+
+=item hide_zipped_files
+
+Moves the files listed in the archive list from the project
+folder into the hidden zipped files folder. Prints the files
+moved if verbose is true. Returns an integer for the number of
+failures; 0 is success. Empty directories are removed after
+moving files.
+
+=item unhide_deleted_files
+
+Moves the files listed in the remove list from the hidden 
+deleted files folder back into the project folder. Prints the 
+files moved if verbose is true. Returns an integer for the 
+number of failures; 0 is success.
+
+=item unhide_zip_files
+
+Moves the files listed in the archive list from the hidden 
+zipped files folder back into the project folder. Prints the 
+files moved if verbose is true. Returns an integer for the 
+number of failures; 0 is success.
+
+=item delete_zipped_files_folder
+
+Deletes the contents of the hidden zipped file folder based 
+on the archive list file. Returns an integer for the number 
+of failures; 0 is success. Empty directories are trimmed 
+after deletion.
+
+=item delete_hidden_deleted_files
+
+Deletes the contents of the hidden deleted files folder based 
+on the remove list file. Returns an integer for the number 
+of failures; 0 is success. Empty directories are trimmed 
+after deletion.
+
+=item delete_project_files
+
+Deletes the files listed in the remove list file or alternate 
+remove list file from the project folder. Returns an integer 
+for the number of failures to remove files; 0 is success. 
+
+=item delete_zipped_files
+
+Deletes the files listed in the archive list file from the
+project folder. Returns an integer for the number of failures to
+remove files; 0 is success. 
+
+=item add_notice_file
+
+Inserts a symbolic link from the notice source file to the 
+notice file in the project folder.
+
+=back
 
 =cut
 
