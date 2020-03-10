@@ -12,7 +12,7 @@ use SB;
 use RepoProject;
 
 
-my $version = 4.0;
+my $version = 4.1;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -615,15 +615,15 @@ sub callback {
 	
 	
 	### Ignore certain files
-	if (-d $file) {
-		# skip directories
-		print "     directory, skipping\n" if $verbose;
-		return;
-	}
-	elsif (-l $file) {
+	if (-l $file) {
 		# the sbg uploader can't handle symbolic links safely, so just delete them
 		print "   ! deleting symbolic link: $clean_name\n";
 		unlink $file;
+		return;
+	}
+	elsif (-d $file) {
+		# skip directories
+		print "     directory, skipping\n" if $verbose;
 		return;
 	}
 	elsif ($file eq $Project->remove_file) {
