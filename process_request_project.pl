@@ -10,9 +10,10 @@ use Getopt::Long;
 use FindBin qw($Bin);
 use lib $Bin;
 use SB;
+use RepoCatalog;
 use RepoProject;
 
-my $version = 4.1;
+my $version = 5;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -33,7 +34,8 @@ deletion from the server.
 
 This requires collecting data from the GNomEx LIMS database and 
 passing certain values on to this script for inclusion as metadata 
-in the metadata Manifest CSV file. 
+in the metadata Manifest CSV file. Alternatively, simply provide 
+a Catalog database file with the project ID.
 
 A Markdown description is generated for the Seven Bridges Project 
 using the GNomEx metadata, including user name, strategy, title, 
@@ -41,17 +43,20 @@ and group name.
 
 Version: $version
 
-Usage:
+Example usage:
     process_request_project.pl [options] /Repository/MicroarrayData/2019/1234R
+    
+    process_request_project.pl --cat Request.db [options] 1234R
 
 Options:
-
+ 
  Main functions - not exclusive
     --scan              Scan the project folder and generate the manifest
     --upload            Run the sbg-uploader program to upload
     --hide              Hide the Fastq files in hidden deletion folder
 
  Metadata
+    --cat <path>        Provide path to metadata catalog database
     --first <text>      User first name for the owner of the project
     --last <text>       User last name for the owner of the project
     --strategy "text"   GNomEx database application value. This is a long 
@@ -88,6 +93,7 @@ my $path;
 my $scan;
 my $hide_files;
 my $upload;
+my $cat_file;
 my $userfirst;
 my $userlast;
 my $strategy;
@@ -105,6 +111,7 @@ if (scalar(@ARGV) > 1) {
 		'scan!'         => \$scan,
 		'hide!'         => \$hide_files,
 		'upload!'       => \$upload,
+		'catalog=s'     => \$cat_file,
 		'first=s'       => \$userfirst,
 		'last=s'        => \$userlast,
 		'strategy=s'    => \$strategy,
@@ -128,6 +135,42 @@ else {
 
 
 ######## Check options
+
+# grab all parameters from the catalog database if provided
+if ($cat_file) {
+	my $Catalog = RepoCatalog->new($cat_file) or 
+		die "Cannot open catalog file '$cat_file'!\n";
+	if ($path =~ /(\d{4,5}R)/) {
+		my $id = $1;
+		my $Entry = $Catalog->entry($id) or 
+			die "No Catalog entry for $id\n";
+		# collect metadata
+		if (not $userfirst) {
+			$userfirst = $Entry->user_first;
+		}
+		if (not $userlast) {
+			$userlast = $Entry->user_last;
+		}
+		if (not $strategy) {
+			$strategy = $Entry->request_application;
+		}
+		if (not $title) {
+			$title = $Entry->name;
+		}
+		if (not $group) {
+			$group = $Entry->group;
+		}
+		if (not $sb_division) {
+			$sb_division = $Entry->division;
+		}
+		$path = $Entry->path;
+	}
+	else {
+		die "unrecognized project identifier '$path'!\n";
+	}
+}
+
+
 if ($scan) {
 	die "must provide user first name to scan!\n" unless $userfirst;
 	die "must provide user last name to scan!\n" unless $userlast;
@@ -200,7 +243,7 @@ if ($Project->given_dir =~ m/A\d{1,5}\/?$/) {
 	die "given path is an Analysis project! Stopping!\n";
 }
 
-printf " > working on %s at %s\n", $Project->project, $Project->given_dir;
+printf " > working on %s at %s\n", $Project->id, $Project->given_dir;
 printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
 
@@ -254,7 +297,7 @@ chdir $Project->given_dir or die sprintf("cannot change to %s!\n", $Project->giv
 # scan the directory
 if ($scan) {
 	# this will also run the zip function
-	printf " > scanning %s in directory %s\n", $Project->project, $Project->parent_dir;
+	printf " > scanning %s in directory %s\n", $Project->id, $Project->parent_dir;
 	scan_directory();
 }
 
@@ -288,12 +331,32 @@ if ($hide_files) {
 
 ######## Finished
 if ($failure_count) {
-	printf " ! finished with %s with %d failures in %.1f minutes\n\n", $Project->project,
+	printf " ! finished with %s with %d failures in %.1f minutes\n\n", $Project->id,
 		$failure_count, (time - $start_time)/60;
 	
 }
 else {
-	printf " > finished with %s in %.1f minutes\n\n", $Project->project, 
+	if ($cat_file) {
+		my $Catalog = RepoCatalog->new($cat_file) if -e $cat_file;
+		my $Entry = $Catalog->entry($Project->id) if $Catalog;
+		if ($Entry) {
+			my $t = time;
+			if ($scan) {
+				$Entry->scan_datestamp($t);
+			}
+			if ($upload) {
+				$Entry->upload_datestamp($t);
+			}
+			if ($hide_files) {
+				$Entry->hidden_datestamp($t);
+			}
+			print " > updated catalog entry\n";
+		}
+		else {
+			print " ! failed to update catalog entry!\n";
+		}
+	}
+	printf " > finished with %s in %.1f minutes\n\n", $Project->id, 
 		(time - $start_time)/60;
 }
 
@@ -680,7 +743,7 @@ sub upload_files {
 	
 	# check whether it exists
 	foreach my $p ($sb->projects) {
-		if ($p->name eq $Project->project) {
+		if ($p->name eq $Project->id) {
 			# we found it
 			$sbproject = $p;
 			printf "   > using existing SB project %s\n", $p->id;
@@ -695,7 +758,7 @@ sub upload_files {
 		if (not $description) {
 			# generate simple description in markdown
 			$description = sprintf "# %s\n## %s\n GNomEx project %s is a %s experiment generated by %s %s",
-				$Project->project, $title, $project, $strategy, $userfirst, $userlast;
+				$Project->id, $title, $project, $strategy, $userfirst, $userlast;
 			if ($group) {
 				$description .= " in the group '$group'. ";
 			}
@@ -703,12 +766,12 @@ sub upload_files {
 				$description .= ". ";
 			}
 			$description .= sprintf("Details on the experiment may be found in [GNomEx](https://hci-bio-app.hci.utah.edu/gnomex/?requestNumber=%s).\n", 
-				$Project->project);
+				$Project->id);
 		}
 		
 		# create project
 		$sbproject = $sb->create_project(
-			name        => $Project->project,
+			name        => $Project->id,
 			description => $description,
 		);
 		if ($sbproject and $sbproject->id) {

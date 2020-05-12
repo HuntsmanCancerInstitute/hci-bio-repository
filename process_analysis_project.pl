@@ -10,9 +10,10 @@ use FindBin qw($Bin);
 use lib $Bin;
 use SB;
 use RepoProject;
+use RepoCatalog;
 
 
-my $version = 4.1;
+my $version = 5;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -46,6 +47,9 @@ in the metadata Manifest CSV file. However, the current bulk
 uploader does not simultaneously handle CSV metadata and recursive 
 paths. Therefore metadata is not set upon uploading to Seven Bridges.
 
+A catalog database file may be provided to automatically retrieve 
+metadata given a project identifier.
+
 A Seven Bridges Project is automatically generated when uploading,
 using the project identifier as the name. A Markdown description is
 generated for the Project using the GNomEx metadata, including user
@@ -53,8 +57,10 @@ name, title, group name, and genome version.
 
 Version: $version
 
-Usage:
+Example Usage:
     process_analysis_project.pl [options] /Repository/AnalysisData/2019/A5678
+    
+    process_analysis_project.pl --cat Analysis.db [options] A5678
 
 Options:
 
@@ -65,6 +71,7 @@ Options:
     --hide              Hide the deleted files in hidden folder
 
  Metadata
+    --cat <path>        Provide path to metadata catalog database
     --first <text>      User first name for the owner of the project
     --last <text>       User last name for the owner of the project
     --title "text"      GNomEx Request Name or title. This is a long text 
@@ -113,6 +120,7 @@ my $zip;
 my $gzip;
 my $hide_files;
 my $upload;
+my $cat_file;
 my $userfirst           = q();
 my $userlast            = q();
 my $title               = q();
@@ -138,6 +146,7 @@ if (scalar(@ARGV) > 1) {
 		'gz!'           => \$gzip,
 		'hide!'         => \$hide_files,
 		'upload!'       => \$upload,
+		'catalog=s'     => \$cat_file,
 		'first=s'       => \$userfirst,
 		'last=s'        => \$userlast,
 		'title=s'       => \$title,
@@ -167,6 +176,44 @@ $path = shift @ARGV;
 
 
 ######## Check options
+
+# grab all parameters from the catalog database if provided
+if ($cat_file) {
+	my $Catalog = RepoCatalog->new($cat_file) or 
+		die "Cannot open catalog file '$cat_file'!\n";
+	if ($path =~ /(A\d{4,5})/) {
+		my $id = $1;
+		my $Entry = $Catalog->entry($id) or 
+			die "No Catalog entry for $id\n";
+		# collect metadata
+		if (not $userfirst) {
+			$userfirst = $Entry->user_first;
+		}
+		if (not $userlast) {
+			$userlast = $Entry->user_last;
+		}
+		if (not $title) {
+			$title = $Entry->name;
+		}
+		if (not $group) {
+			$group = $Entry->group;
+		}
+		if (not $species) {
+			$species = $Entry->organism;
+		}
+		if (not $genome) {
+			$genome = $Entry->genome;
+		}
+		if (not $sb_division) {
+			$sb_division = $Entry->division;
+		}
+		$path = $Entry->path;
+	}
+	else {
+		die "unrecognized project identifier '$path'!\n";
+	}
+}
+
 if ($scan) {
 	die "must provide user first name to scan!\n" unless $userfirst;
 	die "must provide user last name to scan!\n" unless $userlast;
@@ -313,11 +360,11 @@ else {
 
 my $Project = RepoProject->new($path, $verbose) or 
 	die "unable to initiate Repository Project!\n";
-printf " > working on %s at %s\n", $Project->project, $Project->given_dir;
+printf " > working on %s at %s\n", $Project->id, $Project->given_dir;
 printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
 # check project
-if ($Project->project =~ m/\d{3,5}R\/?$/) {
+if ($Project->id =~ m/\d{3,5}R\/?$/) {
 	# looks like a Request project
 	die "given path is a Request project! Stopping!\n";
 }
@@ -387,10 +434,11 @@ chdir $Project->given_dir or
 # keep track of failures
 my $failure_count = 0;
 
+
 # scan the directory
 if ($scan) {
 	# this will also run the zip function
-	printf " > scanning project %s in directory %s\n", $Project->project, 
+	printf " > scanning project %s in directory %s\n", $Project->id, 
 		$Project->parent_dir;
 	scan_directory();
 }
@@ -399,7 +447,7 @@ if ($scan) {
 # upload files to Seven Bridges
 if ($upload and not $failure_count) {
 	if (-e $Project->manifest_file) {
-		printf " > uploading project %s files to $sb_division\n", $Project->project;
+		printf " > uploading project %s files to $sb_division\n", $Project->id;
 		upload_files();
 	}
 	else {
@@ -412,7 +460,7 @@ if ($upload and not $failure_count) {
 # hide files
 if ($hide_files and not $failure_count) {
 	if (-e $Project->alt_remove_file) {
-		printf " > moving project %s files to %s\n", $Project->project, 
+		printf " > moving project %s files to %s\n", $Project->id, 
 			$Project->delete_folder;
 		$failure_count += $Project->hide_deleted_files;
 	}
@@ -426,12 +474,32 @@ if ($hide_files and not $failure_count) {
 
 ######## Finished
 if ($failure_count) {
-	printf " ! finished with %s with %d failures in %.1f minutes\n\n", $Project->project,
+	printf " ! finished with %s with %d failures in %.1f minutes\n\n", $Project->id,
 		$failure_count, (time - $start_time)/60;
 	
 }
 else {
-	printf " > finished with %s in %.1f minutes\n\n", $Project->project, 
+	if ($cat_file) {
+		my $Catalog = RepoCatalog->new($cat_file) if -e $cat_file;
+		my $Entry = $Catalog->entry($Project->id) if $Catalog;
+		if ($Entry) {
+			my $t = time;
+			if ($scan) {
+				$Entry->scan_datestamp($t);
+			}
+			if ($upload) {
+				$Entry->upload_datestamp($t);
+			}
+			if ($hide_files) {
+				$Entry->hidden_datestamp($t);
+			}
+			print " > updated catalog entry\n";
+		}
+		else {
+			print " ! failed to update catalog entry!\n";
+		}
+	}
+	printf " > finished with %s in %.1f minutes\n\n", $Project->id, 
 		(time - $start_time)/60;
 }
 
@@ -880,7 +948,7 @@ sub upload_files {
 	
 	# check whether it exists
 	foreach my $p ($sb->projects) {
-		if ($p->name eq $Project->project) {
+		if ($p->name eq $Project->id) {
 			# we found it
 			$sbproject = $p;
 			printf "   > using existing SB project %s\n", $p->id;
@@ -893,7 +961,7 @@ sub upload_files {
 		# generate description in markdown as necessary
 		if (not $description) {
 			$description = sprintf "# %s\n## %s\n GNomEx project %s is an Analysis project for %s %s",
-				$Project->project, $title, $Project->project, $userfirst, $userlast;
+				$Project->id, $title, $Project->id, $userfirst, $userlast;
 			if ($group) {
 				$description .= " in the group '$group'. ";
 			}
@@ -904,12 +972,12 @@ sub upload_files {
 				$description .= "Analysis files are for species $sb_species, genome build version $sb_genome. ";
 			}
 			$description .= sprintf("Details on the experiment may be found in [GNomEx](https://hci-bio-app.hci.utah.edu/gnomex/?analysisNumber=%s).\n",
-				$Project->project);
+				$Project->id);
 		}
 		
 		# create project
 		$sbproject = $sb->create_project(
-			name        => $Project->project,
+			name        => $Project->id,
 			description => $description,
 		);
 		if ($sbproject and $sbproject->id) {
