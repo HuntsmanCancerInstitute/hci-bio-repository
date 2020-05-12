@@ -44,7 +44,7 @@ Example: F</Repository/MicroarrayData/2019/1234R>.
 
 Returns parent directory. Example: F</Repository/MicroarrayData/2019>.
 
-=item project
+=item id
 
 Returns project identifier. Example: C<1234R>.
 
@@ -311,6 +311,11 @@ sub given_dir {
 
 sub parent_dir {
 	return shift->{parent_dir};
+}
+
+sub id {
+	# old method name for id
+	return shift->{project};
 }
 
 sub project {
@@ -717,7 +722,7 @@ sub _check_file {
 	return $file if -f $file;
 	# older versions may record the project folder in the name, so let's 
 	# try removing that
-	my $p = $self->project;
+	my $p = $self->id;
 	$file =~ s/^$p\///;
 	return $file if -f $file;
 	return undef;	
