@@ -1,5 +1,5 @@
 package RepoProject;
-our $VERSION = 4.0;
+our $VERSION = 5;
 
 =head1 NAME 
 
@@ -209,6 +209,7 @@ use IO::File;
 use File::Spec;
 use File::Copy;
 use File::Path qw(make_path);
+use File::Find;
 use Digest::MD5;
 
 1;
@@ -217,6 +218,12 @@ use Digest::MD5;
 
 # Initialize reusable checksum object
 my $Digest = Digest::MD5->new;
+
+# Initialize global find variables
+my $current_project = undef;
+my $project_age     = 0;
+my $project_size    = 0;
+my $day             = 86400; # 60 seconds * 60 minutes * 24 hours
 
 sub new {
 	my ($class, $path, $verbose) = @_;
@@ -626,6 +633,24 @@ sub clean_empty_directories {
 	return 0;
 }
 
+sub get_size_age {
+	my $self = shift;
+	
+	# set global values, because File::Find sucks and can't take private data
+	$current_project = $self;
+	$project_size    = 0;
+	$project_age     = 0;
+	
+	# induce fine
+	find( {
+			follow => 0, # do not follow symlinks
+			wanted => \&_age_callback,
+		  }, $self->given_dir
+	);
+	
+	# return size in bytes and oldest posix age (youngest file)
+	return ($project_size, $project_age);
+}
 
 
 
@@ -698,6 +723,34 @@ sub _check_file {
 	return undef;	
 }
 
+sub _age_callback {
+	my $file = $_;
+	
+	# skip specific files, including SB preparation files
+	return if -d $file;
+	return if -l $file;
+	return if substr($file,0,1) eq '.'; # dot files are often hidden, backup, or OS stuff
+	return if $file eq $current_project->manifest_file;  
+	return if $file eq $current_project->zip_file;  
+	return if $file eq $current_project->ziplist_file;  
+	return if $file eq $current_project->remove_file;  
+	
+	# get file size and time
+	my ($size, $age) = (stat($file))[7,9];
+	
+	# check age
+	if ($project_age == 0) {
+		# first file! seed with current data
+		$project_age = $age;
+	}
+	elsif ($age > $project_age) {
+		# file is younger, so take this time
+		$project_age = $age;
+	}
+	
+	# add to running total of file sizes
+	$project_size += $size;
+}
 
 __END__
 
