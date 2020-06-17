@@ -22,16 +22,17 @@ manage_catalog.pl --cat <file.db> <options>
   Required:
     --cat <path>              Provide the path to a catalog file
   
-  Entry selection:
+  Entry selection: (select one)
     --listfile <path>         File of project identifiers to work on
     --year <YYYY>             Find catalog entries in given year
-    --all                     Apply to all catalog entries
     --list_req_up             Print or work on Request IDs for upload to SB
     --list_req_hide           Print or work on Request IDs for hiding
     --list_req_delete         Print or work on Request IDs for deletion
     --list_anal_up            Print or work on Analysis IDs for uploading to SB
     --list_anal_hide          Print or work on Analysis IDs for hiding
     --list_anal_delete        Print or work on Analysis IDs for deletion
+    --list_lab <pi_lastname>  Print or select based on PI last name
+    --all                     Apply to all catalog entries
     
   Action on entries:
     --status                  Print the status of listed projects
@@ -65,6 +66,7 @@ my $list_req_delete = 0;
 my $list_anal_upload = 0;
 my $list_anal_hide = 0;
 my $list_anal_delete = 0;
+my $list_pi;
 my $list_file;
 my $all;
 my $year;
@@ -91,6 +93,7 @@ if (scalar(@ARGV) > 1) {
 		'list_anal_up!'     => \$list_anal_upload,
 		'list_anal_hide!'   => \$list_anal_hide,
 		'list_anal_delete'  => \$list_anal_delete,
+		'list_lab=s'        => \$list_pi,
 		'list=s'            => \$list_file,
 		'all!'              => \$all,
 		'year=i'            => \$year,
@@ -179,42 +182,39 @@ elsif ($all) {
 elsif ($year) {
 	@action_list = $Catalog->list_year($year);
 }
-
-
-
-
-####### Functions
-
-if ($list_req_upload) {
+elsif ($list_req_upload) {
 	die "Can't find entries if list provided!\n" if @action_list;
-	@action_list = $Catalog->find_requests_for_upload;
+	@action_list = $Catalog->find_requests_to_upload;
 }
-
-if ($list_req_hide) {
+elsif ($list_req_hide) {
 	die "Can't find entries if list provided!\n" if @action_list;
 	@action_list = $Catalog->find_requests_to_hide;
 }
-
-if ($list_req_delete) {
+elsif ($list_req_delete) {
 	die "Can't find entries if list provided!\n" if @action_list;
 	@action_list = $Catalog->find_requests_to_delete;
 }
-
-if ($list_anal_upload) {
+elsif ($list_anal_upload) {
 	die "Can't find entries if list provided!\n" if @action_list;
-	@action_list = $Catalog->find_analysis_for_upload;
+	@action_list = $Catalog->find_analysis_to_upload;
 }
-
-if ($list_anal_hide) {
+elsif ($list_anal_hide) {
 	die "Can't find entries if list provided!\n" if @action_list;
 	@action_list = $Catalog->find_analysis_to_hide;
 }
-
-if ($list_anal_delete) {
+elsif ($list_anal_delete) {
 	die "Can't find entries if list provided!\n" if @action_list;
 	@action_list = $Catalog->find_analysis_to_delete;
 }
+elsif ($list_pi) {
+	die "Can't find entries if list provided!\n" if @action_list;
+	@action_list = $Catalog->list_projects_for_pi($list_pi);
+}
 
+
+
+
+####### Action Functions
 
 if ($scan_size_age) {
 	unless (@action_list) {
@@ -309,7 +309,7 @@ if (defined $update_delete_date and $update_delete_date =~ /(\d\d\d\d)(\d\d)(\d\
 		my ($id, @rest) = split("\t", $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
-		$Entry->deleted_datsestamp($time);
+		$Entry->deleted_datestamp($time);
 	}
 }
 
@@ -323,7 +323,7 @@ if (defined $update_email_date and $update_email_date =~ /(\d\d\d\d)(\d\d)(\d\d)
 		my ($id, @rest) = split("\t", $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
-		$Entry->emailed_datsestamp($time);
+		$Entry->emailed_datestamp($time);
 	}
 }
 
@@ -376,7 +376,7 @@ if ($show_status) {
 		my $hide_day = ($hide[5] == 69 or $hide[5] == 70) ? '          ' : 
 			sprintf("%04d-%02d-%02d", $hide[5] + 1900, $hide[4] + 1, $hide[3]);
 		# delete day
-		my @delete = localtime($Entry->deleted_datsestamp || 0);
+		my @delete = localtime($Entry->deleted_datestamp || 0);
 		my $delete_day = ($delete[5] == 69 or $delete[5] == 70) ? '          ' : 
 			sprintf("%04d-%02d-%02d", $delete[5] + 1900, $delete[4] + 1, $delete[3]);
 		
