@@ -371,7 +371,7 @@ sub import_from_file {
 
 
 
-sub find_requests_for_upload {
+sub find_requests_to_upload {
 	my $self = shift;
 	my @list;
 	my $key = $self->{db}->first_key;
@@ -443,7 +443,8 @@ sub find_requests_to_delete {
 		if (
 			$E->request_status eq 'COMPLETE' and    # finished
 			$E->hidden_datestamp and                # hidden
-			$E->age > 270                           # older than 9 months
+			$E->age > 270 and                       # older than 9 months
+			not $E->deleted_datestamp               # not yet deleted
 		) {
 			push @list, $key;
 		}
