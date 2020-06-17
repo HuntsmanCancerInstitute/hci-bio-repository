@@ -8,7 +8,7 @@ use POSIX qw(strftime);
 use Getopt::Long;
 use FindBin qw($Bin);
 use lib $Bin;
-use SB;
+use SB2;
 use RepoProject;
 use RepoCatalog;
 
@@ -102,7 +102,6 @@ Options:
                         section in the credentials file. Default 'default'.
 
  Paths
-    --sb <path>         Path to the Seven Bridges command-line api utility sb
     --sbup <path>       Path to the Seven Bridges Java uploader start script,
                         sbg-uploader.sh
     --cred <path>       Path to the Seven Bridges credentials file. 
@@ -179,6 +178,14 @@ $path = shift @ARGV;
 
 # grab all parameters from the catalog database if provided
 if ($cat_file) {
+	
+	# first check path
+	if ($cat_file !~ m|^/|) {
+		# catalog file path is not from root
+		$cat_file = File::Spec->catfile( File::Spec->rel2abs(), $cat_file);
+	}
+	
+	# find entry in catalog and collect information
 	my $Catalog = RepoCatalog->new($cat_file) or 
 		die "Cannot open catalog file '$cat_file'!\n";
 	if ($path =~ /(A\d{4,5})/) {
@@ -235,6 +242,7 @@ my @removelist;
 my @ziplist;
 my %filedata;
 my $Digest;
+my $failure_count = 0;
 
 # external commands
 my ($gzipper, $zipper);
@@ -360,14 +368,15 @@ else {
 
 my $Project = RepoProject->new($path, $verbose) or 
 	die "unable to initiate Repository Project!\n";
-printf " > working on %s at %s\n", $Project->id, $Project->given_dir;
-printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
-# check project
+# check project ID
 if ($Project->id =~ m/\d{3,5}R\/?$/) {
 	# looks like a Request project
 	die "given path is a Request project! Stopping!\n";
 }
+
+printf " > working on %s at %s\n", $Project->id, $Project->given_dir;
+printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
 # application paths
 if ($verbose) {
@@ -429,10 +438,6 @@ if (-e $Project->delete_folder) {
 printf " > changing to %s\n", $Project->given_dir if $verbose;
 chdir $Project->given_dir or 
 	die sprintf("cannot change to %s!\n", $Project->given_dir);
-
-
-# keep track of failures
-my $failure_count = 0;
 
 
 # scan the directory
@@ -934,30 +939,38 @@ sub get_file_stats {
 
 sub upload_files {
 	
+	### Grab missing information
+	unless ($userfirst and $userlast) {
+		# this can be grabbed from the first data line in the manifest CSV
+		my $fh = IO::File->new($Project->manifest_file) or die "unable to read manifest file!";
+		my $h = $fh->getline;
+		my $l = $fh->getline;
+		my @d = split(',', $l);
+		$userfirst = $d[4];
+		$userlast  = $d[5];
+		$fh->close;
+	}
+	
 	### Initialize SB wrapper
-	my $sb = SB->new(
+	my $sb = SB2->new(
 		div     => $sb_division,
-		sb      => $sb_path,
 		cred    => $cred_path,
 	) or die "unable to initialize SB wrapper module!";
 	$sb->verbose(1) if $verbose;
 	
 	
 	### Create the project on Seven Bridges
-	my $sbproject;
+	# first check whether it exists
+	# use lower case to mimic the short name that would be used.
+	my $sbproject = $sb->get_project(lc($Project->id));
 	
-	# check whether it exists
-	foreach my $p ($sb->projects) {
-		if ($p->name eq $Project->id) {
-			# we found it
-			$sbproject = $p;
-			printf "   > using existing SB project %s\n", $p->id;
-			last;
-		}
-	}
 	
 	# create the project if it doesn't exist
-	if (not defined $sbproject) {
+	if (defined $sbproject) {
+		# we must be picking up from a previous upload
+		printf "   > using existing SB project %s\n", $sbproject->id;
+	}
+	else {
 		# generate description in markdown as necessary
 		if (not $description) {
 			$description = sprintf "# %s\n## %s\n GNomEx project %s is an Analysis project for %s %s",
@@ -973,6 +986,7 @@ sub upload_files {
 			}
 			$description .= sprintf("Details on the experiment may be found in [GNomEx](https://hci-bio-app.hci.utah.edu/gnomex/?analysisNumber=%s).\n",
 				$Project->id);
+			$description .= "\n**Warning:** After these files are removed from GNomEx, these may be your only copies. Do not delete!\n";
 		}
 		
 		# create project
