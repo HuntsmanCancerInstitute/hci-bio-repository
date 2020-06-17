@@ -205,6 +205,7 @@ notice file in the project folder.
 =cut
 
 use strict;
+use Carp;
 use IO::File;
 use File::Spec;
 use File::Copy;
@@ -231,10 +232,12 @@ sub new {
 		
 	# check directory
 	unless ($path =~ /^\//) {
-		die "given path does not begin with / Must use absolute paths!\n";
+		carp "given path does not begin with / Must use absolute paths!";
+		return;
 	}
 	unless (-e $path) {
-		die "given path $path does not exist!\n";
+		carp "given path $path does not exist!";
+		return;
 	}
 
 	# extract the project ID
