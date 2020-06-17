@@ -356,6 +356,13 @@ sub import_from_file {
 		croak "header doesn't match an exported file format!\n";
 	}
 	
+	# check catalog
+	my $key = $self->{db}->first_key || undef;
+	if ($key) {
+		carp "\nWARNING! Catalog file is not new! Abandoning import!\n";
+		return;
+	}
+	
 	# import one at a time
 	my $i = 1;
 	while (my $line = $fh->getline) {
