@@ -310,6 +310,21 @@ sub list_year {
 	return wantarray ? @list : \@list;
 }
 
+sub list_projects_for_pi {
+	my ($self, $name) = @_;
+	$name = lc $name;
+	my @list;
+	my $key = $self->{db}->first_key;
+	while ($key) {
+		my $E = $self->entry($key);
+		if (lc $E->lab_last eq $name) {
+			push @list, $key;
+		}
+		$key = $self->{db}->next_key($key);
+	}
+	return wantarray ? @list : \@list;
+}
+
 sub export_to_file {
 	my ($self, $file, $transform) = @_;
 	croak "no output file provided!" unless defined $file;
