@@ -136,10 +136,27 @@ unless ($cat_file) {
 }
 
 
-####### Open files
+####### Open Catalog
 my $Catalog = RepoCatalog->new($cat_file) or 
 	die "Cannot open catalog file '$cat_file'!\n";
 
+# import catalog is done 
+if ($import_file) {
+	my $n = $Catalog->import_from_file($import_file);
+	if ($n) {
+		print " Imported $n records from file '$import_file'\n";
+	}
+	else {
+		print " Import from file '$import_file' failed!\n";
+	}
+	exit;
+}
+
+
+
+
+
+####### List functions
 my @action_list;
 if ($list_file) {
 	my $fh = IO::File->new($list_file) or 
@@ -396,6 +413,8 @@ elsif (
 
 
 
+####### More Catalog functions
+
 if ($dump_file) {
 	my $s = $Catalog->export_to_file($dump_file, $transform);
 	if ($s) {
@@ -405,19 +424,6 @@ if ($dump_file) {
 		print " Export to file '$dump_file' failed!\n";
 	}
 }
-
-
-if ($import_file) {
-	my $n = $Catalog->import_from_file($import_file);
-	if ($n) {
-		print " Imported $n records from file '$import_file'\n";
-	}
-	else {
-		print " Import from file '$import_file' failed!\n";
-	}
-}
-
-
 
 if ($run_optimize) {
 	print " Optimizing...\n";
