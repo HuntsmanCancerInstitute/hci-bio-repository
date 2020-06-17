@@ -34,11 +34,12 @@ manage_catalog.pl --cat <file.db> <options>
     --list_lab <pi_lastname>  Print or select based on PI last name
     --all                     Apply to all catalog entries
     
-  Action on entries:
+  Action on entries: 
     --status                  Print the status of listed projects
     --info                    Print basic information of listed projects
+    --print                   Print all the information of listed projects
     --scan_size_age           Update project size and age from file server
-    --update_size             Import current (col2) previous (col3) sizes from file
+    --update_size             Import current (col2) previous (col3) sizes from listfile
     --update_scan <YYYYMMDD>  Update project scan timestamp
     --update_del <YYYYMMDD>   Update project deletion timestamp
     --update_hide <YYYYMMDD>  Update project hide timestamp
@@ -72,6 +73,7 @@ my $all;
 my $year;
 my $show_status;
 my $show_info;
+my $print_info;
 my $scan_size_age;
 my $import_sizes = 0;
 my $update_scan_date;
@@ -99,6 +101,7 @@ if (scalar(@ARGV) > 1) {
 		'year=i'            => \$year,
 		'status!'           => \$show_status,
 		'info!'             => \$show_info,
+		'print!'            => \$print_info,
 		'scan_size_age!'    => \$scan_size_age,
 		'update_size!'      => \$import_sizes,
 		'update_scan=i'     => \$update_scan_date,
@@ -391,24 +394,37 @@ elsif ($show_info) {
 	unless (@action_list) {
 		die "No list provided to show status!\n";
 	}
-	printf "%-6s\t%-10s\t%-15s\t%-15s\t%s\n", qw(ID Date UserLastName LabLastName Name);
+	printf "%-6s\t%-10s\t%-16s\t%-16s\t%s\n", qw(ID Date UserLastName LabLastName Name);
 	foreach my $item (@action_list) {
 		my ($id, @rest) = split("\t", $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
 		
-		printf "%-6s\t%-10s\t%-15s\t%-15s\t%s\n", $id, $Entry->date, $Entry->user_last,
+		printf "%-6s\t%-10s\t%-16s\t%-16s\t%s\n", $id, $Entry->date, $Entry->user_last,
 			$Entry->lab_last, $Entry->name;
 	}
+}
+elsif ($print_info) {
+	unless (@action_list) {
+		die "No list provided to show status!\n";
+	}
+	printf "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tDivision\tURL\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n";
+	foreach my $item (@action_list) {
+		my ($id, @rest) = split("\t", $item);
+		next unless (defined $id);
+		my $Entry = $Catalog->entry($id) or next;
+		print($Entry->print_string($transform));
+	}
+	
 }
 elsif (
 	# check to see if we have a list of IDs that were from a search
 	@action_list and
 	($list_req_upload or $list_req_hide or $list_req_delete or
-	 $list_anal_upload or $list_anal_hide or $list_anal_delete)
+	 $list_anal_upload or $list_anal_hide or $list_anal_delete or $year)
 ) {
 	# just print them
-	printf "%s\n", join(' ', @action_list);
+	printf "%s\n", join("\n", @action_list);
 }
 
 
