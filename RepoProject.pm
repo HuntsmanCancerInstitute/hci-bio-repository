@@ -379,8 +379,11 @@ sub get_file_list {
 	my $file = shift;
 	return unless $file;
 	
-	my $fh = IO::File->new($file, 'r') or 
-		die "can't read $file! $!\n";
+	my $fh = IO::File->new($file, 'r');
+	unless ($fh) {
+		carp "can't read $file! $!\n";
+		return;
+	} 
 	
 	# process
 	my @list;
@@ -416,6 +419,12 @@ sub calculate_file_checksum {
 
 sub hide_deleted_files {
 	my $self = shift;
+	
+	# check file list
+	unless (-e $self->alt_remove_file) {
+		carp "  ! no alternate file remove list!";
+		return 1;
+	}
 	
 	# move the deleted files
 	my $filelist = $self->get_file_list($self->alt_remove_file);
