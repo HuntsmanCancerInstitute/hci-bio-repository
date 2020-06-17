@@ -220,13 +220,19 @@ if ($anal_cat_file) {
 	$sth->execute();
 
 	
-	my $i = 0;
+	# walk through the database results
+	my $skip_count   = 0;
+	my $update_count = 0;
+	my $new_count    = 0;
 	while (my @row = $sth->fetchrow_array) {
 		
 		# check date
 		$row[2] =~ s/ \d\d:\d\d:\d\d\.\d+$//; # clean up time from date
 		my ($year) = $row[2] =~ /^(\d{4})/;
-		next if ($year_to_pull and $year < $year_to_pull);
+		if ($year_to_pull and $year < $year_to_pull) {
+			$skip_count++;
+			next;
+		}
 		
 		# prefix Analysis number with A
 		$row[0] = 'A' . $row[0]; 
@@ -240,6 +246,8 @@ if ($anal_cat_file) {
 		my $E = $Catalog->entry($row[0]);
 		if ($E) {
 			# an existing project, just need to update 
+			$update_count++;
+			
 			# basically check to see if we have a sb lab division
 			if ($E->external eq 'N' and not $E->division) {
 				my $lab = sprintf("%s %s", $row[7], $row[8]);
@@ -250,7 +258,8 @@ if ($anal_cat_file) {
 		}
 		else {
 			# a brand new project
-			$E->new_entry($row[0]);
+			$E = $Catalog->new_entry($row[0]);
+			$new_count++;
 			
 			# let's fill it out
 			$E->path("/Repository/AnalysisData/$year/$row[0]");
@@ -300,10 +309,11 @@ if ($anal_cat_file) {
 				}
 			}
 		}
-		
-		$i++;
 	} 
-	print " Processed $i Analysis projects\n";
+	printf " Finished processing %d Analysis project database entries\n", 
+		$skip_count + $update_count + $new_count;
+	printf "  %d skipped\n  %d updated\n  %d new\n", $skip_count, $update_count, 
+		$new_count;
 }
 
 
@@ -348,14 +358,19 @@ if ($req_cat_file) {
 	my $sth = $dbh->prepare($req_query);
 	$sth->execute();
 	
-	# iterate through
-	my $i = 0;
+	# walk through the database results
+	my $skip_count   = 0;
+	my $update_count = 0;
+	my $new_count    = 0;
 	while (my @row = $sth->fetchrow_array) {
 		
 		# check date
 		$row[2] =~ s/ \d\d:\d\d:\d\d\.\d+$//; # clean up time from date
 		my ($year) = $row[2] =~ /^(\d{4})/;
-		next if ($year_to_pull and $year < $year_to_pull);
+		if ($year_to_pull and $year < $year_to_pull) {
+			$skip_count++;
+			next;
+		}
 		
 		# clean up things
 		$row[0] =~ s/\d+$//; # remove straggling number from request, ex 1234R1
@@ -369,6 +384,7 @@ if ($req_cat_file) {
 		my $E = $Catalog->entry($row[0]);
 		if ($E) {
 			# an existing project, just need to update 
+			$update_count++;
 			$E->request_status($row[11]);
 			
 			# check to see if we have a sb lab division
@@ -382,6 +398,7 @@ if ($req_cat_file) {
 		else {
 			# a brand new project
 			$E = $Catalog->new_entry($row[0]);
+			$new_count++;
 			
 			# let's fill it out
 			$E->path("/Repository/MicroarrayData/$year/$row[0]");
@@ -432,9 +449,11 @@ if ($req_cat_file) {
 			}
 		}
 		
-		$i++;
 	} 
-	print " Processed $i Request projects\n";
+	printf " Finished processing %d Experiment Request project database entries\n", 
+		$skip_count + $update_count + $new_count;
+	printf "  %d skipped\n  %d updated\n  %d new\n", $skip_count, $update_count, 
+		$new_count;
 }
 
 ### Finished
