@@ -328,7 +328,7 @@ sub list_projects_for_pi {
 sub export_to_file {
 	my ($self, $file, $transform) = @_;
 	croak "no output file provided!" unless defined $file;
-	$transform = 1 unless defined $transform;
+	$transform ||= 0;
 	my $fh = IO::File->new($file, '>') or 
 		croak "unable to open $file for writing! $!\n";
 	$fh->print("ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tDivision\tURL\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n");
@@ -337,36 +337,8 @@ sub export_to_file {
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
-		
-		# need to transform posix times as necessary, join into string and print
-		$fh->printf("%s\n", join("\t", 
-			$E->id,
-			$E->path,
-			$E->name,
-			$E->date,
-			$E->group,
-			$E->user_email,
-			$E->user_first,
-			$E->user_last,
-			$E->lab_first,
-			$E->lab_last,
-			$E->pi_email || q(),
-			$E->division || q(),
-			$E->project_url || q(),
-			$E->external || q(),
-			$E->request_status || q(),
-			$E->request_application || q(),
-			$E->organism || q(),
-			$E->genome || q(),
-			$E->size || q(),
-			$E->last_size || q(),
-			$E->youngest_age || q(),
-			$E->scan_datestamp || q(),
-			$E->upload_datestamp || q(),
-			$E->hidden_datestamp || q(),
-			$E->deleted_datsestamp || q(),
-			$E->emailed_datsestamp || q(),
-		));
+		my $string = $E->print_string($transform);
+		$fh->print($string);
 		$key = $self->{db}->next_key($key);
 	}
 	$fh->close;
@@ -885,6 +857,61 @@ sub emailed_datestamp {
 	return $self->{data}->[EMAILED];
 }
 
+
+sub print_string {
+	my $self = shift;
+	my $transform = shift || 0;
+	
+	# collect the data
+	my @data = (
+		$self->id,
+		$self->path,
+		$self->name,
+		$self->date,
+		$self->group,
+		$self->user_email,
+		$self->user_first,
+		$self->user_last,
+		$self->lab_first,
+		$self->lab_last,
+		$self->pi_email || q(),
+		$self->division || q(),
+		$self->project_url || q(),
+		$self->external || q(),
+		$self->request_status || q(),
+		$self->request_application || q(),
+		$self->organism || q(),
+		$self->genome || q(),
+		$self->size || q(),
+		$self->last_size || q(),
+		$self->youngest_age || q(),
+		$self->scan_datestamp || q(),
+		$self->upload_datestamp || q(),
+		$self->hidden_datestamp || q(),
+		$self->deleted_datestamp || q(),
+		$self->emailed_datestamp || q(),
+	);
+	
+	# transform posix times as necessary
+	if ($transform) {
+		for my $i (21..25) {
+			next unless (defined $data[$i] and $data[$i]);
+			my @times = localtime($data[$i]);
+			if ($times[5] == 69 or $times[5] == 70) {
+				$data[$i] = '';
+			}
+			else {
+				$data[$i] = sprintf("%04d-%02d-%02d", 
+					$times[5] + 1900, $times[4] + 1, $times[3]);
+			}
+		}
+		# express age in days
+		$data[20] = sprintf("%d days", $self->age);
+	}
+	
+	# return as tab-delimited string
+	return sprintf("%s\n", join("\t", @data));
+}
 
 
 # sub project {
