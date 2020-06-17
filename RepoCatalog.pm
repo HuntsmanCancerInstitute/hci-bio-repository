@@ -138,9 +138,9 @@ to people time.
 
 =item hidden_datestamp
 
-=item deleted_datsestamp
+=item deleted_datestamp
 
-=item emailed_datsestamp
+=item emailed_datestamp
 
 =item send_email
 
@@ -853,7 +853,7 @@ sub hidden_datestamp {
 }
 
 
-sub deleted_datsestamp {
+sub deleted_datestamp {
 	my $self = shift;
 	if (@_) {
 		$self->{data}->[DELETED] = $_[0];
@@ -862,7 +862,7 @@ sub deleted_datsestamp {
 }
 
 
-sub emailed_datsestamp {
+sub emailed_datestamp {
 	my $self = shift;
 	if (@_) {
 		$self->{data}->[EMAILED] = $_[0];
