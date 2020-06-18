@@ -141,7 +141,6 @@ DOC
 
 sub _process_options {
 	
-	printf ">> being called with %d arguments\n", scalar(@_);
 	my %opt;
 	if (ref($_[0]) eq 'RepoEntry') {
 		# yay, an object to use!
