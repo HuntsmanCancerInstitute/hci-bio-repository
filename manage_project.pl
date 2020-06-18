@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use RepoProject;
 
-my $version = 4.0;
+my $version = 5;
 
 
 
@@ -30,7 +30,8 @@ Options:
  Mode
     --mvzip         Hide the zipped files by moving to hidden folder 
     --mvdel         Hide the to-delete files by moving to hidden folder
-    --unhide        Unhide files, _ZIPPED_FILES and/or _DELETED_FILES
+    --showzip       Unhide files from _ZIPPED_FILES folder
+    --showdel       Unhide files from _DELETED_FILES folder
     --restorezip    Restore files from the zip archive file
     --delzip        Delete the hidden zipped files
     --delete        Delete the to-delete files from the project and/or hidden folder
@@ -47,6 +48,8 @@ my $path;
 my $move_zip_files;
 my $move_del_files;
 my $unhide_files;
+my $unhide_zip_files;
+my $unhide_del_files;
 my $restore_zip_files;
 my $delete_zip_files;
 my $delete_del_files;
@@ -56,15 +59,17 @@ my $verbose = 0;
 
 if (scalar(@ARGV) > 1) {
 	GetOptions(
-		'mvzip!'    => \$move_zip_files,
-		'mvdel!'    => \$move_del_files,
-		'unhide!'   => \$unhide_files,
+		'mvzip!'      => \$move_zip_files,
+		'mvdel!'      => \$move_del_files,
+		'unhide!'     => \$unhide_files,
+		'showzip!'    => \$unhide_zip_files,
+		'showdel!'    => \$unhide_del_files,
 		'restorezip!' => \$restore_zip_files,
-		'delzip!'   => \$delete_zip_files,
-		'delete!'   => \$delete_del_files,
-		'notice!'   => \$add_notice,
-		'clean!'    => \$clean_project_files,
-		'verbose!'  => \$verbose,
+		'delzip!'     => \$delete_zip_files,
+		'delete!'     => \$delete_del_files,
+		'notice!'     => \$add_notice,
+		'clean!'      => \$clean_project_files,
+		'verbose!'    => \$verbose,
 	) or die "please recheck your options!\n\n$doc\n";
 	$path = shift @ARGV;
 }
@@ -77,8 +82,13 @@ else {
 
 
 ### check options
-
 if ($unhide_files) {
+	# legacy option
+	$unhide_zip_files = 1;
+	$unhide_del_files = 1;
+}
+
+if ($unhide_zip_files or $unhide_del_files) {
 	die "can't do anything else if unhiding files!\n" if $move_del_files or 
 		$move_zip_files or $delete_del_files or $delete_zip_files;
 }
@@ -109,16 +119,24 @@ chdir $Project->given_dir or die "cannot change to given directory! $!\n";
 my $failure_count = 0;
 
 # unhide files
-if ($unhide_files) {
+if ($unhide_zip_files) {
 	if (-e $Project->zip_folder) {
 		printf " > unhiding %s zipped files from directory %s to %s\n",
 			$Project->project, $Project->zip_folder, $Project->given_dir;
 		$failure_count += $Project->unhide_zip_files;
 	}
+	else {
+		printf " ! Zip folder %s doesn't exist!\n", $Project->zip_folder;
+	}
+}
+if ($unhide_del_files) {
 	if (-e $Project->delete_folder) {
 		printf " > unhiding %s deleted files from directory %s to %s\n",
 			$Project->project, $Project->delete_folder, $Project->given_dir;
 		$failure_count += $Project->unhide_deleted_files;
+	}
+	else {
+		printf " ! Deleted folder %s doesn't exist!\n", $Project->delete_folder;
 	}
 }
 
