@@ -401,8 +401,10 @@ sub find_requests_to_upload {
 				# size is bigger than 25 MB, looks like a candidate
 				if ($E->upload_datestamp) {
 					# already been uploaded? Make sure we're considerably bigger
-					my $diff = $E->last_size - $E->size;
-					if ($diff > 100_000_000) {
+					if (
+						$E->last_size and 
+						($E->size - $E->last_size) > 25_000_000
+					) {
 						# must have added new fastq files???
 						push @list, $key;
 					}
