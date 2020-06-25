@@ -384,8 +384,8 @@ sub find_requests_to_upload {
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
-		next unless $E->is_request;
 		if (
+			$E->is_request and
 			$E->request_status eq 'COMPLETE' and
 			$E->external eq 'N' and
 			$E->division and 
@@ -425,8 +425,8 @@ sub find_requests_to_hide {
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
-		next unless $E->is_request;
 		if (
+			$E->is_request and
 			$E->request_status eq 'COMPLETE' and    # finished
 			not $E->hidden_datestamp and            # not hidden yet
 			$E->size > 100_000_000 and              # size > 100 MB
@@ -446,8 +446,8 @@ sub find_requests_to_delete {
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
-		next unless $E->is_request;
 		if (
+			$E->is_request and
 			$E->request_status eq 'COMPLETE' and    # finished
 			$E->hidden_datestamp and                # hidden
 			$E->age > 270 and                       # older than 9 months
@@ -466,8 +466,8 @@ sub find_analysis_to_upload {
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
-		next if $E->is_request;
 		if (
+			not $E->is_request and
 			$E->age > 270 and                       # older than 9 months
 			$E->external eq 'N' and                 # not external
 			$E->division and                        # has division
@@ -488,8 +488,8 @@ sub find_analysis_to_hide {
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
-		next if $E->is_request;
 		if (
+			not $E->is_request and
 			$E->age > 270 and                       # older than 9 months
 			not $E->division and                    # no division, externality 
 			not $E->hidden_datestamp                # not already hidden
@@ -509,8 +509,8 @@ sub find_analysis_to_delete {
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
-		next if $E->is_request;
 		if (
+			not $E->is_request and
 			$E->age > 330 and                       # older than 11 months
 			$E->hidden_datestamp and                # hidden
 			not $E->deleted_datestamp               # not yet deleted
