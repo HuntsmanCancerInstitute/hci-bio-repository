@@ -11,6 +11,7 @@ use lib $Bin;
 use SB2;
 use RepoProject;
 use RepoCatalog;
+use Emailer;
 
 
 my $version = 5;
@@ -74,6 +75,7 @@ Options:
     --cat <path>        Provide path to metadata catalog database
     --first <text>      User first name for the owner of the project
     --last <text>       User last name for the owner of the project
+    --email <text>      User email address for notifications
     --title "text"      GNomEx Request Name or title. This is a long text 
                         field, so must be protected by quoting. It will 
                         become the name of SB project.
@@ -95,6 +97,7 @@ Options:
     --maxzip <integer>  Maximum size in bytes to avoid zip archiving (200 MB)
     --keepzip           Do not hide files that have been zip archived
     --delzip            Immediately delete files that have been zip archived
+    --notify            Send email to user and PI when uploading
     --verbose           Tell me everything!
  
  Seven Bridges
@@ -122,6 +125,7 @@ my $upload;
 my $cat_file;
 my $userfirst           = q();
 my $userlast            = q();
+my $email_address       = q();
 my $title               = q();
 my $group               = q();
 my $species             = q();
@@ -131,10 +135,11 @@ my $min_gz_size         = 10000;     # 10 KB
 my $max_zip_size        = 200000000; # 200 MB
 my $keepzip             = 0;
 my $deletezip           = 0;
-my $sb_division         = q(default);
+my $sb_division         = q();
 my $sb_path             = q();
 my $sbupload_path       = q();
 my $cred_path           = q();
+my $send_email;
 my $everything;
 my $verbose;
 
@@ -148,6 +153,7 @@ if (scalar(@ARGV) > 1) {
 		'catalog=s'     => \$cat_file,
 		'first=s'       => \$userfirst,
 		'last=s'        => \$userlast,
+		'email=s'       => \$email_address,
 		'title=s'       => \$title,
 		'group=s'       => \$group,
 		'species=s'     => \$species,
@@ -156,6 +162,7 @@ if (scalar(@ARGV) > 1) {
 		'mingz=i'       => \$min_gz_size,
 		'keepzip!'      => \$keepzip,
 		'delzip!'       => \$deletezip,
+		'notify!'       => \$send_email,
 		'all!'          => \$everything,
 		'division=s'    => \$sb_division,
 		'sb=s'          => \$sb_path,
@@ -199,6 +206,9 @@ if ($cat_file) {
 		if (not $userlast) {
 			$userlast = $Entry->user_last;
 		}
+		if (not $email_address) {
+			$email_address = $Entry->user_email;
+		}
 		if (not $title) {
 			$title = $Entry->name;
 		}
@@ -222,12 +232,12 @@ if ($cat_file) {
 }
 
 if ($scan) {
-	die "must provide user first name to scan!\n" unless $userfirst;
-	die "must provide user last name to scan!\n" unless $userlast;
+	die "must provide user first name or Catalog db file to scan!\n" unless $userfirst;
+	die "must provide user last name or Catalog db file to scan!\n" unless $userlast;
 }
 if ($upload) {
-	die "must provide a SB division name!\n" unless $sb_division;
-	die "must provide a title for SB project!\n" unless $title;
+	die "must provide a SB division name or Catalog db file!\n" unless $sb_division;
+	die "must provide a title for SB project or Catalog db file!\n" unless $title;
 }
 if ($keepzip and $deletezip) {
 	die "must choose one: --keepzip or --delzip   Not both!!!\n";
@@ -243,6 +253,7 @@ my @ziplist;
 my %filedata;
 my $Digest;
 my $failure_count = 0;
+my $post_zip_size = 0;
 
 # external commands
 my ($gzipper, $zipper);
@@ -454,6 +465,10 @@ if ($upload and not $failure_count) {
 	if (-e $Project->manifest_file) {
 		printf " > uploading project %s files to $sb_division\n", $Project->id;
 		upload_files();
+		
+		# re-calculate the size here for email notification
+		# must do it before the directory is cleaned up below
+		($post_zip_size, undef) = $Project->get_size_age;
 	}
 	else {
 		print " ! No manifest file! Cannot upload files\n";
@@ -494,6 +509,28 @@ else {
 			}
 			if ($upload) {
 				$Entry->upload_datestamp($t);
+				
+				# send an upload notification email
+				if ($send_email) {
+					# use the pre-cleaned but post-zipped file size
+					unless ($post_zip_size) {
+						# this should not be null, but just in case
+						($post_zip_size, undef) = $Project->get_size_age;
+					}
+					my $result = send_analysis_upload_email(
+						$Entry,
+						'size' => $post_zip_size
+						# force using the post-zip, pre-cleanup size
+					);
+					if ($result) {
+						printf " > Sent Analysis SB upload notification email: %s\n", 
+							$result->message;
+						$Entry->emailed_datestamp($t);
+					}
+					else {
+						print " ! Failed to send Analysis upload notification email!\n";
+					}
+				}
 			}
 			if ($hide_files) {
 				$Entry->hidden_datestamp($t);
@@ -1028,6 +1065,18 @@ sub upload_files {
 	}
 	elsif ($result =~ /Done\.\n$/) {
 		print "   > upload successful\n";
+		
+		# add the user to the project
+		if ($email_address) {
+			my $name = add_user_to_sb_project($sb, $sbproject);
+			if ($name) {
+				print "   > added user $name to SB project\n";
+			}
+			else {
+				printf "   ! SB user for %s %s not found on platform\n", 
+					$userfirst, $userlast;
+			}
+		}
 	}
 	else {
 		$failure_count++;
@@ -1035,6 +1084,46 @@ sub upload_files {
 	}
 	return 1;
 }
+
+
+sub add_user_to_sb_project {
+	my ($division, $sbproject) = @_;
+	
+	# find division member
+	my $divMember;
+	foreach my $member ($division->list_members) {
+		if (lc($member->email) eq lc($email_address)) {
+			# email matches, that was easy!
+			$divMember = $member;
+			last;
+		}
+		elsif (
+			lc($member->last_name) eq lc($userlast) and 
+			lc($member->first_name) eq lc($userfirst)
+		) {
+			# first and last names match
+			$divMember = $member;
+			last;
+		}
+	}
+	return unless ($divMember);
+	
+	# add member with full permissions
+	my @permissions = (
+		'read'      => 'true',
+		'copy'      => 'true',
+		'write'     => 'true',
+		'execute'   => 'true',
+		'admin'     => 'true'
+	);
+	my $pMember = $sbproject->add_member($divMember, @permissions);
+	if ($pMember) {
+		return $pMember->{username};
+	}
+	
+	return;
+}
+
 
 
 

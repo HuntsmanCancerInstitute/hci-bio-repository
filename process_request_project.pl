@@ -12,6 +12,7 @@ use lib $Bin;
 use SB2;
 use RepoCatalog;
 use RepoProject;
+use Emailer;
 
 my $version = 5;
 
@@ -59,6 +60,7 @@ Options:
     --cat <path>        Provide path to metadata catalog database
     --first <text>      User first name for the owner of the project
     --last <text>       User last name for the owner of the project
+    --email <text>      User email address for notifications
     --strategy "text"   GNomEx database application value. This is a long 
                         and varied text field, so must be protected by 
                         quoting. It will be distilled into a single-word 
@@ -71,6 +73,7 @@ Options:
  Options
     --desc "text"       Description for new SB project when uploading. 
                         Can be Markdown text.
+    --notify            Send email to user and PI when uploading
     --verbose           Tell me everything!
  
  Seven Bridges
@@ -95,14 +98,15 @@ my $upload;
 my $cat_file;
 my $userfirst;
 my $userlast;
+my $email_address;
 my $strategy;
 my $title;
 my $group;
-my $description = q();
-my $sb_division;
-my $sb_path = q();
+my $description   = q();
+my $sb_division   = q();
 my $sbupload_path = q();
-my $cred_path = q();
+my $cred_path     = q();
+my $send_email;
 my $verbose;
 
 if (scalar(@ARGV) > 1) {
@@ -117,8 +121,8 @@ if (scalar(@ARGV) > 1) {
 		'title=s'       => \$title,
 		'group=s'       => \$group,
 		'desc=s'        => \$description,
+		'notify!'       => \$send_email,
 		'division=s'    => \$sb_division,
-		'sb=s'          => \$sb_path,
 		'sbup=s'        => \$sbupload_path,
 		'cred=s'        => \$cred_path,
 		'verbose!'      => \$verbose,
@@ -157,6 +161,9 @@ if ($cat_file) {
 		}
 		if (not $userlast) {
 			$userlast = $Entry->user_last;
+		}
+		if (not $email_address) {
+			$email_address = $Entry->user_email;
 		}
 		if (not $strategy) {
 			$strategy = $Entry->request_application;
@@ -255,7 +262,6 @@ printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
 # given application paths
 if ($verbose) {
-	print " =>             SB path: $sb_path\n" if $sb_path;
 	print " =>    SB uploader path: $sbupload_path\n" if $sbupload_path;
 	print " => SB credentials path: $cred_path\n" if $cred_path;
 }
@@ -352,6 +358,19 @@ else {
 			}
 			if ($upload) {
 				$Entry->upload_datestamp($t);
+				
+				# send an upload notification email
+				if ($send_email) {
+					my $result = send_request_upload_email($Entry);
+					if ($result) {
+						printf " > Sent Request SB upload notification email: %s\n", 
+							$result->message;
+						$Entry->emailed_datestamp($t);
+					}
+					else {
+						print " ! Failed to send Request upload notification email!\n";
+					}
+				}
 			}
 			if ($hide_files) {
 				$Entry->hidden_datestamp($t);
@@ -809,12 +828,63 @@ sub upload_files {
 	}
 	elsif ($result =~ /Done\.\n$/) {
 		print "   > upload successful\n";
+		
+		# add the user to the project
+		if ($email_address) {
+			my $name = add_user_to_sb_project($sb, $sbproject);
+			if ($name) {
+				print "   > added user $name to SB project\n";
+			}
+			else {
+				printf "   ! SB user for %s %s not found on platform\n", 
+					$userfirst, $userlast;
+			}
+		}
 	}
 	else {
 		$failure_count++;
 		print "   ! upload error!\n";
 	}
 	return 1;
+}
+
+
+sub add_user_to_sb_project {
+	my ($division, $sbproject) = @_;
+	
+	# find division member
+	my $divMember;
+	foreach my $member ($division->list_members) {
+		if (lc($member->email) eq lc($email_address)) {
+			# email matches, that was easy!
+			$divMember = $member;
+			last;
+		}
+		elsif (
+			lc($member->last_name) eq lc($userlast) and 
+			lc($member->first_name) eq lc($userfirst)
+		) {
+			# first and last names match
+			$divMember = $member;
+			last;
+		}
+	}
+	return unless ($divMember);
+	
+	# add member with full permissions
+	my @permissions = (
+		'read'      => 'true',
+		'copy'      => 'true',
+		'write'     => 'true',
+		'execute'   => 'true',
+		'admin'     => 'true'
+	);
+	my $pMember = $sbproject->add_member($divMember, @permissions);
+	if ($pMember) {
+		return $pMember->{username};
+	}
+	
+	return;
 }
 
 
