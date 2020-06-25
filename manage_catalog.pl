@@ -353,11 +353,8 @@ if ($show_status) {
 		elsif ($size > 1000) {
 			$size = sprintf("%.1fK", $size / 1000);
 		}
-		elsif ($size == 0) {
-			$size = '      ';
-		}
 		else {
-			$size = sprintf("%d", $size);
+			$size = sprintf("%dB", $size);
 		}
 		
 		# the datetime stamps are converted from epoch to YYYY-MM-DD
