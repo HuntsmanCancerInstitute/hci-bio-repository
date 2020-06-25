@@ -492,6 +492,9 @@ sub execute {
 				my $res = $http->request($next->{method}, $next->{href}, $options);
 				if ($res->{reason} eq 'OK') {
 					my $result2 = decode_json($res->{content});
+					if ($self->verbose) {
+						printf "  > Collected %d additional items\n", scalar(@{$result2->{items}});
+					}
 					push @items, @{ $result2->{items} };
 					undef($next);
 					foreach my $l (@{$result2->{links}}) {
@@ -507,9 +510,21 @@ sub execute {
 				}
 			}
 		}
-	
+		
+		# make sure we don't have duplicates
+		# at least the list_divisions method returns a ton of duplicates - a bug?
+		# insert sanity check here as a general method, just in case the bug afflicts
+		# other things too
+		my %seenit;
+		my @keep;
+		foreach my $i (@items) {
+			next if exists $seenit{ $i->{href} };
+			$seenit{ $i->{href} } = 1;
+			push @keep, $i;
+		}
+		
 		# done
-		return wantarray ? @items : \@items;
+		return wantarray ? @keep : \@keep;
 	}
 	
 	# appears to be a single result, not a list
