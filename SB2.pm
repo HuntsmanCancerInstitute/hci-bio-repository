@@ -822,7 +822,7 @@ sub add_member {
 		$data->{type} = 'TEAM';
 		printf(" >> adding team id %s\n", $data->{name}) if $self->verbose;
 	}
-	elsif ($member =~ /^([a-z0-9\-]+)\/([\w\-\.]+)$/) {
+	elsif ($member =~ /^[a-z0-9\-]+\/[\w\-\.]+$/) {
 		# looks like a typical id
 		$data->{username} = $member;
 		printf(" >> adding given member id %s\n", $data->{name}) if $self->verbose;
@@ -867,7 +867,7 @@ sub modify_member_permission {
 		$username = $member->id;
 		printf(" >> updating team id %s\n", $username) if $self->verbose;
 	}
-	elsif ($member =~ /^([a-z0-9\-]+)\/([\w\-\.]+)$/) {
+	elsif ($member =~ /^[a-z0-9\-]+\/[\w\-\.]+$/) {
 		# looks like a typical id
 		$username = $member;
 		printf(" >> updating given id %s\n", $username) if $self->verbose;
