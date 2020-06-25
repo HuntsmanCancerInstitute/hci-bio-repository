@@ -786,8 +786,17 @@ sub genome {
 sub size {
 	my $self = shift;
 	if (@_) {
-		$self->{data}->[LASTSIZE] = $self->{data}->[SIZE];
-		$self->{data}->[SIZE] = $_[0];
+		my $newsize = $_[0];
+		my $cursize = $self->{data}->[SIZE];
+		if ($cursize) {
+			my $delta = abs($cursize - $newsize);
+			if ($delta > 25_000_000 or ($delta / $cursize) > 0.1) {
+				# there's a significant change of greater than 25 MB or 10%
+				# then store the last size
+				$self->{data}->[LASTSIZE] = $cursize;
+			}
+		}
+		$self->{data}->[SIZE] = $newsize;
 	}
 	return $self->{data}->[SIZE];
 }
