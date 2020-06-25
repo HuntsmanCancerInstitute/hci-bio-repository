@@ -344,15 +344,19 @@ sub verbose {
 
 sub token {
 	my $self = shift;
-	my $division = shift || undef; # in case we want to try for default?
 	
 	# check token
 	unless (defined $self->{token}) {
 		# need to collect the token from a credentials file
 		my $cred_path = $self->{cred};
 		
-		# pull token
+		# division
 		my $division = $self->division;
+		unless ($division) {
+			confess "no division is specified!?";
+		}
+		
+		# pull token
 		my $token;
 		my $fh = IO::File->new($cred_path) or 
 			die "unable to read credentials files!\n";
