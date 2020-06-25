@@ -880,6 +880,7 @@ sub print_string {
 	my $transform = shift || 0;
 	
 	# collect the data
+	# following the same order as the stored array - see the constant hash above
 	my @data = (
 		$self->id,
 		$self->path,
@@ -911,7 +912,9 @@ sub print_string {
 	
 	# transform posix times as necessary
 	if ($transform) {
-		for my $i (21..25) {
+		
+		# convert times from epoch to YYYYMMDD
+		for my $i (SCAN, UPLOAD, HIDDEN, DELETED, EMAILED) {
 			next unless (defined $data[$i] and $data[$i]);
 			my @times = localtime($data[$i]);
 			if ($times[5] == 69 or $times[5] == 70) {
@@ -922,8 +925,25 @@ sub print_string {
 					$times[5] + 1900, $times[4] + 1, $times[3]);
 			}
 		}
+		
 		# express age in days
-		$data[20] = sprintf("%d days", $self->age);
+		$data[AGE] = sprintf("%d days", $self->age);
+		
+		# convert sizes
+		for my $i (SIZE, LASTSIZE) {
+			if ($data[$i] > 1000000000) {
+				$data[$i] = sprintf("%.1fG", $data[$i] / 1000000000);
+			}
+			elsif ($data[$i] > 1000000) {
+				$data[$i] = sprintf("%.1fM", $data[$i] / 1000000);
+			}
+			elsif ($data[$i] > 1000) {
+				$data[$i] = sprintf("%.1fK", $data[$i] / 1000);
+			}
+			else {
+				$data[$i] = sprintf("%dB", $data[$i]);
+			}
+		}
 	}
 	
 	# return as tab-delimited string
