@@ -37,6 +37,7 @@ manage_catalog.pl --cat <file.db> <options>
   Action on entries: 
     --status                  Print the status of listed projects
     --info                    Print basic information of listed projects
+    --path                    Print the repository path to the project
     --print                   Print all the information of listed projects
     --scan_size_age           Update project size and age from file server
     --update_size             Import current (col2) previous (col3) sizes from listfile
@@ -74,6 +75,7 @@ my $year;
 my $show_status;
 my $show_info;
 my $print_info;
+my $show_path = 0;
 my $scan_size_age;
 my $import_sizes = 0;
 my $update_scan_date;
@@ -101,6 +103,7 @@ if (scalar(@ARGV) > 1) {
 		'year=i'            => \$year,
 		'status!'           => \$show_status,
 		'info!'             => \$show_info,
+		'path!'             => \$show_path,
 		'print!'            => \$print_info,
 		'scan_size_age!'    => \$scan_size_age,
 		'update_size!'      => \$import_sizes,
@@ -331,12 +334,17 @@ if (defined $update_email_date and $update_email_date =~ /(\d\d\d\d)(\d\d)(\d\d)
 }
 
 
+
+
+
+
+####### Printing Functions
+
 if ($show_status) {
 	unless (@action_list) {
 		die "No list provided to show status!\n";
 	}
 	printf "%-6s\t%-6s\t%-5s\t%-10s\t%-10s\t%-10s\t%-10s\t%-10s\n", qw(ID Size Age Scan Upload Hide Delete Division);
-# 	printf "%-7s %-5s %-5s %-10s %-10s %-10s %-10s %-10s\n", qw(ID Size Age Scan Upload Hide Delete Division);
 	foreach my $item (@action_list) {
 		my ($id, @rest) = split("\t", $item);
 		next unless (defined $id);
@@ -381,7 +389,6 @@ if ($show_status) {
 			sprintf("%04d-%02d-%02d", $delete[5] + 1900, $delete[4] + 1, $delete[3]);
 		
 		# print
-# 		printf "%-7s %s %-5s %s %s %s %s %s\n", $id, $size, $Entry->age || '', 
 		printf "%-6s\t%-7s\t%-5s\t%s\t%s\t%s\t%s\t%s\n", $id, $size, $Entry->age || '', 
 			$scan_day, $up_day, $hide_day, $delete_day, 
 			$Entry->external eq 'Y' ? 'external' : $Entry->division || 'none';
@@ -399,6 +406,18 @@ elsif ($show_info) {
 		
 		printf "%-6s\t%-10s\t%-16s\t%-16s\t%s\n", $id, $Entry->date, $Entry->user_last,
 			$Entry->lab_last, $Entry->name;
+	}
+}
+elsif ($show_path) {
+	unless (@action_list) {
+		die "No list provided to show status!\n";
+	}
+	foreach my $item (@action_list) {
+		my ($id, @rest) = split("\t", $item);
+		next unless (defined $id);
+		my $Entry = $Catalog->entry($id) or next;
+		
+		printf "%s\n", $Entry->path;
 	}
 }
 elsif ($print_info) {
