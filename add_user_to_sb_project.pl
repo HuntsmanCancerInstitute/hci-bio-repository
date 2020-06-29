@@ -243,7 +243,7 @@ foreach my $id (@projects) {
 	else {
 		$pMember = $Project->add_member($divMember, @permissions);
 		if ($pMember) {
-			printf "  added user to project as %s\n", $pMember->{username};
+			printf "  added user to project as %s\n", $pMember->username;
 		}
 	}
 }

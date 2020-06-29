@@ -881,7 +881,7 @@ sub add_user_to_sb_project {
 	);
 	my $pMember = $sbproject->add_member($divMember, @permissions);
 	if ($pMember) {
-		return $pMember->{username};
+		return $pMember->username;
 	}
 	
 	return;

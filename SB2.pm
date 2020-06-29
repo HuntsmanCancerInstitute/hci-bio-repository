@@ -841,7 +841,7 @@ sub add_member {
 	# execute
 	my $url = $self->href . '/members';
 	my $result = $self->execute('POST', $url, undef, $data);
-	return $result;
+	return $result ? SB2::Member->new($self, $result) : undef;
 }
 
 sub modify_member_permission {
