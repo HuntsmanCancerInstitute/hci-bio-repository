@@ -871,7 +871,16 @@ sub add_user_to_sb_project {
 	}
 	return unless ($divMember);
 	
-	# add member with full permissions
+	# check if user is already a member of project
+	foreach my $member ($sbproject->list_members) {
+		if ($member->username eq $divMember->username) {
+			# user is already a member of this project!
+			# nothing more needs to be done
+			return $member->username;
+		}
+	}
+	
+	# otherwise add member with full permissions
 	my @permissions = (
 		'read'      => 'true',
 		'copy'      => 'true',
