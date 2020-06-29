@@ -24,7 +24,7 @@ manage_catalog.pl --cat <file.db> <options>
   
   Entry selection: (select one)
     --listfile <path>         File of project identifiers to work on
-    --year <YYYY>             Find catalog entries in given year
+                                may be tab-delimited, only 1st column used
     --list_req_up             Print or work on Request IDs for upload to SB
     --list_req_hide           Print or work on Request IDs for hiding
     --list_req_delete         Print or work on Request IDs for deletion
@@ -33,6 +33,14 @@ manage_catalog.pl --cat <file.db> <options>
     --list_anal_delete        Print or work on Analysis IDs for deletion
     --list_lab <pi_lastname>  Print or select based on PI last name
     --all                     Apply to all catalog entries
+  
+  Selection modifiers
+    --year <YYYY>             Limit entries to given year or newer
+    --age <days>              Customize minimum age to filter
+    --sb                      Include only projects with SB division
+    --nosb                    Exclude projects with SB division
+    --external                Include only external projects (assumes no SB division)
+    --noexternal              Exclude external projects (assumes no SB division)
     
   Action on entries: 
     --status                  Print the status of listed projects
@@ -49,8 +57,8 @@ manage_catalog.pl --cat <file.db> <options>
     
   Action on catalog:
     --export <path>           Dump the contents to tab-delimited text file
-    --transform               When exporting transform datetime stamps to convention
-    --import <path>           Import exported table, requires epoch datetime stamps
+    --transform               When exporting transform to human conventions
+    --import <path>           Import an exported table, requires non-transformed
     
     --optimize                Run the db file optimize routine (!?)
     
@@ -72,10 +80,13 @@ my $list_pi;
 my $list_file;
 my $all;
 my $year;
-my $show_status;
-my $show_info;
-my $print_info;
+my $include_sb;
+my $age;
+my $external;
+my $show_status = 0;
+my $show_info = 0;
 my $show_path = 0;
+my $print_info = 0;
 my $scan_size_age;
 my $import_sizes = 0;
 my $update_scan_date;
@@ -100,7 +111,10 @@ if (scalar(@ARGV) > 1) {
 		'list_lab=s'        => \$list_pi,
 		'list=s'            => \$list_file,
 		'all!'              => \$all,
+		'sb!'               => \$include_sb,
 		'year=i'            => \$year,
+		'age=i'             => \$age,
+		'external!'         => \$external,
 		'status!'           => \$show_status,
 		'info!'             => \$show_info,
 		'path!'             => \$show_path,
@@ -129,19 +143,40 @@ unless ($cat_file) {
 
 # sanity checks
 {
+	# request search
 	my $sanity = $list_req_upload + $list_req_hide + $list_req_delete;
 	if ($sanity > 1) {
 		die "Only 1 Request search allowed at a time!\n";
+	}
+	elsif ($sanity == 1) {
 		die "No search functions if exporting!\n" if $dump_file;
 		die "No search functions if importing!\n" if $import_file;
 	}
+	
+	# analysis search
 	$sanity = 0;
 	$sanity = $list_anal_upload + $list_anal_hide + $list_anal_delete;
 	if ($sanity > 1) {
 		die "Only 1 Analysis search allowed at a time!\n";
+	}
+	elsif ($sanity == 1) {
 		die "No search functions if exporting!\n" if $dump_file;
 		die "No search functions if importing!\n" if $import_file;
 	}
+	
+	# print function
+	$sanity = 0;
+	$sanity = $show_status + $show_info + $show_path + $print_info;
+	if ($sanity > 1) {
+		die "Only 1 printing function allowed at a time!\n";
+	}
+}
+if ($year and $year !~ /\d{4}/) {
+	die "year must be four digits!\n";
+}
+if (defined $external) {
+	$external = $external ? 'Y' : 'N';
+	$include_sb = 0 if $external eq 'Y';
 }
 
 
@@ -183,34 +218,62 @@ elsif (@ARGV) {
 	# printf " using %d items provided on command line\n", scalar(@action_list);
 }
 elsif ($all) {
-	@action_list = $Catalog->list_all;
-}
-elsif ($year) {
-	@action_list = $Catalog->list_year($year);
+	@action_list = $Catalog->list_all(
+		age  => $age, 
+		year => $year, 
+		sb   => $include_sb,
+		external => $external,
+	);
 }
 elsif ($list_req_upload) {
 	die "Can't find entries if list provided!\n" if @action_list;
-	@action_list = $Catalog->find_requests_to_upload;
+	@action_list = $Catalog->find_requests_to_upload(
+		year => $year,
+		age  => $age,
+	);
 }
 elsif ($list_req_hide) {
 	die "Can't find entries if list provided!\n" if @action_list;
-	@action_list = $Catalog->find_requests_to_hide;
+	@action_list = $Catalog->find_requests_to_hide(
+		age  => $age, 
+		year => $year, 
+		sb   => $include_sb,
+		external => $external,
+	);
 }
 elsif ($list_req_delete) {
 	die "Can't find entries if list provided!\n" if @action_list;
-	@action_list = $Catalog->find_requests_to_delete;
+	@action_list = $Catalog->find_requests_to_delete(
+		age  => $age, 
+		year => $year, 
+		sb   => $include_sb,
+		external => $external,
+	);
 }
 elsif ($list_anal_upload) {
 	die "Can't find entries if list provided!\n" if @action_list;
-	@action_list = $Catalog->find_analysis_to_upload;
+	@action_list = $Catalog->find_analysis_to_upload(
+		age  => $age, 
+		year => $year, 
+	);
 }
 elsif ($list_anal_hide) {
 	die "Can't find entries if list provided!\n" if @action_list;
-	@action_list = $Catalog->find_analysis_to_hide;
+	@action_list = $Catalog->find_analysis_to_hide(
+		age  => $age, 
+		year => $year, 
+		sb   => $include_sb,
+		external => $external,
+	);
 }
 elsif ($list_anal_delete) {
 	die "Can't find entries if list provided!\n" if @action_list;
-	@action_list = $Catalog->find_analysis_to_delete;
+	@action_list = $Catalog->find_analysis_to_delete(
+		age  => $age, 
+		year => $year, 
+		sb   => $include_sb,
+		external => $external,
+	);
 }
 elsif ($list_pi) {
 	die "Can't find entries if list provided!\n" if @action_list;
