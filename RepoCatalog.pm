@@ -165,6 +165,7 @@ use DBM::Deep;
 
 ### Base paths for catalog files
 my $DEFAULT_PATH  = "~/test/repository.db";
+my $repo_epoch = 2005;
 
 
 
@@ -291,7 +292,38 @@ sub optimize {
 
 sub list_all {
 	my $self = shift;
-	my @list = sort {$a cmp $b} keys %{$self->{db}};
+	my %opts = @_;
+	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
+	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
+	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 0;
+	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
+	
+	# scan through list
+	my @list;
+	my $key = $self->{db}->first_key;
+	while ($key) {
+		my $E = $self->entry($key);
+		if (
+			substr($E->date, 0, 4) >= $year and
+			$E->age >= $age                    
+		) {
+			# we have a possible candidate
+			if (defined $sb) {
+				if ($sb and $E->division) {
+					push @list, $key;
+				}
+				elsif (not $sb and not $E->division) {
+					push @list, $key if $E->external eq $ext;
+				}
+				# else doesn't match
+			}
+			else {
+				push @list, $key;
+			}
+		}
+		$key = $self->{db}->next_key($key);
+	}
+	@list = sort {$a cmp $b} @list;
 	return wantarray ? @list : \@list;
 }
 
@@ -307,21 +339,43 @@ sub list_year {
 		}
 		$key = $self->{db}->next_key($key);
 	}
+	@list = sort {$a cmp $b} @list;
 	return wantarray ? @list : \@list;
 }
 
 sub list_projects_for_pi {
-	my ($self, $name) = @_;
-	$name = lc $name;
+	my $self = shift;
+	my %opts;
+	if (scalar(@_) == 1) {
+		$opts{name} = $_[0];
+	}
+	else {
+		%opts = @_;
+	}
+	my $name = lc($opts{name}) || undef;
+	unless ($name) {
+		carp "must provide PI last name!";
+		return;
+	}
+	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
+	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 0;
+	# SB division and external status is based on PI, so no need to filter those
+	
+	# scan through list
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
-		if (lc $E->lab_last eq $name) {
+		if (
+			lc $E->lab_last eq $name and
+			substr($E->date, 0, 4) >= $year and
+			$E->age >= $age                    
+		) {
 			push @list, $key;
 		}
 		$key = $self->{db}->next_key($key);
 	}
+	@list = sort {$a cmp $b} @list;
 	return wantarray ? @list : \@list;
 }
 
@@ -380,6 +434,10 @@ sub import_from_file {
 
 sub find_requests_to_upload {
 	my $self = shift;
+	my %opts = @_;
+	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
+	
+	# scan through list
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
@@ -387,8 +445,8 @@ sub find_requests_to_upload {
 		if (
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and
-			$E->external eq 'N' and
 			$E->division and 
+			substr($E->date, 0, 4) >= $year and
 			not $E->hidden_datestamp
 		) {
 			# we have a candidate
@@ -417,111 +475,201 @@ sub find_requests_to_upload {
 		}
 		$key = $self->{db}->next_key($key);
 	}
+	@list = sort {$a cmp $b} @list;
 	return wantarray ? @list : \@list;
 }
 
 
 sub find_requests_to_hide {
 	my $self = shift;
+	my %opts = @_;
+	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
+	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
+	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 180;
+	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
+	
+	# scan through list
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
 			$E->is_request and
-			$E->request_status eq 'COMPLETE' and    # finished
-			not $E->hidden_datestamp and            # not hidden yet
-			$E->size > 100_000_000 and              # size > 100 MB
-			$E->age > 180                           # older than 6 months
+			$E->request_status eq 'COMPLETE' and        # finished
+			not $E->hidden_datestamp and                # not hidden yet
+			$E->size > 100_000_000 and                  # size > 100 MB
+			substr($E->date, 0, 4) >= $year and         # current year
+			$E->age >= $age                             # older than 6 months
 		) {
-			push @list, $key;
+			# we have a possible candidate
+			if (defined $sb) {
+				if ($sb and $E->division) {
+					push @list, $key;
+				}
+				elsif (not $sb and not $E->division) {
+					push @list, $key if $E->external eq $ext;
+				}
+				# else doesn't match
+			}
+			else {
+				push @list, $key;
+			}
 		}
 		$key = $self->{db}->next_key($key);
 	}
+	@list = sort {$a cmp $b} @list;
 	return wantarray ? @list : \@list;
 }
 
 
 sub find_requests_to_delete {
 	my $self = shift;
+	my %opts = @_;
+	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
+	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
+	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
+	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
+	
+	# scan through list
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
 			$E->is_request and
-			$E->request_status eq 'COMPLETE' and    # finished
-			$E->hidden_datestamp and                # hidden
-			$E->age > 270 and                       # older than 9 months
-			not $E->deleted_datestamp               # not yet deleted
+			$E->request_status eq 'COMPLETE' and        # finished
+			$E->hidden_datestamp and                    # hidden
+			not $E->deleted_datestamp and               # not yet deleted
+			$E->age >= $age and                         # older than 9 months
+			substr($E->date, 0, 4) >= $year             # current year
 		) {
-			push @list, $key;
+			# we have a possible candidate
+			if (defined $sb) {
+				if ($sb and $E->division) {
+					push @list, $key;
+				}
+				elsif (not $sb and not $E->division) {
+					push @list, $key if $E->external eq $ext;
+				}
+				# else doesn't match
+			}
+			else {
+				push @list, $key;
+			}
 		}
 		$key = $self->{db}->next_key($key);
 	}
+	@list = sort {$a cmp $b} @list;
 	return wantarray ? @list : \@list;
 }
 
 sub find_analysis_to_upload {
 	my $self = shift;
+	my %opts = @_;
+	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
+	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
+	
+	# scan through list
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
 			not $E->is_request and
-			$E->age > 270 and                       # older than 9 months
-			$E->external eq 'N' and                 # not external
-			$E->division and                        # has division
-			not $E->hidden_datestamp                # not already hidden
+			$E->division and                            # has division
+			not $E->hidden_datestamp   and              # not already hidden
+			$E->size > 100_000_000 and                  # size > 100 MB
+			$E->age >= $age and                         # older than 9 months
+			substr($E->date, 0, 4) >= $year             # current year
 		) {
 			# we have a candidate
 			push @list, $key;
 		}
 		$key = $self->{db}->next_key($key);
 	}
+	@list = sort {$a cmp $b} @list;
 	return wantarray ? @list : \@list;
 }
 
 
 sub find_analysis_to_hide {
 	my $self = shift;
+	my %opts = @_;
+	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
+	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
+	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
+	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
+	
+	# scan through list
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
 			not $E->is_request and
-			$E->age > 270 and                       # older than 9 months
-			not $E->division and                    # no division, externality 
-			not $E->hidden_datestamp                # not already hidden
+			not $E->hidden_datestamp and                # not already hidden
+			$E->size > 100_000_000 and                  # size > 100 MB
+			$E->age >= $age and                         # older than 9 months
+			substr($E->date, 0, 4) >= $year             # current year
 		) {
-			# we have a candidate
-			push @list, $key;
+			# we have a possible candidate
+			if (defined $sb) {
+				if ($sb and $E->division) {
+					push @list, $key;
+				}
+				elsif (not $sb and not $E->division) {
+					push @list, $key if $E->external eq $ext;
+				}
+				# else doesn't match
+			}
+			else {
+				push @list, $key;
+			}
 		}
 		$key = $self->{db}->next_key($key);
 	}
+	@list = sort {$a cmp $b} @list;
 	return wantarray ? @list : \@list;
 }
 
 
 sub find_analysis_to_delete {
 	my $self = shift;
+	my %opts = @_;
+	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
+	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
+	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 330;
+	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
+	
+	# scan through list
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
 			not $E->is_request and
-			$E->age > 330 and                       # older than 11 months
-			$E->hidden_datestamp and                # hidden
-			not $E->deleted_datestamp               # not yet deleted
+			$E->hidden_datestamp and                    # hidden
+			not $E->deleted_datestamp and               # not yet deleted
+			$E->age >= $age and                         # older than 11 months
+			substr($E->date, 0, 4) >= $year             # current year
 		) {
-			# we have a candidate
-			push @list, $key;
+			# we have a possible candidate
+			if (defined $sb) {
+				if ($sb and $E->division) {
+					push @list, $key;
+				}
+				elsif (not $sb and not $E->division) {
+					push @list, $key if $E->external eq $ext;
+				}
+				# else doesn't match
+			}
+			else {
+				push @list, $key;
+			}
 		}
 		$key = $self->{db}->next_key($key);
 	}
+	@list = sort {$a cmp $b} @list;
 	return wantarray ? @list : \@list;
 }
 
