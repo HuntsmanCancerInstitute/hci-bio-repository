@@ -607,6 +607,7 @@ sub find_analysis_to_hide {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
+			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility)/ and
 			not $E->is_request and
 			not $E->hidden_datestamp and                # not already hidden
 			$E->size > 100_000_000 and                  # size > 100 MB
@@ -648,6 +649,7 @@ sub find_analysis_to_delete {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
+			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility)/ and
 			not $E->is_request and
 			$E->hidden_datestamp and                    # hidden
 			not $E->deleted_datestamp and               # not yet deleted
