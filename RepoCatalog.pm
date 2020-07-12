@@ -460,6 +460,7 @@ sub find_requests_to_upload {
 				if ($E->upload_datestamp) {
 					# already been uploaded? Make sure we're considerably bigger
 					if (
+						$E->upload_age > $E->age and
 						$E->last_size and 
 						($E->size - $E->last_size) > 25_000_000
 					) {
@@ -975,6 +976,16 @@ sub age {
 	my $a = $self->youngest_age;
 	if (defined $a) {
 		return sprintf("%.0f", (time - $a) / DAY);
+	}
+	return;
+}
+
+
+sub upload_age {
+	my $self = shift;
+	my $u = $self->upload_datestamp;
+	if ($u) {
+		return sprintf("%.0f", (time - $u) / DAY);
 	}
 	return;
 }
