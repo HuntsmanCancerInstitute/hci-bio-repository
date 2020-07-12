@@ -291,7 +291,7 @@ if ($scan_size_age) {
 	}
 	my $i = 0;
 	foreach my $item (@action_list) {
-		my ($id, @rest) = split("\t", $item);
+		my ($id, @rest) = split(m/\s+/, $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
 		my $Project = RepoProject->new($Entry->path) or next;
@@ -313,7 +313,7 @@ if ($import_sizes) {
 		die "No list provided to import sizes!\n";
 	}
 	foreach my $item (@action_list) {
-		my ($id, $size, $previous_size) = split("\t", $item);
+		my ($id, $size, $previous_size) = split(m/\s+/, $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
 		if (defined $size and defined $previous_size) {
@@ -333,7 +333,7 @@ if (defined $update_scan_date and $update_scan_date =~ /(\d\d\d\d)(\d\d)(\d\d)/)
 		die "No list provided to update scan times!\n";
 	}
 	foreach my $item (@action_list) {
-		my ($id, @rest) = split("\t", $item);
+		my ($id, @rest) = split(m/\s+/, $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
 		$Entry->scan_datestamp($time);
@@ -347,7 +347,7 @@ if (defined $update_upload_date and $update_upload_date =~ /(\d\d\d\d)(\d\d)(\d\
 		die "No list provided to update upload times!\n";
 	}
 	foreach my $item (@action_list) {
-		my ($id, @rest) = split("\t", $item);
+		my ($id, @rest) = split(m/\s+/, $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
 		$Entry->upload_datestamp($time);
@@ -361,7 +361,7 @@ if (defined $update_hide_date and $update_hide_date =~ /(\d\d\d\d)(\d\d)(\d\d)/)
 		die "No list provided to update hide times!\n";
 	}
 	foreach my $item (@action_list) {
-		my ($id, @rest) = split("\t", $item);
+		my ($id, @rest) = split(m/\s+/, $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
 		$Entry->hidden_datestamp($time);
@@ -375,7 +375,7 @@ if (defined $update_delete_date and $update_delete_date =~ /(\d\d\d\d)(\d\d)(\d\
 		die "No list provided to update delete times!\n";
 	}
 	foreach my $item (@action_list) {
-		my ($id, @rest) = split("\t", $item);
+		my ($id, @rest) = split(m/\s+/, $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
 		$Entry->deleted_datestamp($time);
@@ -389,7 +389,7 @@ if (defined $update_email_date and $update_email_date =~ /(\d\d\d\d)(\d\d)(\d\d)
 		die "No list provided to update email times!\n";
 	}
 	foreach my $item (@action_list) {
-		my ($id, @rest) = split("\t", $item);
+		my ($id, @rest) = split(m/\s+/, $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
 		$Entry->emailed_datestamp($time);
@@ -409,7 +409,7 @@ if ($show_status) {
 	}
 	printf "%-6s\t%-6s\t%-5s\t%-10s\t%-10s\t%-10s\t%-10s\t%-10s\n", qw(ID Size Age Scan Upload Hide Delete Division);
 	foreach my $item (@action_list) {
-		my ($id, @rest) = split("\t", $item);
+		my ($id, @rest) = split(m/\s+/, $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
 		
@@ -463,7 +463,7 @@ elsif ($show_info) {
 	}
 	printf "%-6s\t%-10s\t%-16s\t%-16s\t%s\n", qw(ID Date UserLastName LabLastName Name);
 	foreach my $item (@action_list) {
-		my ($id, @rest) = split("\t", $item);
+		my ($id, @rest) = split(m/\s+/, $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
 		
@@ -476,7 +476,7 @@ elsif ($show_path) {
 		die "No list provided to show status!\n";
 	}
 	foreach my $item (@action_list) {
-		my ($id, @rest) = split("\t", $item);
+		my ($id, @rest) = split(m/\s+/, $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
 		
@@ -489,7 +489,7 @@ elsif ($print_info) {
 	}
 	printf "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tDivision\tURL\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n";
 	foreach my $item (@action_list) {
-		my ($id, @rest) = split("\t", $item);
+		my ($id, @rest) = split(m/\s+/, $item);
 		next unless (defined $id);
 		my $Entry = $Catalog->entry($id) or next;
 		print($Entry->print_string($transform));
