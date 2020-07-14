@@ -40,7 +40,7 @@ Your GNomEx Request project $opt->{id}, $opt->{name}, has been uploaded to your 
 
 You will need a Seven Bridges account to view the project. If you are unable to view the project, contact your lab division administrator (Your PI or lab manager).
 
-Your files are on standard AWS S3 storage and may be used immediately for analysis. It will cost about $opt->{s3_cost} per month.
+Your files are on standard AWS S3 storage and may be used immediately for analysis on the platform. It will cost about $opt->{s3_cost} per month.
 
 You may archive these files to AWS Glacier at a reduced cost of $opt->{glacier_cost} per month.
 
@@ -66,7 +66,7 @@ sub send_analysis_upload_email {
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Analysis project $opt->{id}, $opt->{name}, has reached the age limits for storage on GNomEx. The files have been uploaded to your lab division $opt->{division} on the Seven Bridges platform. You may find it at $opt->{url}. 
+Your GNomEx Analysis project $opt->{id}, $opt->{name}, is $opt->{age} days old and has reached the age limits for storage on GNomEx. The files have been uploaded to your lab division $opt->{division} on the Seven Bridges platform. You may find it at $opt->{url}. 
 
 You will need a Seven Bridges account to view the project. If you are unable to view the project, contact your lab division administrator (Your PI or lab manager).
 
@@ -96,13 +96,13 @@ sub send_request_deletion_email {
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Request project $opt->{id}, $opt->{name}, has reached the age limits for storage on GNomEx and WILL BE DELETED. Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files.
+Your GNomEx Request project $opt->{id}, $opt->{name}, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED. Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files.
 
 Files will be removed in one week.
 
 A manifest of the files will remain on GNomEx, as well as the record of your sequencing request and samples. 
 
-For more information, see our storage policy at https://uofuhealth.utah.edu/huntsman/shared-resources/gba/bioinformatics/cloud-storage/. 
+For more information, including cloud storage options, see our storage policy at https://uofuhealth.utah.edu/huntsman/shared-resources/gba/bioinformatics/cloud-storage/.
 
 DOC
 		
@@ -122,13 +122,13 @@ sub send_analysis_deletion_email {
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Analysis project $opt->{id}, $opt->{name}, has reached the age limits for storage on GNomEx and WILL BE DELETED. Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files.
+Your GNomEx Analysis project $opt->{id}, $opt->{name}, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED. Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files.
 
 Files will be removed in one week.
 
 A manifest of the files will always remain on GNomEx, as well as the database entry for the project. Certain analysis files may remain as a courtesy for serving to genome browsers.
 
-For more information, see our storage policy at https://uofuhealth.utah.edu/huntsman/shared-resources/gba/bioinformatics/cloud-storage/. 
+For more information, including cloud storage options, see our storage policy at https://uofuhealth.utah.edu/huntsman/shared-resources/gba/bioinformatics/cloud-storage/. 
 
 DOC
 		
@@ -154,6 +154,7 @@ sub _process_options {
 		$opt{division}  = $E->division;
 		$opt{url}       = $E->project_url;
 		$opt{size}      = $E->size;
+		$opt{age}       = $E->age;
 		
 		if (@_) {
 			# can't rely on a recent version of List::Util being installed,
@@ -177,6 +178,7 @@ sub _process_options {
 		$opt{division}  ||= '';
 		$opt{url}       ||= '';
 		$opt{size}      ||= '';
+		$opt{age}       ||= '?';
 	}
 	unless (exists $opt{from}) {
 		$opt{from}      = $default_from_email;
