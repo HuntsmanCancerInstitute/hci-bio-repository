@@ -871,7 +871,7 @@ sub callback {
 		$filetype = 'Annotation';
 		$filedata{$fname}{zip} = 1;
 	}
-	elsif ($file =~ /\.(?:sh|pl|py|pyc|r|rmd|rscript|awk|sm)$/i) {
+	elsif ($file =~ /\.(?:sh|pl|py|pyc|r|rmd|rscript|awk|sm|sing)$/i) {
 		$filetype = 'Script';
 		$filedata{$fname}{zip} = 1;
 	}
@@ -893,7 +893,7 @@ sub callback {
 		$filetype = 'Analysis';
 		$filedata{$fname}{zip} = 1;
 	}
-	elsif ($file =~ /\.(?:xls|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|ai|out|rout|rda|rdata|rds|xml|json|json\.gz|html|pzfx)$/i) {
+	elsif ($file =~ /\.(?:xls|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|ai|out|rout|rda|rdata|rds|xml|json|json\.gz|html|pzfx|err)$/i) {
 		$filetype = 'Results';
 		$filedata{$fname}{zip} = 1;
 	}
