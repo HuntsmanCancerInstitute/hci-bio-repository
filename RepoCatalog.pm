@@ -385,6 +385,7 @@ sub export_to_file {
 	$transform ||= 0;
 	my $fh = IO::File->new($file, '>') or 
 		croak "unable to open $file for writing! $!\n";
+	$fh->binmode(':utf8');
 	$fh->print("ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tDivision\tURL\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n");
 	
 	# iterate and export as a tab-delimited file
@@ -405,6 +406,7 @@ sub import_from_file {
 	croak "no output file provided!\n" unless defined $file;
 	my $fh = IO::File->new($file, '<') or 
 		croak "unable to open $file for reading! $!\n";
+	$fh->binmode(':utf8');
 	my $header = $fh->getline;
 	unless ($header eq "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tDivision\tURL\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n") {
 		croak "header doesn't match an exported file format!\n";
