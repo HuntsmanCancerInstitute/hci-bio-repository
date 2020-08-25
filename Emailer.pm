@@ -1,5 +1,7 @@
 package Emailer;
 
+our $VERSION = 5;
+
 use strict;
 use Carp;
 require Exporter;
@@ -210,6 +212,11 @@ sub _send_email {
 		],
 		body    => $body,
 	) or die "unable to compose email!\n";
+	
+	# return email as string
+	if (exists $opt->{mock} and $opt->{mock}) {
+		return $email->as_string;
+	}
 	
 	# send
 	return Email::Sender::Simple->try_to_send($email, {transport => $smtp});
