@@ -402,8 +402,9 @@ sub export_to_file {
 
 
 sub import_from_file {
-	my ($self, $file) = @_;
+	my ($self, $file, $force) = @_;
 	croak "no output file provided!\n" unless defined $file;
+	$force ||= 0;
 	my $fh = IO::File->new($file, '<') or 
 		croak "unable to open $file for reading! $!\n";
 	$fh->binmode(':utf8');
@@ -415,8 +416,14 @@ sub import_from_file {
 	# check catalog
 	my $key = $self->{db}->first_key || undef;
 	if ($key) {
-		carp "\nWARNING! Catalog file is not new! Abandoning import!\n";
-		return;
+		carp "\nWARNING! Catalog file is not new!\n";
+		if ($force) {
+			print "\nWARNING! Forcibly importing data into an existing database! Existing entries will be overwritten!\n";
+		}
+		else {
+			print "\nWARNING! Attempt to import data into an existing database is not allowed!\n Use --force to do so\n";
+			return;
+		}
 	}
 	
 	# import one at a time

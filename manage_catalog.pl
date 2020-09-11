@@ -15,7 +15,11 @@ my $VERSION = 5;
 
 ######## Documentation
 my $doc = <<END;
-A script to manage a catalog
+A script to manage a catalog. Catalogs are local database files for storing 
+metadata regarding GNomEx projects, including information extracted from 
+the GNomEx LIMS SQL database, Seven Bridges lab division information, and 
+file directory information from the file server, as well as dates for various 
+steps in processing. Catalogs may be exported/imported as tab-delimited files.
 
 manage_catalog.pl --cat <file.db> <options>
 
@@ -98,6 +102,7 @@ my $dump_file;
 my $transform = 0;
 my $import_file;
 my $run_optimize;
+my $force;
 
 if (scalar(@ARGV) > 1) {
 	GetOptions(
@@ -128,6 +133,7 @@ if (scalar(@ARGV) > 1) {
 		'update_email=i'    => \$update_email_date,
 		'export=s'          => \$dump_file,
 		'import=s'          => \$import_file,
+		'force!'            => \$force,
 		'transform!'        => \$transform,
 		'optimize!'         => \$run_optimize,
 	) or die "please recheck your options!\n\n";
@@ -186,7 +192,7 @@ my $Catalog = RepoCatalog->new($cat_file) or
 
 # import catalog is done 
 if ($import_file) {
-	my $n = $Catalog->import_from_file($import_file);
+	my $n = $Catalog->import_from_file($import_file, $force);
 	if ($n) {
 		print " Imported $n records from file '$import_file'\n";
 	}
