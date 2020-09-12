@@ -295,8 +295,10 @@ sub list_all {
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
 	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
-	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 0;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 0;
+	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
 	
 	# scan through list
 	my @list;
@@ -305,7 +307,9 @@ sub list_all {
 		my $E = $self->entry($key);
 		if (
 			substr($E->date, 0, 4) >= $year and
-			$E->age >= $age                    
+			$E->age >= $min_age and
+			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1) and
+			( $min_size ? ($E->size and $E->size >= $min_size) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
 			if (defined $sb) {
@@ -342,7 +346,9 @@ sub list_projects_for_pi {
 		return;
 	}
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
-	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 0;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 0;
+	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
 	# SB division and external status is based on PI, so no need to filter those
 	
 	# scan through list
@@ -353,7 +359,9 @@ sub list_projects_for_pi {
 		if (
 			lc $E->lab_last eq $name and
 			substr($E->date, 0, 4) >= $year and
-			$E->age >= $age                    
+			$E->age >= $min_age and
+			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1) and
+			( $min_size ? ($E->size and $E->size >= $min_size) ? 1 : 0 : 1)
 		) {
 			push @list, $key;
 		}
@@ -429,6 +437,8 @@ sub find_requests_to_upload {
 	my $self = shift;
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 25000000;
+		# set the minimum size to 25 MB
 	
 	# scan through list
 	my @list;
@@ -436,6 +446,7 @@ sub find_requests_to_upload {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
+			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility|SYSTEM)/ and
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and
 			$E->division and 
@@ -448,14 +459,14 @@ sub find_requests_to_upload {
 			# fortunately fastq files are big
 			# too big, and we might miss small MiSeq projects
 			# too little, and we might include large sample-quality projects
-			if ($E->size > 25_000_000) {
+			if ($E->size > $min_size) {
 				# size is bigger than 25 MB, looks like a candidate
 				if ($E->upload_datestamp) {
 					# already been uploaded? Make sure we're considerably bigger
 					if (
 						$E->upload_age > $E->age and
 						$E->last_size and 
-						($E->size - $E->last_size) > 25_000_000
+						($E->size - $E->last_size) > $min_size
 					) {
 						# must have added new fastq files???
 						push @list, $key;
@@ -479,8 +490,11 @@ sub find_requests_to_hide {
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
 	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
-	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 180;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 180;
+	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 100000;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 100000000;
+		# set minimum size to 100 MB
 	
 	# scan through list
 	my @list;
@@ -488,12 +502,14 @@ sub find_requests_to_hide {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
+			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility|SYSTEM)/ and
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and        # finished
 			not $E->hidden_datestamp and                # not hidden yet
-			$E->size > 100_000_000 and                  # size > 100 MB
+			$E->size > $min_size and                    # size > minimum size
 			substr($E->date, 0, 4) >= $year and         # current year
-			$E->age >= $age                             # older than 6 months
+			$E->age >= $min_age and                     # older than 6 months
+			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
 			if (defined $sb) {
@@ -521,8 +537,10 @@ sub find_requests_to_delete {
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
 	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
-	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
+	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
 	
 	# scan through list
 	my @list;
@@ -530,12 +548,15 @@ sub find_requests_to_delete {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
+			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility|SYSTEM)/ and
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and        # finished
 			$E->hidden_datestamp and                    # hidden
 			not $E->deleted_datestamp and               # not yet deleted
-			$E->age >= $age and                         # older than 9 months
-			substr($E->date, 0, 4) >= $year             # current year
+			$E->age >= $min_age and                     # older than 9 months
+			substr($E->date, 0, 4) >= $year and         # current year
+			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1) and
+			( $min_size ? ($E->size and $E->size >= $min_size) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
 			if (defined $sb) {
@@ -561,7 +582,10 @@ sub find_analysis_to_upload {
 	my $self = shift;
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
-	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
+	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 100000000;
+		# set minimum size to 100 MB
 	
 	# scan through list
 	my @list;
@@ -569,12 +593,14 @@ sub find_analysis_to_upload {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
+			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility|SYSTEM)/ and
 			not $E->is_request and
 			$E->division and                            # has division
 			not $E->hidden_datestamp   and              # not already hidden
-			$E->size > 100_000_000 and                  # size > 100 MB
-			$E->age >= $age and                         # older than 9 months
-			substr($E->date, 0, 4) >= $year             # current year
+			$E->size > $min_size and                    # size > minimum
+			$E->age >= $min_age and                     # older than 9 months
+			substr($E->date, 0, 4) >= $year and         # current year
+			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1)
 		) {
 			# we have a candidate
 			push @list, $key;
@@ -591,8 +617,11 @@ sub find_analysis_to_hide {
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
 	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
-	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
+	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 100000000;
+		# set minimum size to 100 MB
 	
 	# scan through list
 	my @list;
@@ -600,12 +629,13 @@ sub find_analysis_to_hide {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility)/ and
+			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility|SYSTEM)/ and
 			not $E->is_request and
 			not $E->hidden_datestamp and                # not already hidden
-			$E->size > 100_000_000 and                  # size > 100 MB
-			$E->age >= $age and                         # older than 9 months
-			substr($E->date, 0, 4) >= $year             # current year
+			$E->size > $min_size and                    # size > minimum
+			$E->age >= $min_age and                     # older than 9 months
+			substr($E->date, 0, 4) >= $year and         # current year
+			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1)			
 		) {
 			# we have a possible candidate
 			if (defined $sb) {
@@ -633,8 +663,10 @@ sub find_analysis_to_delete {
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
 	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
-	my $age  = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 330;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 360;
+	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
 	
 	# scan through list
 	my @list;
@@ -642,12 +674,14 @@ sub find_analysis_to_delete {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility)/ and
+			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility|SYSTEM)/ and
 			not $E->is_request and
 			$E->hidden_datestamp and                    # hidden
 			not $E->deleted_datestamp and               # not yet deleted
-			$E->age >= $age and                         # older than 11 months
-			substr($E->date, 0, 4) >= $year             # current year
+			$E->age >= $min_age and                     # older than 12 months
+			substr($E->date, 0, 4) >= $year and         # current year
+			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1) and
+			( $min_size ? ($E->size and $E->size >= $min_size) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
 			if (defined $sb) {
