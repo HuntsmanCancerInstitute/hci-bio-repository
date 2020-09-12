@@ -58,6 +58,7 @@ manage_catalog.pl --cat <file.db> <options>
     --update_hide <YYYYMMDD>  Update project hide timestamp
     --update_up <YYYYMMDD>    Update project upload timestamp
     --update_em <YYYYMMDD>    Update project email timestamp
+    --update_sb <text>        Update SB division name. Use 'none' to clear.
     
   Action on catalog:
     --export <path>           Dump the contents to tab-delimited text file
@@ -98,6 +99,7 @@ my $update_hide_date;
 my $update_upload_date;
 my $update_delete_date;
 my $update_email_date;
+my $update_division;
 my $dump_file;
 my $transform = 0;
 my $import_file;
@@ -131,6 +133,7 @@ if (scalar(@ARGV) > 1) {
 		'update_up=i'       => \$update_upload_date,
 		'update_del=i'      => \$update_delete_date,
 		'update_email=i'    => \$update_email_date,
+		'update_sb=s'       => \$update_division,
 		'export=s'          => \$dump_file,
 		'import=s'          => \$import_file,
 		'force!'            => \$force,
@@ -402,7 +405,21 @@ if (defined $update_email_date and $update_email_date =~ /(\d\d\d\d)(\d\d)(\d\d)
 	}
 }
 
-
+if (defined $update_division) {
+	print " Setting SB division name to $update_division\n";
+	unless (@action_list) {
+		die "No list provided to update division name!\n";
+	}
+	if ($update_division eq 'none') {
+		$update_division = '';
+	}
+	foreach my $item (@action_list) {
+		my ($id, @rest) = split(m/\s+/, $item);
+		next unless (defined $id);
+		my $Entry = $Catalog->entry($id) or next;
+		$Entry->division($update_division);
+	}
+}
 
 
 
