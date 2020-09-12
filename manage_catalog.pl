@@ -27,7 +27,7 @@ manage_catalog.pl --cat <file.db> <options>
     --cat <path>              Provide the path to a catalog file
   
   Entry selection: (select one)
-    --listfile <path>         File of project identifiers to work on
+    --list <path>             File of project identifiers to work on
                                 may be tab-delimited, only 1st column used
     --list_req_up             Print or work on Request IDs for upload to SB
     --list_req_hide           Print or work on Request IDs for hiding
@@ -39,8 +39,11 @@ manage_catalog.pl --cat <file.db> <options>
     --all                     Apply to all catalog entries
   
   Selection modifiers
-    --year <YYYY>             Limit entries to given year or newer
-    --age <days>              Customize minimum age to filter
+    --year <YYYY>             Filter entries to given year or newer
+    --age <days>              Filter entries for minimum age
+    --maxage <days>           Filter entries for maximum age
+    --size <bytes>            Filter entries for minimum project size
+                                allows K, M, and G suffix
     --sb                      Include only projects with SB division
     --nosb                    Exclude projects with SB division
     --external                Include only external projects (assumes no SB division)
@@ -86,7 +89,9 @@ my $list_file;
 my $list_all = 0;
 my $year;
 my $include_sb;
-my $age;
+my $min_age;
+my $max_age;
+my $min_size;
 my $external;
 my $show_status = 0;
 my $show_info = 0;
@@ -115,12 +120,14 @@ if (scalar(@ARGV) > 1) {
 		'list_anal_up!'     => \$list_anal_upload,
 		'list_anal_hide!'   => \$list_anal_hide,
 		'list_anal_delete'  => \$list_anal_delete,
-		'list_lab=s'        => \$list_pi,
+		'list_lab|list_pi=s' => \$list_pi,
 		'list=s'            => \$list_file,
 		'all!'              => \$list_all,
 		'sb!'               => \$include_sb,
 		'year=i'            => \$year,
-		'age=i'             => \$age,
+		'age=i'             => \$min_age,
+		'max_age=i'         => \$max_age,
+		'size=s'            => \$min_size,
 		'external!'         => \$external,
 		'status!'           => \$show_status,
 		'info!'             => \$show_info,
@@ -187,6 +194,24 @@ if (defined $external) {
 	$external = $external ? 'Y' : 'N';
 	$include_sb = 0 if $external eq 'Y';
 }
+if ($min_size) {
+	# we're using base10 size rather than base2 for simplicity, too many rounding errors
+	if ($min_size =~ /^([\d]+)k$/i) {
+		$min_size = $1 * 1000;
+	}
+	elsif ($min_size =~ /^(\d+)m$/i) {
+		$min_size = $1 * 1000000;
+	}
+	elsif ($min_size =~ /^(\d+)g$/i) {
+		$min_size = $1 * 1000000000;
+	}
+	elsif ($min_size =~ /^\d+$/) {
+		# this is ok, just a number
+	}
+	else {
+		die "Minimum size filter must be integer! K, M, and G suffix is allowed\n"
+	}
+}
 
 
 ####### Open Catalog
@@ -228,60 +253,74 @@ elsif (@ARGV) {
 }
 elsif ($list_all) {
 	@action_list = $Catalog->list_all(
-		age  => $age, 
-		year => $year, 
-		sb   => $include_sb,
+		age      => $min_age, 
+		maxage   => $max_age,
+		year     => $year, 
+		sb       => $include_sb,
 		external => $external,
+		size     => $min_size,
 	);
 }
 elsif ($list_req_upload) {
 	die "Can't find entries if list provided!\n" if @action_list;
 	@action_list = $Catalog->find_requests_to_upload(
-		year => $year,
-		age  => $age,
+		year     => $year,
+		age      => $min_age,
+		maxage   => $max_age,
+		size     => $min_size,
 	);
 }
 elsif ($list_req_hide) {
 	die "Can't find entries if list provided!\n" if @action_list;
 	@action_list = $Catalog->find_requests_to_hide(
-		age  => $age, 
-		year => $year, 
-		sb   => $include_sb,
+		age      => $min_age, 
+		maxage   => $max_age,
+		year     => $year, 
+		sb       => $include_sb,
 		external => $external,
+		size     => $min_size,
 	);
 }
 elsif ($list_req_delete) {
 	die "Can't find entries if list provided!\n" if @action_list;
 	@action_list = $Catalog->find_requests_to_delete(
-		age  => $age, 
-		year => $year, 
-		sb   => $include_sb,
+		age      => $min_age, 
+		maxage   => $max_age,
+		year     => $year, 
+		sb       => $include_sb,
 		external => $external,
+		size     => $min_size,
 	);
 }
 elsif ($list_anal_upload) {
 	die "Can't find entries if list provided!\n" if @action_list;
 	@action_list = $Catalog->find_analysis_to_upload(
-		age  => $age, 
-		year => $year, 
+		age      => $min_age, 
+		maxage   => $max_age,
+		year     => $year, 
+		size     => $min_size,
 	);
 }
 elsif ($list_anal_hide) {
 	die "Can't find entries if list provided!\n" if @action_list;
 	@action_list = $Catalog->find_analysis_to_hide(
-		age  => $age, 
-		year => $year, 
-		sb   => $include_sb,
+		age      => $min_age, 
+		maxage   => $max_age,
+		year     => $year, 
+		sb       => $include_sb,
 		external => $external,
+		size     => $min_size,
 	);
 }
 elsif ($list_anal_delete) {
 	die "Can't find entries if list provided!\n" if @action_list;
 	@action_list = $Catalog->find_analysis_to_delete(
-		age  => $age, 
-		year => $year, 
-		sb   => $include_sb,
+		age      => $min_age, 
+		maxage   => $max_age,
+		year     => $year, 
+		sb       => $include_sb,
 		external => $external,
+		size     => $min_size,
 	);
 }
 elsif ($list_pi) {
