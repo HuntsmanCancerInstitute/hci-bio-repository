@@ -81,9 +81,9 @@ my $list_req_delete = 0;
 my $list_anal_upload = 0;
 my $list_anal_hide = 0;
 my $list_anal_delete = 0;
-my $list_pi;
+my $list_pi = 0;
 my $list_file;
-my $all;
+my $list_all = 0;
 my $year;
 my $include_sb;
 my $age;
@@ -117,7 +117,7 @@ if (scalar(@ARGV) > 1) {
 		'list_anal_delete'  => \$list_anal_delete,
 		'list_lab=s'        => \$list_pi,
 		'list=s'            => \$list_file,
-		'all!'              => \$all,
+		'all!'              => \$list_all,
 		'sb!'               => \$include_sb,
 		'year=i'            => \$year,
 		'age=i'             => \$age,
@@ -153,7 +153,7 @@ unless ($cat_file) {
 # sanity checks
 {
 	# request search
-	my $sanity = $list_req_upload + $list_req_hide + $list_req_delete;
+	my $sanity = $list_req_upload + $list_req_hide + $list_req_delete + $list_all + $list_pi;
 	if ($sanity > 1) {
 		die "Only 1 Request search allowed at a time!\n";
 	}
@@ -164,7 +164,7 @@ unless ($cat_file) {
 	
 	# analysis search
 	$sanity = 0;
-	$sanity = $list_anal_upload + $list_anal_hide + $list_anal_delete;
+	$sanity = $list_anal_upload + $list_anal_hide + $list_anal_delete + $list_all + $list_pi;
 	if ($sanity > 1) {
 		die "Only 1 Analysis search allowed at a time!\n";
 	}
@@ -226,7 +226,7 @@ elsif (@ARGV) {
 	@action_list = @ARGV;
 	# printf " using %d items provided on command line\n", scalar(@action_list);
 }
-elsif ($all) {
+elsif ($list_all) {
 	@action_list = $Catalog->list_all(
 		age  => $age, 
 		year => $year, 
@@ -523,7 +523,8 @@ elsif (
 	# check to see if we have a list of IDs that were from a search
 	@action_list and
 	($list_req_upload or $list_req_hide or $list_req_delete or
-	 $list_anal_upload or $list_anal_hide or $list_anal_delete or $year)
+	 $list_anal_upload or $list_anal_hide or $list_anal_delete or 
+	 $list_pi or $list_all)
 ) {
 	# just print them
 	printf "%s\n", join("\n", @action_list);
