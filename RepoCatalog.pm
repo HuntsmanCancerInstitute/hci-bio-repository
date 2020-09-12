@@ -327,22 +327,6 @@ sub list_all {
 	return wantarray ? @list : \@list;
 }
 
-sub list_year {
-	my ($self, $year) = @_;
-	croak "provided year '$year' unrecognized!" unless $year =~ /\d{4}/;
-	my @list;
-	my $key = $self->{db}->first_key;
-	while ($key) {
-		my $E = $self->entry($key);
-		if (substr($E->date, 0, 4) eq $year) {
-			push @list, $key;
-		}
-		$key = $self->{db}->next_key($key);
-	}
-	@list = sort {$a cmp $b} @list;
-	return wantarray ? @list : \@list;
-}
-
 sub list_projects_for_pi {
 	my $self = shift;
 	my %opts;
