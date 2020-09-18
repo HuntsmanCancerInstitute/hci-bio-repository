@@ -774,7 +774,7 @@ __END__
 =head1 AUTHOR
 
  Timothy J. Parnell, PhD
- Dept of Oncological Sciences
+ Bioinformatics Shared Resource
  Huntsman Cancer Institute
  University of Utah
  Salt Lake City, UT, 84112

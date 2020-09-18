@@ -1141,16 +1141,6 @@ sub print_string {
 }
 
 
-# sub project {
-# 	my $self = shift;
-# 	return RepoProject->new($self->path);
-# }
-# 
-
-
-sub send_email {
-
-}
 
 
 __END__
@@ -1158,7 +1148,7 @@ __END__
 =head1 AUTHOR
 
  Timothy J. Parnell, PhD
- Dept of Oncological Sciences
+ Bioinformatics Shared Resource
  Huntsman Cancer Institute
  University of Utah
  Salt Lake City, UT, 84112
