@@ -41,6 +41,7 @@ Provide parameters as array:
     cred     => $credential_path, # default ~/.sevenbridges/credentials
     token    => $token, # if known or to overide credential file
     verbose  => 1, # default is 0
+    end      => $endpoint, # API endpoint, default overriden by credential
 
 If a division is given, then a L<SB2::Division> object is immediately 
 returned. Otherwise, a generic object is returned.
@@ -57,6 +58,12 @@ Returns the division name. Required to do any work.
 
 Returns the token for the given division, obtained automatically from 
 the credentials file if not explicitly given. 
+
+=item endpoint
+
+Returns and sets the API endpoint. The default value is 
+C<https://api.sbgenomics.com/v2/>, but this value will be 
+overridden by the C<api_endpoint> tag in the credentials file.
 
 =item verbose($verbosity)
 
@@ -288,6 +295,7 @@ sub new {
 	my $cred_path = $args{cred} || $args{cred_path} || $args{credentials} || undef;
 	my $token = $args{token};
 	my $verb = $args{verbose} || $args{verb} || 0;
+	my $endpoint = $args{endpoint} || 'https://api.sbgenomics.com/v2'; # default
 	
 	# check for credentials file
 	if (defined $cred_path) {
@@ -313,13 +321,15 @@ sub new {
 			token   => $token,
 			name    => $args{name}, # just in case?
 			verbose => $verb,
+			end     => $endpoint,
 		);
 	}
 	else {
 		my $self = {
-			div   => 'default',
-			cred  => $cred_path,
-			verb  => $verb,
+			div     => 'default',
+			cred    => $cred_path,
+			verb    => $verb,
+			end     => $endpoint,
 		};
 		return bless $self, $class;
 	}
@@ -332,6 +342,19 @@ sub credentials {
 sub division {
 	# convenience generic method
 	return shift->{div} || undef;
+}
+
+sub endpoint {
+	my $self = shift;
+	if (@_) {
+		my $url = $_[0];
+		unless ($url =~ /^https:\/\//) {
+			croak "given API endpoint '$url' does not look like a URL!";
+		}
+		$url =~ s/\/$//; # remove trailing slash
+		$self->{end} = $url;
+	}
+	return $self->{end};
 }
 
 sub verbose {
@@ -361,20 +384,23 @@ sub token {
 		my $fh = IO::File->new($cred_path) or 
 			die "unable to read credentials files!\n";
 		my $target = sprintf("[%s]", $division);
-		while (not defined $token) {
-			my $line = $fh->getline or last;
+		while (my $line = $fh->getline) {
 			chomp $line;
 			if ($line eq $target) {
 				# we found the section!
 				while (my $line2 = $fh->getline) {
-					if ($line2 =~ m/^\[ /) {
+					if ($line2 =~ m/^\[/) {
 						# we've gone too far!!!??? start of next section
 						last;
 					}
+					elsif ($line2 =~ /^api_endpoint\s*=\s*([\w\/\/:]+)$/) {
+						# we found the user's API endpoint
+						# go ahead and store it
+						$self->endpoint($1);
+					}
 					elsif ($line2 =~ /^auth_token\s*=\s*(\w+)$/) {
-						# we found it!
+						# we found the user's token!
 						$token = $1;
-						last;
 					}
 				}
 			}
@@ -537,10 +563,14 @@ sub list_divisions {
 	my $options = {
 		'x-sbg-advance-access' => 'advance'
 	};
-	my @items = $self->execute('GET', 'https://api.sbgenomics.com/v2/divisions', 
+	my $token = $self->token; 
+		# we don't actually need the token yet, but it will force reading credentials file
+		# and update the api endpoint in case it's different from the default value
+	my @items = $self->execute('GET', sprintf("%s/divisions", $self->endpoint), 
 		$options);
 	my $cred = $self->credentials;
 	my $verb = $self->verbose;
+	my $end  = $self->endpoint;
 	my @divisions = map {
 		SB2::Division->new(
 			div     => $_->{id},
@@ -548,6 +578,7 @@ sub list_divisions {
 			href    => $_->{href},
 			cred    => $cred,
 			verbose => $verb,
+			end     => $end,
 		);
 	} @items;
 	
@@ -579,7 +610,8 @@ sub new {
 		href  => $args{href} || undef,
 		cred  => $args{cred} || undef,
 		token => $args{token} || undef,
-		verb  => $args{verbose}
+		verb  => $args{verbose},
+		end   => $args{end},
 	};
 	
 	return bless $self, $class;
@@ -592,7 +624,7 @@ sub id {
 sub name {
 	my $self = shift;
 	if (not defined $self->{name}) {
-		my $url = sprintf "https://api.sbgenomics.com/v2/divisions/%s", $self->id;
+		my $url = sprintf "%s/divisions/%s", $self->endpoint, $self->id;
 		my $options = {
 			'cache-control' => 'no-cache',
 			'x-sbg-advance-access' => 'advance',
@@ -607,7 +639,7 @@ sub href {
 	my $self = shift;
 	unless (defined $self->{href}) {
 		# make it up
-		$self->{href} = 'https://api.sbgenomics.com/v2/divisions/' . $self->id;
+		$self->{href} = sprintf "%s/divisions/%s", $self->endpoint, $self->id;
 	}
 	return $self->{href};
 }
@@ -618,7 +650,7 @@ sub href {
 sub list_projects {
 	my $self = shift;
 	if (not exists $self->{projects}) {
-		my @results = $self->execute('GET', 'https://api.sbgenomics.com/v2/projects');
+		my @results = $self->execute('GET', sprintf("%s/projects", $self->endpoint));
 		my @projects = map { SB2::Project->new($self, $_) } @results;
 		$self->{projects} = \@projects;
 	}
@@ -635,7 +667,7 @@ sub create_project {
 	$options{billing_group} = $self->billing_group; # this may need to be requested
 	
 	# execute
-	my $result = $self->execute('POST', 'https://api.sbgenomics.com/v2/projects', 
+	my $result = $self->execute('POST', sprintf("%s/projects", $self->endpoint), 
 		undef, \%options);
 	return $result ? SB2::Project->new($self, $result) : undef;
 }
@@ -649,7 +681,7 @@ sub get_project {
 	}
 	
 	# execute
-	my $url = sprintf "https://api.sbgenomics.com/v2/projects/%s/%s", $self->id, $project;
+	my $url = sprintf "%s/projects/%s/%s", $self->endpoint, $self->id, $project;
 	my $result = $self->execute('GET', $url);
 	return $result ? SB2::Project->new($self, $result) : undef;
 }
@@ -657,8 +689,7 @@ sub get_project {
 sub list_members {
 	my $self = shift;
 	if (not exists $self->{members}) {
-		my $url = sprintf "https://api.sbgenomics.com/v2/users?division=%s", 
-			$self->id;
+		my $url = sprintf "%s/users?division=%s", $self->endpoint, $self->id;
 		my @results = $self->execute('GET', $url);
 			
 		my @members = map { SB2::Member->new($self, $_) } @results;
@@ -670,7 +701,7 @@ sub list_members {
 sub billing_group {
 	my $self = shift;
 	if (not exists $self->{billing}) {
-		my @results = $self->execute('GET', 'https://api.sbgenomics.com/v2/billing/groups');
+		my @results = $self->execute('GET', sprintf("%s/billing/groups", $self->endpoint));
 		if (scalar @results > 1) {
 			printf "More than one billing group associated with division! Using first one\n";
 		}
@@ -682,8 +713,7 @@ sub billing_group {
 sub list_teams {
 	my $self = shift;
 	my $h = {'x-sbg-advance-access' => 'advance'};
-	my $url = sprintf "https://api.sbgenomics.com/v2/teams?division=%s&_all=true", 
-		$self->division;
+	my $url = sprintf "%s/teams?division=%s&_all=true", $self->endpoint, $self->division;
 	my @results = $self->execute('GET', $url, $h);
 	my @teams = map { SB2::Team->new($self, $_) } @results;
 	return wantarray ? @teams : \@teams;
@@ -703,7 +733,7 @@ sub create_team {
 	
 	# execute
 	my $h = {'x-sbg-advance-access' => 'advance'};
-	my $result = $self->execute('POST', 'https://api.sbgenomics.com/v2/teams/', $h, $data);
+	my $result = $self->execute('POST', sprintf("%s/teams", $self->endpoint), $h, $data);
 	return $result ? SB2::Team->new($self, $result) : undef;
 }
 
@@ -729,6 +759,7 @@ sub new {
 	$self->{div}   = $parent->division;
 	$self->{token} = $parent->token;
 	$self->{verb}  = $parent->verbose;
+	$self->{end}   = $parent->endpoint;
 	
 	return bless $self, $class;
 }
@@ -948,6 +979,7 @@ sub new {
 	$self->{div}   = $parent->division;
 	$self->{token} = $parent->token;
 	$self->{verb}  = $parent->verbose;
+	$self->{end}   = $parent->endpoint;
 	
 	# clean up some stuff due to inconsistencies in the API and the source of the result
 	if (exists $self->{username} and $self->{username} =~ /^([a-z0-9\-]+)\/([\w\-\.]+)$/) {
@@ -1081,6 +1113,7 @@ sub new {
 	$self->{div}   = $parent->division;
 	$self->{token} = $parent->token;
 	$self->{verb}  = $parent->verbose;
+	$self->{end}   = $parent->endpoint;
 	
 	return bless $self, $class;
 }
@@ -1103,7 +1136,7 @@ sub list_members {
 	
 	# execute
 	my $h = {'x-sbg-advance-access' => 'advance'};
-	my $url = sprintf "https://api.sbgenomics.com/v2/teams/%s/members", $self->{id};
+	my $url = sprintf "%s/teams/%s/members", $self->endpoint, $self->{id};
 	my $results = $self->execute('GET', $url, $h);
 	my @members = map { SB2::Member->new($self, $_) } @$results;
 	return wantarray ? @members : \@members;
