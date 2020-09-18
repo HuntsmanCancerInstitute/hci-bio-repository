@@ -4,7 +4,7 @@ use strict;
 use Getopt::Long;
 use IO::File;
 use FindBin qw($Bin);
-use lib $Bin;
+use lib "$Bin/../lib";
 use RepoProject;
 use RepoCatalog;
 

@@ -6,7 +6,7 @@ use IO::File;
 use Getopt::Long;
 use Time::Local;
 use FindBin qw($Bin);
-use lib $Bin;
+use lib "$Bin/../lib";
 use RepoCatalog;
 use RepoProject;
 
@@ -41,7 +41,7 @@ manage_catalog.pl --cat <file.db> <options>
   Selection modifiers
     --year <YYYY>             Filter entries to given year or newer
     --age <days>              Filter entries for minimum age
-    --maxage <days>           Filter entries for maximum age
+    --max_age <days>          Filter entries for maximum age
     --size <bytes>            Filter entries for minimum project size
                                 allows K, M, and G suffix
     --sb                      Include only projects with SB division

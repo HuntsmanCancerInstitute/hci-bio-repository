@@ -8,7 +8,7 @@ use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
 use Getopt::Long;
 use FindBin qw($Bin);
-use lib $Bin;
+use lib "$Bin/../lib";
 use RepoCatalog;
 use RepoProject;
 

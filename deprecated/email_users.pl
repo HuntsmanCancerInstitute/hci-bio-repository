@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 use FindBin qw($Bin);
-use lib $Bin;
+use lib "$Bin/../lib";
 use RepoCatalog;
 use Emailer;
 
@@ -109,6 +109,11 @@ else {
 	die "No lists of project identifiers or paths provided!\n";
 }
 
+# Initialize Emailer
+my $Email = Emailer->new();
+unless ($Email) {
+	die "Unable to initialize Emailer!\n";
+}
 
 
 
@@ -131,7 +136,7 @@ foreach my $id (@projects) {
 	
 	# Email
 	if ($req_del) {
-		my $result = send_request_deletion_email($Entry, 'mock' => $mock);
+		my $result = $Email->send_request_deletion_email($Entry, 'mock' => $mock);
 		if ($result) {
 			printf " > Sent Request deletion email for $id: %s\n", 
 				ref($result) ? $result->message : "\n$result";
@@ -142,7 +147,7 @@ foreach my $id (@projects) {
 		}
 	}
 	if ($req_up) {
-		my $result = send_request_upload_email($Entry, 'mock' => $mock);
+		my $result = $Email->send_request_upload_email($Entry, 'mock' => $mock);
 		if ($result) {
 			printf " > Sent Request SB upload email for $id: %s\n", 
 				ref($result) ? $result->message : "\n$result";
@@ -153,7 +158,7 @@ foreach my $id (@projects) {
 		}
 	}
 	if ($anal_del) {
-		my $result = send_analysis_deletion_email($Entry, 'mock' => $mock);
+		my $result = $Email->send_analysis_deletion_email($Entry, 'mock' => $mock);
 		if ($result) {
 			printf " > Sent Analysis deletion email for $id: %s\n", 
 				ref($result) ? $result->message : "\n$result";
@@ -164,7 +169,7 @@ foreach my $id (@projects) {
 		}
 	}
 	if ($anal_up) {
-		my $result = send_analysis_upload_email($Entry, 'mock' => $mock);
+		my $result = $Email->send_analysis_upload_email($Entry, 'mock' => $mock);
 		if ($result) {
 			printf " > Sent Analysis SB upload email for $id: %s\n", 
 				ref($result) ? $result->message : "\n$result";
