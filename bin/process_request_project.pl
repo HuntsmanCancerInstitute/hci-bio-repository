@@ -8,11 +8,13 @@ use File::Spec;
 use POSIX qw(strftime);
 use Getopt::Long;
 use FindBin qw($Bin);
-use lib $Bin;
-use SB;
+use lib "$Bin/../lib";
+use SB2;
+use RepoCatalog;
 use RepoProject;
+use Emailer;
 
-my $version = 4.1;
+my $version = 5;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -33,7 +35,8 @@ deletion from the server.
 
 This requires collecting data from the GNomEx LIMS database and 
 passing certain values on to this script for inclusion as metadata 
-in the metadata Manifest CSV file. 
+in the metadata Manifest CSV file. Alternatively, simply provide 
+a Catalog database file with the project ID.
 
 A Markdown description is generated for the Seven Bridges Project 
 using the GNomEx metadata, including user name, strategy, title, 
@@ -41,19 +44,23 @@ and group name.
 
 Version: $version
 
-Usage:
+Example usage:
     process_request_project.pl [options] /Repository/MicroarrayData/2019/1234R
+    
+    process_request_project.pl --cat Request.db [options] 1234R
 
 Options:
-
+ 
  Main functions - not exclusive
     --scan              Scan the project folder and generate the manifest
     --upload            Run the sbg-uploader program to upload
     --hide              Hide the Fastq files in hidden deletion folder
 
  Metadata
+    --cat <path>        Provide path to metadata catalog database
     --first <text>      User first name for the owner of the project
     --last <text>       User last name for the owner of the project
+    --email <text>      User email address for notifications
     --strategy "text"   GNomEx database application value. This is a long 
                         and varied text field, so must be protected by 
                         quoting. It will be distilled into a single-word 
@@ -66,13 +73,13 @@ Options:
  Options
     --desc "text"       Description for new SB project when uploading. 
                         Can be Markdown text.
+    --notify            Send email to user and PI when uploading
     --verbose           Tell me everything!
  
  Seven Bridges
     --division <text>   The Seven Bridges division name
 
  Paths
-    --sb <path>         Path to the Seven Bridges command-line api utility sb
     --sbup <path>       Path to the Seven Bridges Java uploader start script,
                         sbg-uploader.sh
     --cred <path>       Path to the Seven Bridges credentials file. 
@@ -88,16 +95,18 @@ my $path;
 my $scan;
 my $hide_files;
 my $upload;
+my $cat_file;
 my $userfirst;
 my $userlast;
+my $email_address;
 my $strategy;
 my $title;
 my $group;
-my $description = q();
-my $sb_division;
-my $sb_path = q();
+my $description   = q();
+my $sb_division   = q();
 my $sbupload_path = q();
-my $cred_path = q();
+my $cred_path     = q();
+my $send_email;
 my $verbose;
 
 if (scalar(@ARGV) > 1) {
@@ -105,14 +114,15 @@ if (scalar(@ARGV) > 1) {
 		'scan!'         => \$scan,
 		'hide!'         => \$hide_files,
 		'upload!'       => \$upload,
+		'catalog=s'     => \$cat_file,
 		'first=s'       => \$userfirst,
 		'last=s'        => \$userlast,
 		'strategy=s'    => \$strategy,
 		'title=s'       => \$title,
 		'group=s'       => \$group,
 		'desc=s'        => \$description,
+		'notify!'       => \$send_email,
 		'division=s'    => \$sb_division,
-		'sb=s'          => \$sb_path,
 		'sbup=s'        => \$sbupload_path,
 		'cred=s'        => \$cred_path,
 		'verbose!'      => \$verbose,
@@ -128,6 +138,53 @@ else {
 
 
 ######## Check options
+
+# grab all parameters from the catalog database if provided
+if ($cat_file) {
+	
+	# first check path
+	if ($cat_file !~ m|^/|) {
+		# catalog file path is not from root
+		$cat_file = File::Spec->catfile( File::Spec->rel2abs(), $cat_file);
+	}
+	
+	# find entry in catalog and collect information
+	my $Catalog = RepoCatalog->new($cat_file) or 
+		die "Cannot open catalog file '$cat_file'!\n";
+	if ($path =~ /(\d{4,5}R)/) {
+		my $id = $1;
+		my $Entry = $Catalog->entry($id) or 
+			die "No Catalog entry for $id\n";
+		# collect metadata
+		if (not $userfirst) {
+			$userfirst = $Entry->user_first;
+		}
+		if (not $userlast) {
+			$userlast = $Entry->user_last;
+		}
+		if (not $email_address) {
+			$email_address = $Entry->user_email;
+		}
+		if (not $strategy) {
+			$strategy = $Entry->request_application;
+		}
+		if (not $title) {
+			$title = $Entry->name;
+		}
+		if (not $group) {
+			$group = $Entry->group;
+		}
+		if (not $sb_division) {
+			$sb_division = $Entry->division;
+		}
+		$path = $Entry->path;
+	}
+	else {
+		die "unrecognized project identifier '$path'!\n";
+	}
+}
+
+
 if ($scan) {
 	die "must provide user first name to scan!\n" unless $userfirst;
 	die "must provide user last name to scan!\n" unless $userlast;
@@ -144,7 +201,6 @@ if ($upload) {
 # these are needed since the File::Find callback doesn't accept pass through variables
 my $start_time = time;
 my @removelist;
-my $project;
 my %filedata;
 my %checksums;
 my $failure_count = 0;
@@ -200,13 +256,12 @@ if ($Project->given_dir =~ m/A\d{1,5}\/?$/) {
 	die "given path is an Analysis project! Stopping!\n";
 }
 
-printf " > working on %s at %s\n", $Project->project, $Project->given_dir;
+printf " > working on %s at %s\n", $Project->id, $Project->given_dir;
 printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
 
 # given application paths
 if ($verbose) {
-	print " =>             SB path: $sb_path\n" if $sb_path;
 	print " =>    SB uploader path: $sbupload_path\n" if $sbupload_path;
 	print " => SB credentials path: $cred_path\n" if $cred_path;
 }
@@ -254,7 +309,7 @@ chdir $Project->given_dir or die sprintf("cannot change to %s!\n", $Project->giv
 # scan the directory
 if ($scan) {
 	# this will also run the zip function
-	printf " > scanning %s in directory %s\n", $Project->project, $Project->parent_dir;
+	printf " > scanning %s in directory %s\n", $Project->id, $Project->parent_dir;
 	scan_directory();
 }
 
@@ -262,7 +317,7 @@ if ($scan) {
 # upload files to Seven Bridges
 if ($upload) {
 	if (-e $Project->manifest_file) {
-		print " > uploading $project project files to $sb_division\n";
+		printf " > uploading %s project files to $sb_division\n", $Project->id;
 		upload_files();
 	}
 	else {
@@ -288,12 +343,51 @@ if ($hide_files) {
 
 ######## Finished
 if ($failure_count) {
-	printf " ! finished with %s with %d failures in %.1f minutes\n\n", $Project->project,
+	printf " ! finished with %s with %d failures in %.1f minutes\n\n", $Project->id,
 		$failure_count, (time - $start_time)/60;
 	
 }
 else {
-	printf " > finished with %s in %.1f minutes\n\n", $Project->project, 
+	if ($cat_file) {
+		my $Catalog = RepoCatalog->new($cat_file) if -e $cat_file;
+		my $Entry = $Catalog->entry($Project->id) if $Catalog;
+		if ($Entry) {
+			my $t = time;
+			if ($scan) {
+				$Entry->scan_datestamp($t);
+			}
+			if ($upload) {
+				$Entry->upload_datestamp($t);
+				
+				# send an upload notification email
+				if ($send_email) {
+					my $Email = Emailer->new();
+					if ($Email) {
+						my $result = $Email->send_request_upload_email($Entry);
+						if ($result) {
+							printf " > Sent Request SB upload notification email: %s\n", 
+								$result->message;
+							$Entry->emailed_datestamp($t);
+						}
+						else {
+							print " ! Failed to send Request upload notification email!\n";
+						}
+					}
+					else {
+						print " ! Failed to initialize Emailer! unable to send!\n";
+					}
+				}
+			}
+			if ($hide_files) {
+				$Entry->hidden_datestamp($t);
+			}
+			print " > updated catalog entry\n";
+		}
+		else {
+			print " ! failed to update catalog entry!\n";
+		}
+	}
+	printf " > finished with %s in %.1f minutes\n\n", $Project->id, 
 		(time - $start_time)/60;
 }
 
@@ -377,7 +471,7 @@ sub scan_directory {
 		push @manifest, join(',', 
 			sprintf("\"%s\"", $filedata{$f}{clean}),
 			$filedata{$f}{sample},
-			$project,
+			$Project->id,
 			$filedata{$f}{sample},
 			sprintf("\"%s\"", $machinelookup{$filedata{$f}{machineID}}),
 			$filedata{$f}{laneID},
@@ -667,35 +761,30 @@ sub upload_files {
 	}
 	
 	### Initialize SB wrapper
-	my $sb = SB->new(
+	my $sb = SB2->new(
 		div     => $sb_division,
-		sb      => $sb_path,
 		cred    => $cred_path,
 	) or die "unable to initialize SB wrapper module!";
 	$sb->verbose(1) if $verbose;
 	
 	
 	### Create the project on Seven Bridges
-	my $sbproject;
-	
-	# check whether it exists
-	foreach my $p ($sb->projects) {
-		if ($p->name eq $Project->project) {
-			# we found it
-			$sbproject = $p;
-			printf "   > using existing SB project %s\n", $p->id;
-			last;
-		}
-	}
+	# first check whether it exists
+	# use lower case to mimic the short name that would be used.
+	my $sbproject = $sb->get_project(lc($Project->id));
 	
 	# create the project if it doesn't exist
-	if (not defined $sbproject) {
+	if (defined $sbproject) {
+		# we must be picking up from a previous upload
+		printf "   > using existing SB project %s\n", $sbproject->id;
+	}
+	else {
 		
 		# check description
 		if (not $description) {
 			# generate simple description in markdown
 			$description = sprintf "# %s\n## %s\n GNomEx project %s is a %s experiment generated by %s %s",
-				$Project->project, $title, $project, $strategy, $userfirst, $userlast;
+				$Project->id, $title, $Project->id, $strategy, $userfirst, $userlast;
 			if ($group) {
 				$description .= " in the group '$group'. ";
 			}
@@ -703,12 +792,13 @@ sub upload_files {
 				$description .= ". ";
 			}
 			$description .= sprintf("Details on the experiment may be found in [GNomEx](https://hci-bio-app.hci.utah.edu/gnomex/?requestNumber=%s).\n", 
-				$Project->project);
+				$Project->id);
+			$description .= "\n**Warning:** After these files are removed from GNomEx, these may be your only copies. Do not delete!\n";
 		}
 		
 		# create project
 		$sbproject = $sb->create_project(
-			name        => $Project->project,
+			name        => $Project->id,
 			description => $description,
 		);
 		if ($sbproject and $sbproject->id) {
@@ -744,12 +834,72 @@ sub upload_files {
 	}
 	elsif ($result =~ /Done\.\n$/) {
 		print "   > upload successful\n";
+		
+		# add the user to the project
+		if ($email_address) {
+			my $name = add_user_to_sb_project($sb, $sbproject);
+			if ($name) {
+				print "   > added user $name to SB project\n";
+			}
+			else {
+				printf "   ! SB user for %s %s not found on platform\n", 
+					$userfirst, $userlast;
+			}
+		}
 	}
 	else {
 		$failure_count++;
 		print "   ! upload error!\n";
 	}
 	return 1;
+}
+
+
+sub add_user_to_sb_project {
+	my ($division, $sbproject) = @_;
+	
+	# find division member
+	my $divMember;
+	foreach my $member ($division->list_members) {
+		if (lc($member->email) eq lc($email_address)) {
+			# email matches, that was easy!
+			$divMember = $member;
+			last;
+		}
+		elsif (
+			lc($member->last_name) eq lc($userlast) and 
+			lc($member->first_name) eq lc($userfirst)
+		) {
+			# first and last names match
+			$divMember = $member;
+			last;
+		}
+	}
+	return unless ($divMember);
+	
+	# check if user is already a member of project
+	foreach my $member ($sbproject->list_members) {
+		if ($member->username eq $divMember->username) {
+			# user is already a member of this project!
+			# nothing more needs to be done
+			return $member->username;
+		}
+	}
+	
+	# otherwise add member with full permissions
+	my @permissions = (
+		'read'      => 'true',
+		'copy'      => 'true',
+		'write'     => 'true',
+		'execute'   => 'true',
+		'admin'     => 'true'
+	);
+	my $pMember = $sbproject->add_member($divMember, @permissions);
+	if ($pMember) {
+		return $pMember->username;
+	}
+	
+	return;
 }
 
 

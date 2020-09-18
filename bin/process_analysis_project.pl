@@ -7,12 +7,14 @@ use File::Find;
 use POSIX qw(strftime);
 use Getopt::Long;
 use FindBin qw($Bin);
-use lib $Bin;
-use SB;
+use lib "$Bin/../lib";
+use SB2;
 use RepoProject;
+use RepoCatalog;
+use Emailer;
 
 
-my $version = 4.1;
+my $version = 5;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -46,6 +48,9 @@ in the metadata Manifest CSV file. However, the current bulk
 uploader does not simultaneously handle CSV metadata and recursive 
 paths. Therefore metadata is not set upon uploading to Seven Bridges.
 
+A catalog database file may be provided to automatically retrieve 
+metadata given a project identifier.
+
 A Seven Bridges Project is automatically generated when uploading,
 using the project identifier as the name. A Markdown description is
 generated for the Project using the GNomEx metadata, including user
@@ -53,8 +58,10 @@ name, title, group name, and genome version.
 
 Version: $version
 
-Usage:
+Example Usage:
     process_analysis_project.pl [options] /Repository/AnalysisData/2019/A5678
+    
+    process_analysis_project.pl --cat Analysis.db [options] A5678
 
 Options:
 
@@ -65,8 +72,10 @@ Options:
     --hide              Hide the deleted files in hidden folder
 
  Metadata
+    --cat <path>        Provide path to metadata catalog database
     --first <text>      User first name for the owner of the project
     --last <text>       User last name for the owner of the project
+    --email <text>      User email address for notifications
     --title "text"      GNomEx Request Name or title. This is a long text 
                         field, so must be protected by quoting. It will 
                         become the name of SB project.
@@ -88,6 +97,7 @@ Options:
     --maxzip <integer>  Maximum size in bytes to avoid zip archiving (200 MB)
     --keepzip           Do not hide files that have been zip archived
     --delzip            Immediately delete files that have been zip archived
+    --notify            Send email to user and PI when uploading
     --verbose           Tell me everything!
  
  Seven Bridges
@@ -95,7 +105,6 @@ Options:
                         section in the credentials file. Default 'default'.
 
  Paths
-    --sb <path>         Path to the Seven Bridges command-line api utility sb
     --sbup <path>       Path to the Seven Bridges Java uploader start script,
                         sbg-uploader.sh
     --cred <path>       Path to the Seven Bridges credentials file. 
@@ -113,8 +122,10 @@ my $zip;
 my $gzip;
 my $hide_files;
 my $upload;
+my $cat_file;
 my $userfirst           = q();
 my $userlast            = q();
+my $email_address       = q();
 my $title               = q();
 my $group               = q();
 my $species             = q();
@@ -124,10 +135,11 @@ my $min_gz_size         = 10000;     # 10 KB
 my $max_zip_size        = 200000000; # 200 MB
 my $keepzip             = 0;
 my $deletezip           = 0;
-my $sb_division         = q(default);
+my $sb_division         = q();
 my $sb_path             = q();
 my $sbupload_path       = q();
 my $cred_path           = q();
+my $send_email;
 my $everything;
 my $verbose;
 
@@ -138,8 +150,10 @@ if (scalar(@ARGV) > 1) {
 		'gz!'           => \$gzip,
 		'hide!'         => \$hide_files,
 		'upload!'       => \$upload,
+		'catalog=s'     => \$cat_file,
 		'first=s'       => \$userfirst,
 		'last=s'        => \$userlast,
+		'email=s'       => \$email_address,
 		'title=s'       => \$title,
 		'group=s'       => \$group,
 		'species=s'     => \$species,
@@ -148,6 +162,7 @@ if (scalar(@ARGV) > 1) {
 		'mingz=i'       => \$min_gz_size,
 		'keepzip!'      => \$keepzip,
 		'delzip!'       => \$deletezip,
+		'notify!'       => \$send_email,
 		'all!'          => \$everything,
 		'division=s'    => \$sb_division,
 		'sb=s'          => \$sb_path,
@@ -167,13 +182,62 @@ $path = shift @ARGV;
 
 
 ######## Check options
+
+# grab all parameters from the catalog database if provided
+if ($cat_file) {
+	
+	# first check path
+	if ($cat_file !~ m|^/|) {
+		# catalog file path is not from root
+		$cat_file = File::Spec->catfile( File::Spec->rel2abs(), $cat_file);
+	}
+	
+	# find entry in catalog and collect information
+	my $Catalog = RepoCatalog->new($cat_file) or 
+		die "Cannot open catalog file '$cat_file'!\n";
+	if ($path =~ /(A\d{4,5})/) {
+		my $id = $1;
+		my $Entry = $Catalog->entry($id) or 
+			die "No Catalog entry for $id\n";
+		# collect metadata
+		if (not $userfirst) {
+			$userfirst = $Entry->user_first;
+		}
+		if (not $userlast) {
+			$userlast = $Entry->user_last;
+		}
+		if (not $email_address) {
+			$email_address = $Entry->user_email;
+		}
+		if (not $title) {
+			$title = $Entry->name;
+		}
+		if (not $group) {
+			$group = $Entry->group;
+		}
+		if (not $species) {
+			$species = $Entry->organism;
+		}
+		if (not $genome) {
+			$genome = $Entry->genome;
+		}
+		if (not $sb_division) {
+			$sb_division = $Entry->division;
+		}
+		$path = $Entry->path;
+	}
+	else {
+		die "unrecognized project identifier '$path'!\n";
+	}
+}
+
 if ($scan) {
-	die "must provide user first name to scan!\n" unless $userfirst;
-	die "must provide user last name to scan!\n" unless $userlast;
+	die "must provide user first name or Catalog db file to scan!\n" unless $userfirst;
+	die "must provide user last name or Catalog db file to scan!\n" unless $userlast;
 }
 if ($upload) {
-	die "must provide a SB division name!\n" unless $sb_division;
-	die "must provide a title for SB project!\n" unless $title;
+	die "must provide a SB division name or Catalog db file!\n" unless $sb_division;
+	die "must provide a title for SB project or Catalog db file!\n" unless $title;
 }
 if ($keepzip and $deletezip) {
 	die "must choose one: --keepzip or --delzip   Not both!!!\n";
@@ -188,6 +252,8 @@ my @removelist;
 my @ziplist;
 my %filedata;
 my $Digest;
+my $failure_count = 0;
+my $post_zip_size = 0;
 
 # external commands
 my ($gzipper, $zipper);
@@ -313,14 +379,15 @@ else {
 
 my $Project = RepoProject->new($path, $verbose) or 
 	die "unable to initiate Repository Project!\n";
-printf " > working on %s at %s\n", $Project->project, $Project->given_dir;
-printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
-# check project
-if ($Project->project =~ m/\d{3,5}R\/?$/) {
+# check project ID
+if ($Project->id =~ m/\d{3,5}R\/?$/) {
 	# looks like a Request project
 	die "given path is a Request project! Stopping!\n";
 }
+
+printf " > working on %s at %s\n", $Project->id, $Project->given_dir;
+printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
 # application paths
 if ($verbose) {
@@ -384,13 +451,10 @@ chdir $Project->given_dir or
 	die sprintf("cannot change to %s!\n", $Project->given_dir);
 
 
-# keep track of failures
-my $failure_count = 0;
-
 # scan the directory
 if ($scan) {
 	# this will also run the zip function
-	printf " > scanning project %s in directory %s\n", $Project->project, 
+	printf " > scanning project %s in directory %s\n", $Project->id, 
 		$Project->parent_dir;
 	scan_directory();
 }
@@ -399,8 +463,12 @@ if ($scan) {
 # upload files to Seven Bridges
 if ($upload and not $failure_count) {
 	if (-e $Project->manifest_file) {
-		printf " > uploading project %s files to $sb_division\n", $Project->project;
+		printf " > uploading project %s files to $sb_division\n", $Project->id;
 		upload_files();
+		
+		# re-calculate the size here for email notification
+		# must do it before the directory is cleaned up below
+		($post_zip_size, undef) = $Project->get_size_age;
 	}
 	else {
 		print " ! No manifest file! Cannot upload files\n";
@@ -412,7 +480,7 @@ if ($upload and not $failure_count) {
 # hide files
 if ($hide_files and not $failure_count) {
 	if (-e $Project->alt_remove_file) {
-		printf " > moving project %s files to %s\n", $Project->project, 
+		printf " > moving project %s files to %s\n", $Project->id, 
 			$Project->delete_folder;
 		$failure_count += $Project->hide_deleted_files;
 	}
@@ -426,12 +494,61 @@ if ($hide_files and not $failure_count) {
 
 ######## Finished
 if ($failure_count) {
-	printf " ! finished with %s with %d failures in %.1f minutes\n\n", $Project->project,
+	printf " ! finished with %s with %d failures in %.1f minutes\n\n", $Project->id,
 		$failure_count, (time - $start_time)/60;
 	
 }
 else {
-	printf " > finished with %s in %.1f minutes\n\n", $Project->project, 
+	if ($cat_file) {
+		my $Catalog = RepoCatalog->new($cat_file) if -e $cat_file;
+		my $Entry = $Catalog->entry($Project->id) if $Catalog;
+		if ($Entry) {
+			my $t = time;
+			if ($scan) {
+				$Entry->scan_datestamp($t);
+			}
+			if ($upload) {
+				$Entry->upload_datestamp($t);
+				
+				# send an upload notification email
+				if ($send_email) {
+					# use the pre-cleaned but post-zipped file size
+					unless ($post_zip_size) {
+						# this should not be null, but just in case
+						($post_zip_size, undef) = $Project->get_size_age;
+					}
+					# initialize
+					my $Email = Emailer->new();
+					if ($Email) {
+						my $result = $Email->send_analysis_upload_email(
+							$Entry,
+							'size' => $post_zip_size
+							# force using the post-zip, pre-cleanup size
+						);
+						if ($result) {
+							printf " > Sent Analysis SB upload notification email: %s\n", 
+								$result->message;
+							$Entry->emailed_datestamp($t);
+						}
+						else {
+							print " ! Failed to send Analysis upload notification email!\n";
+						}
+					}
+					else {
+						print " ! Failed to initialize Emailer! unable to send!\n";
+					}
+				}
+			}
+			if ($hide_files) {
+				$Entry->hidden_datestamp($t);
+			}
+			print " > updated catalog entry\n";
+		}
+		else {
+			print " ! failed to update catalog entry!\n";
+		}
+	}
+	printf " > finished with %s in %.1f minutes\n\n", $Project->id, 
 		(time - $start_time)/60;
 }
 
@@ -761,7 +878,7 @@ sub callback {
 		$filetype = 'Annotation';
 		$filedata{$fname}{zip} = 1;
 	}
-	elsif ($file =~ /\.(?:sh|pl|py|pyc|r|rmd|rscript|awk|sm)$/i) {
+	elsif ($file =~ /\.(?:sh|pl|py|pyc|r|rmd|rscript|awk|sm|sing)$/i) {
 		$filetype = 'Script';
 		$filedata{$fname}{zip} = 1;
 	}
@@ -783,7 +900,7 @@ sub callback {
 		$filetype = 'Analysis';
 		$filedata{$fname}{zip} = 1;
 	}
-	elsif ($file =~ /\.(?:xls|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|ai|out|rout|rda|rdata|rds|xml|json|json\.gz|html|pzfx)$/i) {
+	elsif ($file =~ /\.(?:xls|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|ai|out|rout|rda|rdata|rds|xml|json|json\.gz|html|pzfx|err)$/i) {
 		$filetype = 'Results';
 		$filedata{$fname}{zip} = 1;
 	}
@@ -866,34 +983,42 @@ sub get_file_stats {
 
 sub upload_files {
 	
+	### Grab missing information
+	unless ($userfirst and $userlast) {
+		# this can be grabbed from the first data line in the manifest CSV
+		my $fh = IO::File->new($Project->manifest_file) or die "unable to read manifest file!";
+		my $h = $fh->getline;
+		my $l = $fh->getline;
+		my @d = split(',', $l);
+		$userfirst = $d[4];
+		$userlast  = $d[5];
+		$fh->close;
+	}
+	
 	### Initialize SB wrapper
-	my $sb = SB->new(
+	my $sb = SB2->new(
 		div     => $sb_division,
-		sb      => $sb_path,
 		cred    => $cred_path,
 	) or die "unable to initialize SB wrapper module!";
 	$sb->verbose(1) if $verbose;
 	
 	
 	### Create the project on Seven Bridges
-	my $sbproject;
+	# first check whether it exists
+	# use lower case to mimic the short name that would be used.
+	my $sbproject = $sb->get_project(lc($Project->id));
 	
-	# check whether it exists
-	foreach my $p ($sb->projects) {
-		if ($p->name eq $Project->project) {
-			# we found it
-			$sbproject = $p;
-			printf "   > using existing SB project %s\n", $p->id;
-			last;
-		}
-	}
 	
 	# create the project if it doesn't exist
-	if (not defined $sbproject) {
+	if (defined $sbproject) {
+		# we must be picking up from a previous upload
+		printf "   > using existing SB project %s\n", $sbproject->id;
+	}
+	else {
 		# generate description in markdown as necessary
 		if (not $description) {
 			$description = sprintf "# %s\n## %s\n GNomEx project %s is an Analysis project for %s %s",
-				$Project->project, $title, $Project->project, $userfirst, $userlast;
+				$Project->id, $title, $Project->id, $userfirst, $userlast;
 			if ($group) {
 				$description .= " in the group '$group'. ";
 			}
@@ -904,12 +1029,13 @@ sub upload_files {
 				$description .= "Analysis files are for species $sb_species, genome build version $sb_genome. ";
 			}
 			$description .= sprintf("Details on the experiment may be found in [GNomEx](https://hci-bio-app.hci.utah.edu/gnomex/?analysisNumber=%s).\n",
-				$Project->project);
+				$Project->id);
+			$description .= "\n**Warning:** After these files are removed from GNomEx, these may be your only copies. Do not delete!\n";
 		}
 		
 		# create project
 		$sbproject = $sb->create_project(
-			name        => $Project->project,
+			name        => $Project->id,
 			description => $description,
 		);
 		if ($sbproject and $sbproject->id) {
@@ -946,6 +1072,18 @@ sub upload_files {
 	}
 	elsif ($result =~ /Done\.\n$/) {
 		print "   > upload successful\n";
+		
+		# add the user to the project
+		if ($email_address) {
+			my $name = add_user_to_sb_project($sb, $sbproject);
+			if ($name) {
+				print "   > added user $name to SB project\n";
+			}
+			else {
+				printf "   ! SB user for %s %s not found on platform\n", 
+					$userfirst, $userlast;
+			}
+		}
 	}
 	else {
 		$failure_count++;
@@ -953,6 +1091,55 @@ sub upload_files {
 	}
 	return 1;
 }
+
+
+sub add_user_to_sb_project {
+	my ($division, $sbproject) = @_;
+	
+	# find division member
+	my $divMember;
+	foreach my $member ($division->list_members) {
+		if (lc($member->email) eq lc($email_address)) {
+			# email matches, that was easy!
+			$divMember = $member;
+			last;
+		}
+		elsif (
+			lc($member->last_name) eq lc($userlast) and 
+			lc($member->first_name) eq lc($userfirst)
+		) {
+			# first and last names match
+			$divMember = $member;
+			last;
+		}
+	}
+	return unless ($divMember);
+	
+	# check if user is already a member of project
+	foreach my $member ($sbproject->list_members) {
+		if ($member->username eq $divMember->username) {
+			# user is already a member of this project!
+			# nothing more needs to be done
+			return $member->username;
+		}
+	}
+	
+	# otherwise add member with full permissions
+	my @permissions = (
+		'read'      => 'true',
+		'copy'      => 'true',
+		'write'     => 'true',
+		'execute'   => 'true',
+		'admin'     => 'true'
+	);
+	my $pMember = $sbproject->add_member($divMember, @permissions);
+	if ($pMember) {
+		return $pMember->username;
+	}
+	
+	return;
+}
+
 
 
 
