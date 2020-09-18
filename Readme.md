@@ -5,35 +5,57 @@ Bio-Repository file server, particularly with respect in preparation and migrati
 GNomEx data to [Seven Bridges](https://www.sevenbridges.com). 
 
 **NOTE:** Most of the scripts are specific to HCI infrastructure and might not be 
-applicable elsewhere.
+applicable elsewhere. The possible exception is the `SB2` Perl module for interacting 
+with the Seven Bridges platform using the 
+
+Main scripts are in the `bin` directory. Modules required for execution are in the `lib` 
+directory. Old stuff are placed in the `deprecated` directory for posterity only.
+
+Current operation is predicated around collecting disparate bits of information, 
+including metadata from the GNomEx database, metadata for each GNomEx project directory 
+on the bio-repository file server, collated information regarding known Seven Bridges lab 
+divisions, and metadata regarding actions performed on GNomEx projects, all coalesced 
+into a Catalog database file. Actions on the GNomEx projects take place through, and 
+recorded into, the Catalog file. 
+
 
 ## Modules
 
-General API code for use in the scripts.
+General API Perl modules for use in the accompanying scripts.
 
-- `SB.pm`
+- `SB2`
 
-A Perl module with wrapper functions around the Seven Bridges 
-[command line tool](https://docs.sevenbridges.com/docs/command-line-interface) `sb` 
-for use in Perl scripts. 
+A general purpose Perl API for interacting with the 
+[Seven Bridges RESTful API](https://docs.sevenbridges.com/page/api). This is by no 
+means complete coverage, but is sufficient for purposes of this project.
 
-- `RepoProject.pm`
+- `RepoCatalog`
 
-A module providing common code functions for working with Repository project folders.
+The main API module for working with the Catalog database file.
 
-## GNomEx Project Scripts
+- `RepoProject`
 
-- `fetch_gnomex_data.pl`
+A module providing common code functions for working with Repository project directory 
+folders on the bio-repository file server.
 
-A script for running database queries against the GNomEx database to extract Experiment 
-Request and Analysis project metadata for purposes of identifying those to be 
-uploaded to the Seven Bridges platform and removed from GNomEx. 
+- `Gnomex`
 
-- `add_division_url.pl`
+A HCI-specific interface for querying the GNomEx database.
 
-A script to append Seven Bridges lab division information and generate a URL for a list 
-of GNomEx projects, such as that generated from `fetch_gnomex_data.pl`. Requires a 
-current list of labs with active Seven Bridges accounts.
+- `Emailer`
+
+A module for sending out form email notifications to GNomEx users. The content of the 
+email forms are embedded in this module.
+
+
+## Scripts
+
+Main scripts in the `bin` folder. 
+
+- `manage_repository.pl`
+
+The main script for working with the repository Catalog and GNomEx projects and file 
+directories. All actions go through here.
 
 - `process_analysis_project.pl`
 
@@ -52,86 +74,50 @@ status, and MD5 checksum. Metadata is written to a `MANIFEST.csv` file. Optional
 will handle creating a corresponding Seven Bridges project and uploading the folder 
 contents to it.
 
-- `manage_project.pl`
+- `add_user_sb_project.pl`
 
-A general purpose script for managing GNomEx Analysis and Request project folders on 
-the file server. It will hide files that were bundled into a Zip archive, hide files 
-targeted for deletion, restore hidden files, permanently delete hidden files, insert 
-a symbolic link to a missing file notification, and more. 
+A simple script for quickly adding a Seven Bridges division member to an existing project. 
 
-## General Scripts
+- `check_divisions.pl`
 
-General scripts for working on the file server or Seven Bridges. 
+A simple script to check one or all divisions and print the number of members and 
+projects.
 
-- `scan_directory_age.pl`
 
-A general purpose script to find the age of a folder hierarchy. For a given folder 
-name, it will recursively identify and report the youngest modification date of any 
-file within the folder. Age is reported in days. Useful to find out how old a project 
-folder is. The script skips directory time stamps, symbolic links, hidden files, and 
-known project metadata files (such as `MANIFEST.csv` files).
+## Deprecated Stuff
 
-- `check_legacy_sb_division.pl`
-
-A script to modify legacy GNomEx projects on Seven Bridges by changing the display 
-name and adding a Markdown description to the project to helpfully educate users 
-about the project and avoid unnecessary, accidental deletions.
-
-- `compare_versions.pl`
-
-A script for identifying corrupt file versions and replacing it with one restored from 
-a tape backup restore. Runs MD5 checksum on every single file.
-
-- `combine_lab_sizes.pl`
-
-A script to concatenate information on both Analysis and Request projects per lab. 
-Requires input files containing LabFirstName, LabLastName, Size (in bytes), and 
-Date for every GNomEx project. Requires Bio::ToolBox.
-
-## Deprecated Scripts
-
-These are older versions for posterity, mostly for the initial Snowball transfer, and 
-should not be used in current production. 
-
-- `get_final_snowball_manifest.pl`
-
-A script to concatenate all project manifest text files into a single master file.
-
-- `get_manifest_file_specs.pl`
-
-A script to collect the file specs on manifest text files themselves.
-
-- `prepare_repository.pl`
-
-Primary script for preparing Request and Analysis project folders for Seven Bridges 
-uploading through Snowballs. Handles zip archiving, hiding, unhiding, and deleting 
-files in projects. Writes manifest text files.
+These are bunch of old, deprecated scripts. See it's dedicated page for more information.
 
 
 ## Requirements
 
 The scripts are written in Perl and can be executed under the system Perl. Some 
 additional Perl modules are required for execution. These should be readily available 
-through `yum` package manager or CPAN. Different scripts require different modules, so 
-requirements differ depending on usage.
+through the system package manager (`yum` or equivalent) or directly from CPAN. 
 
-External applications for working with Seven Bridges are also required.
 
-- Perl module `JSON::PP`
+- [DBI](https://metacpan.org/pod/DBI)
 
-- Perl module `Digest::MD5`
+- [DBI::ODBC](https://metacpan.org/pod/DBI::ODBC)
 
-- Perl modules `DBI` and `DBI::ODBC`
+- [DBM::Deep](https://metacpan.org/pod/DBM::Deep)
 
-- Perl module `IO::Prompter`
+- [Digest::MD5](https://metacpan.org/pod/Digest::MD5)
 
-- Perl module `List::MoreUtils`
+- [Email::Sender::Simple](https://metacpan.org/pod/Email::Sender::Simple)
 
-- [sb command line tool](https://docs.sevenbridges.com/docs/command-line-interface)
+- [Email::Simple](https://metacpan.org/pod/Email::Simple)
 
-- [sb upload utility](https://docs.sevenbridges.com/docs/upload-via-the-command-line)
+- [HTTP::Tiny](https://metacpan.org/pod/HTTP::Tiny)
 
-- Seven Bridges credentials file with division tokens
+- [JSON::PP](https://metacpan.org/pod/JSON::PP)
+
+- [SB upload Java utility](https://docs.sevenbridges.com/docs/upload-via-the-command-line) 
+
+
+In addition, you will need to generate your 
+[Seven Bridges credentials file](https://docs.sevenbridges.com/docs/store-credentials-to-access-seven-bridges-client-applications-and-libraries) 
+with developer tokens for each of your divisions.
 
 
 # License
@@ -139,11 +125,11 @@ External applications for working with Seven Bridges are also required.
 This package is free software; you can redistribute it and/or modify
 it under the terms of the Artistic License 2.0.  
 
- Timothy J. Parnell, PhD
- Dept of Oncological Sciences
- Huntsman Cancer Institute
- University of Utah
- Salt Lake City, UT, 84112
+	 Timothy J. Parnell, PhD
+	 Bioinformatic Analysis Shared Resource
+	 Huntsman Cancer Institute
+	 University of Utah
+	 Salt Lake City, UT, 84112
 
 
 
