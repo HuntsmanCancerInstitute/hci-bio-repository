@@ -8,7 +8,7 @@ use File::Spec;
 use POSIX qw(strftime);
 use Getopt::Long;
 use FindBin qw($Bin);
-use lib $Bin;
+use lib "$Bin/../lib";
 use SB2;
 use RepoCatalog;
 use RepoProject;
@@ -361,14 +361,20 @@ else {
 				
 				# send an upload notification email
 				if ($send_email) {
-					my $result = send_request_upload_email($Entry);
-					if ($result) {
-						printf " > Sent Request SB upload notification email: %s\n", 
-							$result->message;
-						$Entry->emailed_datestamp($t);
+					my $Email = Emailer->new();
+					if ($Email) {
+						my $result = $Email->send_request_upload_email($Entry);
+						if ($result) {
+							printf " > Sent Request SB upload notification email: %s\n", 
+								$result->message;
+							$Entry->emailed_datestamp($t);
+						}
+						else {
+							print " ! Failed to send Request upload notification email!\n";
+						}
 					}
 					else {
-						print " ! Failed to send Request upload notification email!\n";
+						print " ! Failed to initialize Emailer! unable to send!\n";
 					}
 				}
 			}

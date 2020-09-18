@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 use FindBin qw($Bin);
-use lib $Bin;
+use lib "$Bin/../lib";
 use SB2;
 
 

@@ -7,7 +7,7 @@ use File::Find;
 use POSIX qw(strftime);
 use Getopt::Long;
 use FindBin qw($Bin);
-use lib $Bin;
+use lib "$Bin/../lib";
 use SB2;
 use RepoProject;
 use RepoCatalog;
@@ -517,18 +517,25 @@ else {
 						# this should not be null, but just in case
 						($post_zip_size, undef) = $Project->get_size_age;
 					}
-					my $result = send_analysis_upload_email(
-						$Entry,
-						'size' => $post_zip_size
-						# force using the post-zip, pre-cleanup size
-					);
-					if ($result) {
-						printf " > Sent Analysis SB upload notification email: %s\n", 
-							$result->message;
-						$Entry->emailed_datestamp($t);
+					# initialize
+					my $Email = Emailer->new();
+					if ($Email) {
+						my $result = $Email->send_analysis_upload_email(
+							$Entry,
+							'size' => $post_zip_size
+							# force using the post-zip, pre-cleanup size
+						);
+						if ($result) {
+							printf " > Sent Analysis SB upload notification email: %s\n", 
+								$result->message;
+							$Entry->emailed_datestamp($t);
+						}
+						else {
+							print " ! Failed to send Analysis upload notification email!\n";
+						}
 					}
 					else {
-						print " ! Failed to send Analysis upload notification email!\n";
+						print " ! Failed to initialize Emailer! unable to send!\n";
 					}
 				}
 			}
