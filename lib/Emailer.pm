@@ -135,7 +135,7 @@ sub new {
 	
 	# initialize transport
 	$opts{smtp} = Email::Sender::Transport::SMTP->new( {
-		host    => $opts{smtp},
+		host    => $opts{smtp_address},
 	} );
 	unless ($opts{smtp}) {
 		croak "failed to initialize SMTP Transport!";
