@@ -333,8 +333,9 @@ sub _send_email {
 	# assemble email
 	my $email = Email::Simple->create(
 		header  => [
-			To      => sprintf("%s <%s>", $opt->{username}, $opt->{useremail}),
-			Cc      => sprintf("%s <%s>", $opt->{piname}, $opt->{piemail}),
+			To      => sprintf("%s <%s>, %s <%s>", $opt->{username}, $opt->{useremail}, 
+							$opt->{piname}, $opt->{piemail}),
+			Cc      => sprintf("%s", $opt->{from}),
 			From    => $opt->{from},
 			Subject => $subject,
 		],
