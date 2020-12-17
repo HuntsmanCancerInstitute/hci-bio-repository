@@ -214,7 +214,12 @@ foreach my $id (@projects) {
 		}
 	}
 	
-	next if $check_only;
+	if ($check_only) {
+		if (not $pMember) {
+			print "  user not a member of project %s\n"
+		}
+		next;
+	}
 	
 	# permissions
 	my @permissions;
