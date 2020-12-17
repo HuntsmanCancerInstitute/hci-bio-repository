@@ -100,15 +100,23 @@ sub new {
 	$opts{pass} ||= undef;
 	$opts{user} ||= undef;
 	$opts{perm} ||= $default_permfile;
-	if ($opts{perm} and -e $opts{perm}) {
-		# excellent, we have permissions file
-		my $fh = IO::File->new($opts{perm}) or die 
-			"unable to open file '$opts{perm}'! $!\n";
-		$opts{user} = $fh->getline;
-		chomp $opts{user};
-		$opts{pass} = $fh->getline;
-		chomp $opts{pass};
-		$fh->close;
+	if (not $opts{pass} or not $opts{user}) {
+		if ($opts{perm} and -e $opts{perm}) {
+			# excellent, we have permissions file
+			my $fh = IO::File->new($opts{perm}) or die 
+				"unable to open file '$opts{perm}'! $!\n";
+			my $u = $fh->getline;
+			chomp $u;
+			$opts{user} ||= $u;
+			my $p = $fh->getline;
+			chomp $p;
+			$opts{pass} ||= $p;
+			$fh->close;
+		}
+		else {
+			carp "user and password not provided, Gnomex permissions file not available\n GnomEx file should be text file $default_permfile with username and password as single bare words on lines 1 and 2\n";
+			return;
+		}
 	}
 	
 	# lab information
