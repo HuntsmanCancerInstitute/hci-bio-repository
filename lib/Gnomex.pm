@@ -19,7 +19,6 @@ use IO::File;
 use File::Spec;
 use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
-use RepoProject;
 
 1;
 
@@ -133,12 +132,12 @@ sub new {
 			my $name = shift @bits;
 			$lab2info{$name} = \@bits;
 		}
-		# printf " Loaded %d labs information\n", scalar(keys %lab2info);
+		printf " Loaded %d labs information\n", scalar(keys %lab2info);
 		$fh->close;
 		$opts{lab} = \%lab2info;
 	}
 	else {
-		croak "Must pass a lab information file!";
+		carp "Must pass a lab information file!";
 		return;
 	}
 	
@@ -178,9 +177,9 @@ sub fetch_analyses {
 
 	
 	# walk through the database results
-	my $skip_count   = 0;
-	my $update_count = 0;
-	my $new_count    = 0;
+	my $skip_count = 0;
+	my @update_list;
+	my @new_list;
 	while (my @row = $sth->fetchrow_array) {
 		
 		# check date
@@ -203,7 +202,7 @@ sub fetch_analyses {
 		my $E = $Catalog->entry($row[0]);
 		if ($E) {
 			# an existing project, just need to update 
-			$update_count++;
+			push @update_list, $row[0];
 			
 			# basically check to see if we have a sb lab division
 			if ($E->external eq 'N' and not $E->division) {
@@ -216,7 +215,7 @@ sub fetch_analyses {
 		else {
 			# a brand new project
 			$E = $Catalog->new_entry($row[0]);
-			$new_count++;
+			push @new_list, $row[0];
 			
 			# let's fill it out
 			$E->path("/Repository/AnalysisData/$year/$row[0]");
@@ -252,30 +251,10 @@ sub fetch_analyses {
 				}
 			}
 		}
-		
-		# collect server stats
-		my $path = $E->path;
-		if (-e $path) {
-			my $project = RepoProject->new($path);
-			if ($project) {
-				my ($size, $age) = $project->get_size_age;
-				if ($size) {
-					$E->size($size);
-				}
-				if ($age) {
-					$E->youngest_age($age);
-				}
-			}
-		}
-		else {
-			print " ! Missing project file path: $path";
-		}
 	} 
 	
-	printf " Finished processing %d Analysis project database entries\n", 
-		$skip_count + $update_count + $new_count;
-	printf "  %d skipped\n  %d updated\n  %d new\n", $skip_count, $update_count, 
-		$new_count;
+	# finished
+	return (\@update_list, \@new_list, $skip_count);
 }
 
 
@@ -290,9 +269,9 @@ sub fetch_requests {
 	$sth->execute();
 	
 	# walk through the database results
-	my $skip_count   = 0;
-	my $update_count = 0;
-	my $new_count    = 0;
+	my $skip_count = 0;
+	my @update_list;
+	my @new_list;
 	while (my @row = $sth->fetchrow_array) {
 		
 		# check date
@@ -315,7 +294,7 @@ sub fetch_requests {
 		my $E = $Catalog->entry($row[0]);
 		if ($E) {
 			# an existing project, just need to update 
-			$update_count++;
+			push @update_list, $row[0];
 			$E->request_status($row[11]);
 			
 			# check to see if we have a sb lab division
@@ -329,7 +308,7 @@ sub fetch_requests {
 		else {
 			# a brand new project
 			$E = $Catalog->new_entry($row[0]);
-			$new_count++;
+			push @new_list, $row[0];
 			
 			# let's fill it out
 			$E->path("/Repository/MicroarrayData/$year/$row[0]");
@@ -365,30 +344,10 @@ sub fetch_requests {
 				}
 			}
 		}
-		
-		# collect server stats
-		my $path = $E->path;
-		if (-e $path) {
-			my $project = RepoProject->new($E->path);
-			if ($project) {
-				my ($size, $age) = $project->get_size_age;
-				if ($size) {
-					$E->size($size);
-				}
-				if ($age) {
-					$E->youngest_age($age);
-				}
-			}
-		}
-		else {
-			print " ! Missing project file path: $path";
-		}
-		
-	} 
-	printf " Finished processing %d Experiment Request project database entries\n", 
-		$skip_count + $update_count + $new_count;
-	printf "  %d skipped\n  %d updated\n  %d new\n", $skip_count, $update_count, 
-		$new_count;
+	}
+	
+	# finished
+	return (\@update_list, \@new_list, $skip_count);
 }
 
 sub DESTROY {
