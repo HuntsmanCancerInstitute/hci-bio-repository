@@ -562,7 +562,7 @@ sub callback {
 	elsif ($file eq $Project->manifest_file) {
 		return;
 	}
-	elsif ($fname =~ m/^\.\/(?:bioanalysis|Sample.?QC|Library.?QC|Sequence.?QC)\//) {
+	elsif ($fname =~ m/^\.\/(?:bioanalysis|Sample.?QC|Library.?QC|Sequence.?QC|Cell.Prep.QC)\//) {
 		# these are QC samples in a bioanalysis or Sample of Library QC folder
 		# directly under the main project 
 		print "   > skipping bioanalysis file\n" if $verbose;

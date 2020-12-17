@@ -382,17 +382,101 @@ sub open_import_catalog {
 	
 	# import from database
 	if ($fetch_analysis or $fetch_request) {
-		my $G;
+		
+		# Initialize the GNomEx database adapter
 		eval {
 			require Gnomex; 
+		};
+		my $G;
+		if ($@) {
+			die "problem! $@\n";
+		}
+		else {
 			$G = Gnomex->new(
 				catalog => $Cat,
 				lab     => $labinfo_path,
-			);
-		};
+			) or die "can't instantiate Gnomex object!\n";
+		}
+		
 		if (defined $G) {
-			$G->fetch_analyses($year) if $fetch_analysis;
-			$G->fetch_requests($year) if $fetch_request;
+			
+			### Analysis
+			if ($fetch_analysis) {
+				print " Fetching new analysis projects from database...\n";
+				my ($update_list, $new_list, $skip_count) = $G->fetch_analyses($year);
+				printf " Finished processing %d Analysis project database entries\n", 
+					$skip_count + scalar(@$update_list) + scalar(@$new_list);
+				
+				# update information from the repository file server
+				if ($scan_size_age) {
+					foreach my $id (@$update_list, @$new_list) {
+						my $E = $Cat->entry($id);
+						my $path = $E->path;
+						if (-e $path) {
+							my $project = RepoProject->new($E->path);
+							if ($project) {
+								my ($size, $age) = $project->get_size_age;
+								if ($size) {
+									$E->size($size);
+								}
+								if ($age) {
+									$E->youngest_age($age);
+								}
+							}
+						}
+						else {
+							print " ! Missing project file path: $path";
+						}
+					}
+				}
+				else {
+					print " Don't forget to update file sizes and ages on the file server\n Run again with --update_size_age\n";
+				}
+				
+				# print report
+				printf "  %d skipped\n  %d updated\n  %d new\n", $skip_count, 
+					scalar(@$update_list), scalar(@$new_list);
+			}
+			
+			### Request
+			if ($fetch_request) {
+				print " Fetching new request projects from database...\n";
+				my ($update_list, $new_list, $skip_count) = $G->fetch_requests($year);
+				printf " Finished processing %d Experiment Request project database entries\n", 
+					$skip_count + scalar(@$update_list) + scalar(@$new_list);
+				
+				# update information from the repository file server
+				if ($scan_size_age) {
+					print "  Scanning file sizes and ages....\n";
+					foreach my $id (@$update_list, @$new_list) {
+						my $E = $Cat->entry($id);
+						my $path = $E->path;
+						if (-e $path) {
+							my $project = RepoProject->new($E->path);
+							if ($project) {
+								my ($size, $age) = $project->get_size_age;
+								if ($size) {
+									$E->size($size);
+								}
+								if ($age) {
+									$E->youngest_age($age);
+								}
+							}
+						}
+						else {
+							print " ! Missing project file path: $path";
+						}
+					}
+				}
+				else {
+					print " Don't forget to update file sizes and ages on the file server\n Run again with --update_size_age\n";
+				}
+				
+				# print report
+				printf "  %d skipped\n  %d updated\n  %d new\n", $skip_count, 
+					scalar(@$update_list), scalar(@$new_list);
+			}
+		
 		}
 		else {
 			die "Failed to initiate Gnomex database adapter! $@\n";

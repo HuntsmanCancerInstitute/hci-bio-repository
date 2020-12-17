@@ -86,16 +86,21 @@ else {
 	exit;
 }
 
-if (not $cat_file) {
-	unless ($division and $email) {
-		die "A catalog file and/or division and email must be provided!\n";
-	}
-}
 if (@ARGV) {
 	push @projects, @ARGV;
 }
 unless (@projects) {
 	die "One or more GNomEx project IDs (1234R or A5678) must be provided!\n";
+}
+if (not $division) {
+	unless ($cat_file) {
+		die "A catalog file or division must be provided!\n";
+	}
+}
+if (not $email and not $check_only) {
+	unless ($cat_file) {
+		die "An email address must be provided or catalog file provided to get the user's email!\n";
+	}
 }
 
 
@@ -119,7 +124,7 @@ foreach my $id (@projects) {
 	my $user_email = $email || undef;
 	my ($first, $last);
 	
-	if (not $curr_division or not $user_email) {
+	if ((not $curr_division or not $user_email) and $Catalog) {
 		# get catalog entry
 		my $Entry = $Catalog->entry($id);
 		unless ($Entry) {
@@ -131,13 +136,15 @@ foreach my $id (@projects) {
 			print "  $id does not have a valid division!? Skipping\n";
 			next;
 		}
-		$user_email = $Entry->user_email;
-		unless ($user_email) {
-			print "  Catalog entry does not have a user email!?\n Skipping\n";
-			next;
+		if (not $check_only and not $user_email) {
+			$user_email = $Entry->user_email;
+			unless ($user_email) {
+				print "  Catalog entry does not have a user email!?\n Skipping\n";
+				next;
+			}
+			$first = $Entry->user_first || undef;
+			$last = $Entry->user_last || undef;
 		}
-		$first = $Entry->user_first || undef;
-		$last = $Entry->user_last || undef;
 	}
 	
 	# get SB project
@@ -207,7 +214,12 @@ foreach my $id (@projects) {
 		}
 	}
 	
-	next if $check_only;
+	if ($check_only) {
+		if (not $pMember) {
+			print "  user not a member of project %s\n"
+		}
+		next;
+	}
 	
 	# permissions
 	my @permissions;
