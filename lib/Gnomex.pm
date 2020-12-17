@@ -146,9 +146,11 @@ sub new {
 		my $dsn = sprintf "dbi:ODBC:driver=%s;database=%s;Server=%s;port=%d;uid=%s;pwd=%s",
 			$opts{driver}, $opts{database}, $opts{server}, $opts{port}, $opts{user}, 
 			$opts{pass};
-		$opts{dbh} = DBI->connect($dsn) or 
+		$opts{dbh} = DBI->connect($dsn);
+		unless ($opts{dbh}) { 
 			carp "Can't connect to database! $DBI::errstr";
 			return;
+		}
 	}
 	else {
 		carp "Must pass GNomEx user name and password, or valid permissions file! No connection made";
