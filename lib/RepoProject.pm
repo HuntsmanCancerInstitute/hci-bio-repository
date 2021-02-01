@@ -701,12 +701,14 @@ sub _move_directory_files {
 	# process the removelist
 	foreach my $file (@$filelist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
-		my $sourcefile = $self->_check_file(
-			File::Spec->catfile($source, $dir, $basefile));
-		next unless $sourcefile;
-		(undef, $dir, $basefile) = File::Spec->splitpath($sourcefile); 
-			# regenerate these in case they've been changed
 		
+		# source file
+		my $sourcefile = $self->_check_file($source, $dir, $basefile);
+		unless ($sourcefile) {
+			print "   Missing $file\n" if $self->verbose;
+			next;
+		}
+		# destination
 		my $destinationdir = File::Spec->catdir($destination, $dir);
 		make_path($destinationdir); 
 			# this should safely skip existing directories
@@ -729,9 +731,11 @@ sub _delete_directory_files {
 	my $failure_count = 0;
 	foreach my $file (@$filelist) {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
-		my $targetfile = $self->_check_file(
-			File::Spec->catfile($target_dir, $dir, $basefile));
-		next unless $targetfile;
+		my $targetfile = $self->_check_file($target_dir, $dir, $basefile);
+		unless ($targetfile) {
+			print "   Missing $file\n" if $self->verbose;
+			next;
+		}
 		print "   DELETING $targetfile\n" if $self->verbose;
 		unlink($targetfile) or do {
 			print "   failed to remove $targetfile! $!\n";
@@ -743,16 +747,22 @@ sub _delete_directory_files {
 }
 
 sub _check_file {
-	my ($self, $file) = @_;
-	# check file exist and not a link
-	return undef unless $file;
-	return undef if -l $file;
-	return $file if -f $file;
-	# older versions may record the project folder in the name, so let's 
-	# try removing that
-	my $p = $self->id;
-	$file =~ s/^$p\///;
-	return $file if -f $file;
+	my ($self, $target_dir, $dir, $basefile) = @_;
+	return undef unless ($target_dir and $basefile);
+	my $targetfile = File::Spec->catfile($target_dir, $dir, $basefile);
+	if (-e $targetfile) {
+		# check file exist and not something else like a link
+		return $targetfile if -f _ ;
+		return undef;
+	}
+	else {
+		# older versions may record the project folder in the list file name, so let's 
+		# try removing that
+		my $p = $self->id;
+		$dir =~ s/^$p\///;
+		$targetfile = File::Spec->catfile($target_dir, $dir, $basefile);
+		return $targetfile if -e $targetfile and -f _ ;
+	}
 	return undef;	
 }
 
