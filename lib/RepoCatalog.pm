@@ -914,7 +914,7 @@ sub project_url {
 		return $self->{data}->[URL];
 	}
 	my $p = $self->division;
-	return unless defined $p;
+	return unless defined $p and length $p;
 	return sprintf("https://igor.sbgenomics.com/u/%s/%s", $p, lc($self->id) );
 }
 
