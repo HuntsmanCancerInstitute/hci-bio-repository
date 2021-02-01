@@ -1,5 +1,5 @@
 package RepoProject;
-our $VERSION = 5;
+our $VERSION = 5.1;
 
 =head1 NAME 
 
@@ -658,12 +658,28 @@ sub get_size_age {
 	$project_size    = 0;
 	$project_age     = 0;
 	
-	# induce fine
+	# collect data for given directory
 	find( {
 			follow => 0, # do not follow symlinks
 			wanted => \&_age_callback,
 		  }, $self->given_dir
 	);
+	
+	# add hidden directories too
+	if (-e $self->zip_folder) {
+		find( {
+				follow => 0, # do not follow symlinks
+				wanted => \&_age_callback,
+			  }, $self->zip_folder
+		);
+	}
+	if (-e $self->delete_folder) {
+		find( {
+				follow => 0, # do not follow symlinks
+				wanted => \&_age_callback,
+			  }, $self->delete_folder
+		);
+	}
 	
 	# return size in bytes and oldest posix age (youngest file)
 	return ($project_size, $project_age);
@@ -746,7 +762,7 @@ sub _age_callback {
 	# skip specific files, including SB preparation files
 	return if -d $file;
 	return if -l $file;
-	return if substr($file,0,1) eq '.'; # dot files are often hidden, backup, or OS stuff
+	return if substr($file,0,1) eq '.'; # dot files are usually hidden, backup, or OS stuff
 	return if $file eq $current_project->manifest_file;  
 	return if $file eq $current_project->zip_file;  
 	return if $file eq $current_project->ziplist_file;  
