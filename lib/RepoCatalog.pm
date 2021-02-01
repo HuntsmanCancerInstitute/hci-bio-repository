@@ -1,3 +1,6 @@
+package RepoCatalog;
+our $VERSION = 5.1;
+
 =head1 NAME 
 
 RepoCatalog - Indexed catalog database for HCI-Bio-Repository
@@ -152,9 +155,6 @@ to people time.
 
 
 
-
-package RepoCatalog;
-our $VERSION = 5;
 
 use strict;
 use Carp;
@@ -451,6 +451,7 @@ sub find_requests_to_upload {
 			$E->request_status eq 'COMPLETE' and
 			$E->division and 
 			substr($E->date, 0, 4) >= $year and
+			$E->age < 30 and
 			not $E->hidden_datestamp
 		) {
 			# we have a candidate
