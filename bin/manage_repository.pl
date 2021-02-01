@@ -102,7 +102,7 @@ manage_repository.pl --cat <file.db> --status A1234 A1235 A1236
   Actions on catalog file:
     --export <path>           Dump the contents to tab-delimited text file
     --transform               When exporting transform to human conventions
-    --import <path>           Import an exported table, requires non-transformed
+    --import_file <path>      Import an exported table, requires non-transformed
     
     --optimize                Run the db file optimize routine (!?)
   
@@ -427,7 +427,7 @@ sub open_import_catalog {
 							}
 						}
 						else {
-							print " ! Missing project file path: $path";
+							print " ! Missing project file path: $path\n";
 						}
 					}
 				}
