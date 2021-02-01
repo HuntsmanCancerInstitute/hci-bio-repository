@@ -437,8 +437,8 @@ sub find_requests_to_upload {
 	my $self = shift;
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
-	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 25000000;
-		# set the minimum size to 25 MB
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 100000000;
+		# set the minimum size to 100 MB
 	
 	# scan through list
 	my @list;
