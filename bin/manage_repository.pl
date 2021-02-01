@@ -1277,11 +1277,18 @@ sub print_functions {
 			my @delete = localtime($Entry->deleted_datestamp || 0);
 			my $delete_day = ($delete[5] == 69 or $delete[5] == 70) ? '          ' : 
 				sprintf("%04d-%02d-%02d", $delete[5] + 1900, $delete[4] + 1, $delete[3]);
-		
+			
+			# division
+			my $division = 'none'; # default
+			my $e = $Entry->external; # default is undefined
+			if (defined $e) {
+				$division = $e eq 'Y' ? 'external' : $Entry->division || 'none';
+			}
+			
 			# print
-			printf "%-6s\t%-7s\t%-5s\t%s\t%s\t%s\t%s\t%s\n", $id, $size, $Entry->age || '', 
-				$scan_day, $up_day, $hide_day, $delete_day, 
-				$Entry->external eq 'Y' ? 'external' : $Entry->division || 'none';
+			printf "%-6s\t%-7s\t%-5s\t%s\t%s\t%s\t%s\t%s\n", $id, $size, 
+				$Entry->age || '?', $scan_day, $up_day, $hide_day, $delete_day, 
+				$division;
 		}
 	}
 	
