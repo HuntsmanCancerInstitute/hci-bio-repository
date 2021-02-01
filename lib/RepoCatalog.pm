@@ -263,7 +263,10 @@ sub entry {
 
 sub new_entry {
 	my ($self, $project) = @_;
-	confess "no project provided!" unless defined $project;
+	unless ($project) {
+		carp "no project identifier provided!";
+		return;
+	}
 	if ( $self->{db}->exists($project) ) {
 		carp (" project $project exists!\n");
 		# go ahead and return the entry
@@ -274,8 +277,15 @@ sub new_entry {
 		# the project ID is always the first element in the array
 		# path is always the second, and we can calculate that
 		# for very early projects, the calculated path may not be accurate
-		$self->{db}->put($project, [$project, $self->calculate_path($project)] );
-		return RepoEntry->new( $self->{db}->get($project) );
+		# $self->{db}->put($project, [$project, $self->calculate_path($project)] );
+		my @data = ($project, map {""} (1..25));
+		my $p = $self->{db}->put($project, \@data);
+		if ($p) {
+			return RepoEntry->new( $self->{db}->get($project) );
+		}
+		else {
+			confess("unable to store a new entry in database!");
+		}
 	}
 }
 
