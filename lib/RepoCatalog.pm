@@ -419,7 +419,7 @@ sub import_from_file {
 	}
 	
 	# import one at a time
-	my $i = 1;
+	my $i = 0;
 	while (my $line = $fh->getline) {
 		chomp $line;
 		my @data = split "\t", $line;
