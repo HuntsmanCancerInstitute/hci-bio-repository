@@ -11,7 +11,7 @@ use RepoCatalog;
 use RepoProject;
 
 
-my $VERSION = 5;
+my $VERSION = 5.1;
 
 
 ######## Documentation
@@ -627,7 +627,7 @@ sub run_metadata_actions {
 		unless (@action_list) {
 			die "No list provided to scan filesystem for size and age!\n";
 		}
-		my $i = 0;
+		my $count = 0;
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
@@ -640,9 +640,9 @@ sub run_metadata_actions {
 			if ($age) {
 				$Entry->youngest_age($age);
 			}
-			$i++;
+			$count++;
 		}
-		print " Collected and updated size and age stats for $i entries\n";
+		print " Collected and updated size and age stats for $count entries\n";
 	}
 
 	# import sizes from file
@@ -650,6 +650,7 @@ sub run_metadata_actions {
 		unless (@action_list) {
 			die "No list provided to import sizes!\n";
 		}
+		my $count = 0;
 		foreach my $item (@action_list) {
 			my ($id, $size, $previous_size) = split(m/\s+/, $item);
 			next unless (defined $id);
@@ -661,7 +662,9 @@ sub run_metadata_actions {
 			elsif (defined $size) {
 				$Entry->size($size);
 			}
+			$count++;
 		}
+		print "  updated sizes for $count entries\n";
 	}
 	
 	# update the metadata scan date
@@ -671,12 +674,15 @@ sub run_metadata_actions {
 		unless (@action_list) {
 			die "No list provided to update scan times!\n";
 		}
+		my $count = 0;
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->scan_datestamp($time);
+			$count++;
 		}
+		print "  updated scan date for $count entries\n";
 	}
 
 	# update the metadata upload date
@@ -686,12 +692,15 @@ sub run_metadata_actions {
 		unless (@action_list) {
 			die "No list provided to update upload times!\n";
 		}
+		my $count = 0;
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->upload_datestamp($time);
+			$count++;
 		}
+		print "  updated upload date for $count entries\n";
 	}
 
 	# update the metadata hide date
@@ -701,12 +710,15 @@ sub run_metadata_actions {
 		unless (@action_list) {
 			die "No list provided to update hide times!\n";
 		}
+		my $count = 0;
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->hidden_datestamp($time);
+			$count++;
 		}
+		print "  updated hide date for $count entries\n";
 	}
 
 	# update the metadata deletion date
@@ -716,12 +728,15 @@ sub run_metadata_actions {
 		unless (@action_list) {
 			die "No list provided to update delete times!\n";
 		}
+		my $count = 0;
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->deleted_datestamp($time);
+			$count++;
 		}
+		print "  updated deletion date for $count entries\n";
 	}
 
 	# update the metadata email date
@@ -731,12 +746,15 @@ sub run_metadata_actions {
 		unless (@action_list) {
 			die "No list provided to update email times!\n";
 		}
+		my $count = 0;
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->emailed_datestamp($time);
+			$count++;
 		}
+		print "  updated email date for $count entries\n";
 	}
 
 	# update the seven bridges division name
@@ -748,12 +766,15 @@ sub run_metadata_actions {
 		if ($update_division eq 'none') {
 			$update_division = '';
 		}
+		my $count = 0;
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->division($update_division);
+			$count++;
 		}
+		print "  updated division name for $count entries\n";
 	}
 	
 }
