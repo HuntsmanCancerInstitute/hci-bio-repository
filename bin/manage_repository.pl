@@ -287,7 +287,8 @@ sub check_options {
 	}
 
 	# request search
-	my $sanity = $list_req_upload + $list_req_hide + $list_req_delete + $list_all + $list_pi;
+	my $sanity = $list_req_upload + $list_req_hide + $list_req_delete + $list_all + 
+		($list_pi ? 1 : 0);
 	if ($sanity > 1) {
 		die "Only 1 Request search allowed at a time!\n";
 	}
@@ -300,7 +301,8 @@ sub check_options {
 	
 	# analysis search
 	$sanity = 0;
-	$sanity = $list_anal_upload + $list_anal_hide + $list_anal_delete + $list_all + $list_pi;
+	$sanity = $list_anal_upload + $list_anal_hide + $list_anal_delete + $list_all + 
+		($list_pi ? 1 : 0);
 	if ($sanity > 1) {
 		die "Only 1 Analysis search allowed at a time!\n";
 	}
@@ -1332,9 +1334,13 @@ sub print_functions {
 	elsif (
 		# check to see if we have a list of IDs that were from a search
 		@action_list and
-		($list_req_upload or $list_req_hide or $list_req_delete or
-		 $list_anal_upload or $list_anal_hide or $list_anal_delete or 
-		 $list_pi or $list_all)
+		(
+			$list_req_upload or $list_req_hide or $list_req_delete or
+			$list_anal_upload or $list_anal_hide or $list_anal_delete or 
+		 	$list_pi or ($list_all and 
+		 		($year or $min_age or $max_age or $min_size or $external)
+			)
+		)
 	) {
 		# just print them
 		printf "%s\n", join("\n", @action_list);
