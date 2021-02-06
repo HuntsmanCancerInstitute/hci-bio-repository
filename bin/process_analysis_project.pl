@@ -14,7 +14,7 @@ use RepoCatalog;
 use Emailer;
 
 
-my $version = 5;
+my $version = 5.1;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -88,12 +88,10 @@ Options:
                         Recognized forms will be simplified by regex.
 
  Options
-    --gz                GZip compress known text files while scanning
     --zip               Zip archive small files when scanning
     --all               Mark everything, including Analysis files, for deletion
     --desc "text"       Description for new SB project when uploading. 
                         Can be Markdown text.
-    --mingz <integer>   Minimum size in bytes to gzip text files (10 KB)
     --maxzip <integer>  Maximum size in bytes to avoid zip archiving (200 MB)
     --keepzip           Do not hide files that have been zip archived
     --delzip            Immediately delete files that have been zip archived
@@ -119,7 +117,6 @@ END
 my $path;
 my $scan;
 my $zip;
-my $gzip;
 my $hide_files;
 my $upload;
 my $cat_file;
@@ -131,7 +128,6 @@ my $group               = q();
 my $species             = q();
 my $genome              = q();
 my $description         = q();
-my $min_gz_size         = 10000;     # 10 KB
 my $max_zip_size        = 200000000; # 200 MB
 my $keepzip             = 0;
 my $deletezip           = 0;
@@ -147,7 +143,6 @@ if (scalar(@ARGV) > 1) {
 	GetOptions(
 		'scan!'         => \$scan,
 		'zip!'          => \$zip,
-		'gz!'           => \$gzip,
 		'hide!'         => \$hide_files,
 		'upload!'       => \$upload,
 		'catalog=s'     => \$cat_file,
@@ -159,7 +154,6 @@ if (scalar(@ARGV) > 1) {
 		'species=s'     => \$species,
 		'genome=s'      => \$genome,
 		'desc=s'        => \$description,
-		'mingz=i'       => \$min_gz_size,
 		'keepzip!'      => \$keepzip,
 		'delzip!'       => \$deletezip,
 		'notify!'       => \$send_email,
@@ -256,19 +250,30 @@ my $failure_count = 0;
 my $post_zip_size = 0;
 
 # external commands
-my ($gzipper, $zipper);
-if ($gzip) {
+my ($gzipper, $bgzipper, $zipper);
+{
+	# preferentially use threaded gzip compression
 	$gzipper = `which pigz`;
 	chomp $gzipper;
 	if ($gzipper) {
 		$gzipper .= ' -p 4'; # run with four cores
 	}
 	else {
-		# hope it's available - should be
+		# default to ordinary gzip
 		$gzipper = 'gzip';
 	}
-}
-if ($zip) {
+	$bgzipper = `which bgzip`;
+	
+	# bgzip is desirable when we auto compress certain files
+	chomp $bgzipper;
+	if ($bgzipper) {
+		$bgzipper .= ' -@ 4'; # run with four cores
+	}
+	else {
+		# default to using standard gzip compression
+		$bgzipper = $gzipper;
+	}
+	
 	# An extensive internet search reveals no parallelized zip archiver, despite
 	# there being a parallelized version of gzip, when both use the common DEFLATE 
 	# algorithm. So we just run plain old zip.
@@ -394,8 +399,9 @@ if ($verbose) {
 	print " =>             SB path: $sb_path\n" if $sb_path;
 	print " =>    SB uploader path: $sbupload_path\n" if $sbupload_path;
 	print " => SB credentials path: $cred_path\n" if $cred_path;
-	print " =>    gzip compression: $gzipper\n" if $gzip;
-	print " =>         zip utility: $zipper\n" if $zip;
+	print " =>    gzip compression: $gzipper\n";
+	print " =>   bgzip compression: $bgzipper\n";
+	print " =>         zip utility: $zipper\n";
 }
 
 # file paths
@@ -919,25 +925,6 @@ sub callback {
 		$filedata{$fname}{zip} = 1;
 	}
 	
-	# Compress individual files
-	if (
-		$gzip and 
-		($filetype eq 'Text' or $filetype eq 'Annotation' or $filetype eq 'Wiggle' or $filetype eq 'Sequence') and 
-		$file !~ /\.(?:gz|fai)$/i and 
-		$size > $min_gz_size
-	) {
-		# We have a known, big, text file that is not compressed and needs to be
-		my $command = sprintf "%s \"%s\"", $gzipper, $file;
-		if (system($command)) {
-			print "   ! gzip command '$command' failed!\n";
-			$failure_count++;
-		}
-		else {
-			# succesfull compression! update values
-			print "   > gzip compressed $file\n" if $verbose;
-			$file .= '.gz';
-			$clean_name .= '.gz';
-			($date, $size) = get_file_stats($file);
 		}
 	}
 	
