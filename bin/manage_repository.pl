@@ -1135,7 +1135,7 @@ sub run_email_notifications {
 	if ($email_anal_del or $email_anal_up or $email_req_del or $email_req_up) {
 		eval {
 			require Emailer;
-			$Email->new();
+			$Email = Emailer->new();
 		};
 		unless ($Email) {
 			die " Unable to initialize Emailer! $@\n";
