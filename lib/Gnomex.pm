@@ -1,6 +1,6 @@
 package Gnomex;
 
-our $VERSION = 5;
+our $VERSION = 5.1;
 
 =head1 NAME 
 
@@ -192,6 +192,12 @@ sub fetch_analyses {
 	my @new_list;
 	while (my @row = $sth->fetchrow_array) {
 		
+		# check
+		unless ($row[0]) {
+			printf " database returned an item without an identifier: %s\n", join ", ", @row;
+			next;
+		}
+		
 		# check date
 		$row[2] =~ s/ \d\d:\d\d:\d\d\.\d+$//; # clean up time from date
 		my ($year) = $row[2] =~ /^(\d{4})/;
@@ -212,19 +218,39 @@ sub fetch_analyses {
 		my $E = $Catalog->entry($row[0]);
 		if ($E) {
 			# an existing project, just need to update 
-			push @update_list, $row[0];
+			my $u = 0;
 			
 			# basically check to see if we have a sb lab division
-			if ($E->external eq 'N' and not $E->division) {
+			if ($E->external eq 'N') {
+				# for university clients only
 				my $lab = sprintf("%s %s", $row[7], $row[8]);
-				if (exists $lab2info->{$lab} and $lab2info->{$lab}->[1] eq 'Y') {
-					$E->division($lab2info->{$lab}->[2]);
+				if (exists $lab2info->{$lab}) {
+					if ($E->division ne $lab2info->{$lab}->[2]) {
+						# there's a difference here
+						# we assume the lab information file is correct and updated
+						if ($lab2info->{$lab}->[1] eq 'Y') {
+							$E->division($lab2info->{$lab}->[2]);
+							$u++;
+						}
+						elsif ($lab2info->{$lab}->[1] eq 'N') {
+							$E->division(''); # blank
+							$u++;
+						}
+						else {
+							print " Lab information file 'allow.upload' field unrecognizable for lab '$lab'\n!";
+						}
+					}
 				}
 			}
+			push @update_list, $row[0] if $u;
 		}
 		else {
 			# a brand new project
 			$E = $Catalog->new_entry($row[0]);
+			unless ($E) {
+				printf " failed to create database entry for '%s', skipping\n", $row[0];
+				next;
+			}
 			push @new_list, $row[0];
 			
 			# let's fill it out
@@ -284,6 +310,12 @@ sub fetch_requests {
 	my @new_list;
 	while (my @row = $sth->fetchrow_array) {
 		
+		# check
+		unless ($row[0]) {
+			printf " database returned an item without an identifier: %s\n", join ", ", @row;
+			next;
+		}
+		
 		# check date
 		$row[2] =~ s/ \d\d:\d\d:\d\d\.\d+$//; # clean up time from date
 		my ($year) = $row[2] =~ /^(\d{4})/;
@@ -303,21 +335,47 @@ sub fetch_requests {
 		# get entry
 		my $E = $Catalog->entry($row[0]);
 		if ($E) {
-			# an existing project, just need to update 
-			push @update_list, $row[0];
-			$E->request_status($row[11]);
+			# update existing project as necessary
+			# basically just two database fields we're really concerned about here
+			my $u = 0;
 			
-			# check to see if we have a sb lab division
-			if ($E->external eq 'N' and not $E->division) {
+			# status
+			if ($E->request_status ne $row[11]) {
+				$E->request_status($row[11]);
+				$u++;
+			}
+			
+			# sb lab division 
+			if ($E->external eq 'N') {
+				# for university clients only
 				my $lab = sprintf("%s %s", $row[7], $row[8]);
-				if (exists $lab2info->{$lab} and $lab2info->{$lab}->[1] eq 'Y') {
-					$E->division($lab2info->{$lab}->[2]);
+				if (exists $lab2info->{$lab}) {
+					if ($E->division ne $lab2info->{$lab}->[2]) {
+						# there's a difference here
+						# we assume the lab information file is correct and updated
+						if ($lab2info->{$lab}->[1] eq 'Y') {
+							$E->division($lab2info->{$lab}->[2]);
+							$u++;
+						}
+						elsif ($lab2info->{$lab}->[1] eq 'N') {
+							$E->division(''); # blank
+							$u++;
+						}
+						else {
+							print " Lab information file 'allow.upload' field unrecognizable for lab '$lab'\n!";
+						}
+					}
 				}
 			}
+			push @update_list, $row[0] if $u;
 		}
 		else {
 			# a brand new project
 			$E = $Catalog->new_entry($row[0]);
+			unless ($E) {
+				printf " failed to create database entry for '%s', skipping\n", $row[0];
+				next;
+			}
 			push @new_list, $row[0];
 			
 			# let's fill it out
