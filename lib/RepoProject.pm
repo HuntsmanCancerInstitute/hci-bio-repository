@@ -518,10 +518,12 @@ sub unhide_deleted_files {
 		$failure_count += $self->clean_empty_directories($self->delete_folder);
 		
 		# hide remove list
-		move($self->remove_file, $self->alt_remove_file) or do {
-			printf "   failed to hide $%s! $!\n", $self->remove_file;
-			$failure_count++;
-		};
+		if (-e $self->remove_file) {
+			move($self->remove_file, $self->alt_remove_file) or do {
+				printf "   failed to unhide %s! $!\n", $self->remove_file;
+				$failure_count++;
+			};
+		}
 		
 		# remove notice file
 		if (-e $self->notice_file) {
