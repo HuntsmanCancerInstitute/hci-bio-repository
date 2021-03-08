@@ -466,7 +466,7 @@ sub open_import_catalog {
 							}
 						}
 						else {
-							print " ! Missing project file path: $path";
+							print " ! Missing project file path: $path\n";
 						}
 					}
 				}

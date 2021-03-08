@@ -261,9 +261,9 @@ my ($gzipper, $bgzipper, $zipper);
 		# default to ordinary gzip
 		$gzipper = 'gzip';
 	}
-	$bgzipper = `which bgzip`;
 	
 	# bgzip is desirable when we auto compress certain files
+	$bgzipper = `which bgzip`;
 	chomp $bgzipper;
 	if ($bgzipper) {
 		$bgzipper .= ' -@ 4'; # run with four cores
