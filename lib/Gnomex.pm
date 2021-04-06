@@ -1,6 +1,6 @@
 package Gnomex;
 
-our $VERSION = 5.1;
+our $VERSION = 5.2;
 
 =head1 NAME 
 
@@ -225,21 +225,27 @@ sub fetch_analyses {
 				# for university clients only
 				my $lab = sprintf("%s %s", $row[7], $row[8]);
 				if (exists $lab2info->{$lab}) {
-					if ($E->division ne $lab2info->{$lab}->[2]) {
+					if (
+						# check length of values to ensure comparing real values
+						(length($E->division) > 1 or length($lab2info->{$lab}->[2]) > 1)
+						and $E->division ne $lab2info->{$lab}->[2]
+					) {
 						# there's a difference here
 						# we assume the lab information file is correct and updated
 						if ($lab2info->{$lab}->[1] eq 'Y') {
+							printf "  > updating division for %s from '%s' to '%s'\n", $row[0], $E->division, $lab2info->{$lab}->[2];
 							$E->division($lab2info->{$lab}->[2]);
 							$u++;
 						}
-						elsif ($lab2info->{$lab}->[1] eq 'N') {
+						elsif ($lab2info->{$lab}->[1] eq 'N' and length($E->division) > 1) {
+							printf "  > removing division '%s' from %s\n", $E->division, $row[0];
 							$E->division(''); # blank
 							$u++;
 						}
-						else {
-							print " Lab information file 'allow.upload' field unrecognizable for lab '$lab'\n!";
-						}
 					}
+				}
+				else {
+					print " ! Missing lab information for '$lab'!\n";
 				}
 			}
 			push @update_list, $row[0] if $u;
@@ -350,21 +356,27 @@ sub fetch_requests {
 				# for university clients only
 				my $lab = sprintf("%s %s", $row[7], $row[8]);
 				if (exists $lab2info->{$lab}) {
-					if ($E->division ne $lab2info->{$lab}->[2]) {
+					if (
+						# check length of values to ensure comparing real values
+						(length($E->division) > 1 or length($lab2info->{$lab}->[2]) > 1)
+						and $E->division ne $lab2info->{$lab}->[2]
+					) {
 						# there's a difference here
 						# we assume the lab information file is correct and updated
 						if ($lab2info->{$lab}->[1] eq 'Y') {
+							printf "  > updating division for %s from '%s' to '%s'\n", $row[0], $E->division, $lab2info->{$lab}->[2];
 							$E->division($lab2info->{$lab}->[2]);
 							$u++;
 						}
-						elsif ($lab2info->{$lab}->[1] eq 'N') {
+						elsif ($lab2info->{$lab}->[1] eq 'N' and length($E->division) > 1) {
+							printf "  > removing division '%s' from %s\n", $E->division, $row[0];
 							$E->division(''); # blank
 							$u++;
 						}
-						else {
-							print " Lab information file 'allow.upload' field unrecognizable for lab '$lab'\n!";
-						}
 					}
+				}
+				else {
+					print " ! Missing lab information for '$lab'!\n";
 				}
 			}
 			push @update_list, $row[0] if $u;
@@ -408,7 +420,7 @@ sub fetch_requests {
 					}
 				}
 				else {
-					print " > Missing lab information for '$lab'!\n";
+					print " ! Missing lab information for '$lab'!\n";
 				}
 			}
 		}
