@@ -14,7 +14,7 @@ use RepoCatalog;
 use RepoProject;
 use Emailer;
 
-my $version = 5;
+my $version = 5.1;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -207,11 +207,13 @@ my $failure_count = 0;
 
 # our sequence machine IDs to platform technology lookup
 my %machinelookup = (
-	'D00550'  => 'Illumina HiSeq',
-	'D00294'  => 'Illumina HiSeq',
-	'A00421'  => 'Illumina NovaSeq',
+	'D00550'  => 'Illumina HiSeq', # 2500
+	'D00294'  => 'Illumina HiSeq', # 2500
+	'A00421'  => 'Illumina NovaSeq', # 6000
 	'M05774'  => 'Illumina MiSeq',
 	'M00736'  => 'Illumina MiSeq',
+	'DQNZZQ1' => 'Illumina HiSeq', # 2000
+	'HWI-ST1117' => 'Illumina HiSeq', # 2000
 );
 
 # experimental strategy
@@ -664,6 +666,17 @@ sub callback {
 			$machineID = $1;
 		}
 	}
+	# really old single-end file: 9428X9_120926_SN1117_0117_AC168KACXX_8.txt.gz
+	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_SN\d+_\d+_[A-Z\d]+_(\d)\.txt\.gz$/) {
+		$sample = $1;
+		$laneID = $2;
+		$pairedID = 1;
+		# must grab the machine ID from the read name
+		my $head = qx(gzip -dc $file | head -n 1);
+		if ($head =~ /^@([A-Z\d\-]+):/) {
+			$machineID = $1;
+		}
+	}
 	# undetermined file: Undetermined_S0_L001_R1_001.fastq.gz
 	elsif ($file =~ m/^Undetermined_.+\.fastq\.gz$/) {
 		$sample = 'undetermined';
@@ -722,6 +735,14 @@ sub callback {
 		print "   ! skipping demultiplexing file $fname!\n";
 		return;
 	}
+	elsif ($file eq $Project->ziplist_file) {
+		# really old projects might still have these - keep it
+		print "   ! old archive list file $file present\n";
+	}
+	elsif ($file eq $Project->zip_file) {
+		# really old projects might still have these - keep it
+		print "   ! old archive zip file $file present\n";
+	}
 	else {
 		# programmer error!
 		print "   ! unrecognized file $fname!\n";
@@ -741,7 +762,7 @@ sub callback {
 	$filedata{$fname}{date} = strftime("%B %d, %Y %H:%M:%S", localtime($st[9]));
 	$filedata{$fname}{size} = $st[7];
 	
-	print "   > processed fastq file\n" if $verbose;
+	print "   > processed file\n" if $verbose;
 }
 
 
