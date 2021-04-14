@@ -1,6 +1,6 @@
 package Gnomex;
 
-our $VERSION = 5.2;
+our $VERSION = 5.3;
 
 =head1 NAME 
 
@@ -225,6 +225,8 @@ sub fetch_analyses {
 				# for university clients only
 				my $lab = sprintf("%s %s", $row[7], $row[8]);
 				if (exists $lab2info->{$lab}) {
+					
+					# check SBG division
 					if (
 						# check length of values to ensure comparing real values
 						(length($E->division) > 1 or length($lab2info->{$lab}->[2]) > 1)
@@ -243,12 +245,31 @@ sub fetch_analyses {
 							$u++;
 						}
 					}
+					
+					# check lab PI email
+					if (
+						length($lab2info->{$lab}->[0]) > 1 and 
+						$lab2info->{$lab}->[0] ne $E->pi_email
+					) {
+						printf "  > updating PI %s %s email address for %s\n", $E->lab_first, 
+							$E->lab_last, $E->id;
+						$E->pi_email($lab2info->{$lab}->[0]);
+						$u++;
+					}
 				}
 				else {
 					print " ! Missing lab information for '$lab'!\n";
 				}
 			}
 			push @update_list, $row[0] if $u;
+			
+			# check user email address
+			if ($row[4] ne $E->user_email) {
+				printf "  > updating user %s %s email address for %s\n", $E->user_first, 
+					$E->user_last, $E->id;
+				$E->user_email($row[4]);
+				$u++;
+			}
 		}
 		else {
 			# a brand new project
@@ -356,6 +377,8 @@ sub fetch_requests {
 				# for university clients only
 				my $lab = sprintf("%s %s", $row[7], $row[8]);
 				if (exists $lab2info->{$lab}) {
+					
+					# check SBG division
 					if (
 						# check length of values to ensure comparing real values
 						(length($E->division) > 1 or length($lab2info->{$lab}->[2]) > 1)
@@ -374,12 +397,31 @@ sub fetch_requests {
 							$u++;
 						}
 					}
+					
+					# check lab PI email
+					if (
+						length($lab2info->{$lab}->[0]) > 1 and 
+						$lab2info->{$lab}->[0] ne $E->pi_email
+					) {
+						printf "  > updating PI %s %s email address for %s\n", $E->lab_first, 
+							$E->lab_last, $E->id;
+						$E->pi_email($lab2info->{$lab}->[0]);
+						$u++;
+					}
 				}
 				else {
 					print " ! Missing lab information for '$lab'!\n";
 				}
 			}
 			push @update_list, $row[0] if $u;
+			
+			# check user email address
+			if ($row[4] ne $E->user_email) {
+				printf "  > updating user %s %s email address for %s\n", $E->user_first, 
+					$E->user_last, $E->id;
+				$E->user_email($row[4]);
+				$u++;
+			}
 		}
 		else {
 			# a brand new project
