@@ -1335,7 +1335,7 @@ sub print_functions {
 			
 			# print
 			printf "%-6s\t%-7s\t%-5s\t%s\t%s\t%s\t%s\t%s\n", $id, $size, 
-				$Entry->age || '?', $scan_day, $up_day, $hide_day, $delete_day, 
+				$Entry->age || 0, $scan_day, $up_day, $hide_day, $delete_day, 
 				$division;
 		}
 	}
