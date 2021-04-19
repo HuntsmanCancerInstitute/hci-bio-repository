@@ -14,7 +14,7 @@ use RepoCatalog;
 use Emailer;
 
 
-my $version = 5.1;
+my $version = 5.2;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -462,6 +462,14 @@ if ($scan) {
 	printf " > scanning project %s in directory %s\n", $Project->id, 
 		$Project->parent_dir;
 	scan_directory();
+	
+	# update scan time stamp
+	if ($cat_file and not $failure_count) {
+		my $Catalog = RepoCatalog->new($cat_file) if -e $cat_file;
+		my $Entry = $Catalog->entry($Project->id) if $Catalog;
+		$Entry->scan_datestamp(time);
+		print " > updated Catalog scan date stamp\n";
+	}
 }
 
 
@@ -509,11 +517,9 @@ else {
 		my $Entry = $Catalog->entry($Project->id) if $Catalog;
 		if ($Entry) {
 			my $t = time;
-			if ($scan) {
-				$Entry->scan_datestamp($t);
-			}
 			if ($upload) {
 				$Entry->upload_datestamp($t);
+				print " > updated Catalog upload date stamp\n";
 				
 				# send an upload notification email
 				if ($send_email) {
@@ -534,6 +540,7 @@ else {
 							printf " > Sent Analysis SB upload notification email: %s\n", 
 								$result->message;
 							$Entry->emailed_datestamp($t);
+							print " > updated Catalog email date stamp\n";
 						}
 						else {
 							print " ! Failed to send Analysis upload notification email!\n";
@@ -546,18 +553,18 @@ else {
 			}
 			if ($hide_files) {
 				$Entry->hidden_datestamp($t);
+				print " > updated Catalog hide date stamp\n";
 			}
-			print " > updated catalog entry\n";
 		}
 		else {
-			print " ! failed to update catalog entry!\n";
+			print " ! no catalog entry to update!?\n";
 		}
 	}
 	printf " > finished with %s in %.1f minutes\n\n", $Project->id, 
 		(time - $start_time)/60;
 }
 
-
+exit;
 
 
 
