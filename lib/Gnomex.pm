@@ -190,6 +190,7 @@ sub fetch_analyses {
 	my $skip_count = 0;
 	my @update_list;
 	my @new_list;
+	my @nochange_list;
 	while (my @row = $sth->fetchrow_array) {
 		
 		# check
@@ -261,7 +262,6 @@ sub fetch_analyses {
 					print " ! Missing lab information for '$lab'!\n";
 				}
 			}
-			push @update_list, $row[0] if $u;
 			
 			# check user email address
 			if ($row[4] ne $E->user_email) {
@@ -270,6 +270,15 @@ sub fetch_analyses {
 				$E->user_email($row[4]);
 				$u++;
 			}
+			
+			# add to return lists
+			if ($u) {
+				push @update_list, $row[0];
+			}
+			else {
+				push @nochange_list, $row[0];
+			}
+			
 		}
 		else {
 			# a brand new project
@@ -317,7 +326,7 @@ sub fetch_analyses {
 	} 
 	
 	# finished
-	return (\@update_list, \@new_list, $skip_count);
+	return (\@update_list, \@new_list, \@nochange_list, $skip_count);
 }
 
 
@@ -335,6 +344,7 @@ sub fetch_requests {
 	my $skip_count = 0;
 	my @update_list;
 	my @new_list;
+	my @nochange_list;
 	while (my @row = $sth->fetchrow_array) {
 		
 		# check
@@ -413,7 +423,6 @@ sub fetch_requests {
 					print " ! Missing lab information for '$lab'!\n";
 				}
 			}
-			push @update_list, $row[0] if $u;
 			
 			# check user email address
 			if ($row[4] ne $E->user_email) {
@@ -422,6 +431,15 @@ sub fetch_requests {
 				$E->user_email($row[4]);
 				$u++;
 			}
+			
+			# add to return lists
+			if ($u) {
+				push @update_list, $row[0];
+			}
+			else {
+				push @nochange_list, $row[0];
+			}
+			
 		}
 		else {
 			# a brand new project
@@ -469,7 +487,7 @@ sub fetch_requests {
 	}
 	
 	# finished
-	return (\@update_list, \@new_list, $skip_count);
+	return (\@update_list, \@new_list, \@nochange_list, $skip_count);
 }
 
 sub DESTROY {
