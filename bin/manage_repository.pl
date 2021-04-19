@@ -331,6 +331,13 @@ sub check_options {
 	if ($year and $year !~ /\d{4}/) {
 		die "year must be four digits!\n";
 	}
+	if (($fetch_analysis or $fetch_request) and not $year) {
+		# set default year based on a calculation
+		# year is 60 * 60 * 24 * 365 = 31536000 seconds
+		my $n = $fetch_analysis ? 63072000 : 31536000; # 2 years Analysis, 1 Request
+		my @t = localtime(time - $n);
+		$year = $t[5] + 1900;
+	}
 	
 	# external
 	if (defined $external) {
