@@ -285,7 +285,7 @@ sub check_options {
 	unless ($cat_file) {
 		die "No catalog file provided!\n";
 	}
-
+	
 	# request search
 	my $sanity = $list_req_upload + $list_req_hide + $list_req_delete + $list_all + 
 		($list_pi ? 1 : 0);
@@ -295,8 +295,8 @@ sub check_options {
 	elsif ($sanity == 1) {
 		die "No search functions allowed if exporting!\n" if $dump_file;
 		die "No search functions allowed if importing!\n" if $import_file;
-		die "No search functions allowed if fetching from database!\n" if 
-			($fetch_analysis or $fetch_request);
+# 		die "No search functions allowed if fetching from database!\n" if 
+# 			($fetch_analysis or $fetch_request);
 	}
 	
 	# analysis search
@@ -309,8 +309,8 @@ sub check_options {
 	elsif ($sanity == 1) {
 		die "No search functions allowed if exporting!\n" if $dump_file;
 		die "No search functions allowed if importing!\n" if $import_file;
-		die "No search functions allowed if fetching from database!\n" if 
-			($fetch_analysis or $fetch_request);
+# 		die "No search functions allowed if fetching from database!\n" if 
+# 			($fetch_analysis or $fetch_request);
 	}
 	
 	# print function
@@ -526,7 +526,7 @@ sub open_import_catalog {
 				$skip_count, scalar(@$nochange_list), scalar(@$update_list), 
 				scalar(@$new_list);
 		}
-		exit;
+	
 	}
 	
 	return $Cat;
@@ -535,42 +535,41 @@ sub open_import_catalog {
 
 sub generate_list {
 	
-	# generate a list of project identifiers to work on
-	my @action_list;
-	
 	# Go through possible ways of generating the list, only one allowed
 	
 	# command line
 	if (@ARGV) {
-		@action_list = @ARGV;
+		return @ARGV;
 	}
 	
 	# input file
 	elsif ($list_file) {
 		my $fh = IO::File->new($list_file) or 
 			die "Cannot open import file '$list_file'! $!\n";
+		my @list;
 		
 		# check header
 		my $header = $fh->getline;
 		if ($header =~ m/^(?:\d+R|A\d+)/) {
 			# the first line looks like a project identifier, so keep it
 			chomp $header;
-			push @action_list, $header;
+			push @list, $header;
 		}
 		
 		# load remaining file
 		while (my $l = $fh->getline) {
 			chomp $l;
-			push @action_list, $l;
+			push @list, $l;
 		}
 		
 		# printf " loaded %d lines from $list_file\n", scalar(@action_list);
 		$fh->close;
+		return @list;
 	}
 	
 	# search for all entries
 	elsif ($list_all) {
-		@action_list = $Catalog->list_all(
+		return $Catalog->list_all(
 			age      => $min_age, 
 			maxage   => $max_age,
 			year     => $year, 
@@ -583,7 +582,7 @@ sub generate_list {
 	# search for requests to upload
 	elsif ($list_req_upload) {
 		die "Can't find entries if list provided!\n" if @action_list;
-		@action_list = $Catalog->find_requests_to_upload(
+		return $Catalog->find_requests_to_upload(
 			year     => $year,
 			age      => $min_age,
 			maxage   => $max_age,
@@ -594,7 +593,7 @@ sub generate_list {
 	# search for requests to hide
 	elsif ($list_req_hide) {
 		die "Can't find entries if list provided!\n" if @action_list;
-		@action_list = $Catalog->find_requests_to_hide(
+		return $Catalog->find_requests_to_hide(
 			age      => $min_age, 
 			maxage   => $max_age,
 			year     => $year, 
@@ -607,7 +606,7 @@ sub generate_list {
 	# search for requests to delete
 	elsif ($list_req_delete) {
 		die "Can't find entries if list provided!\n" if @action_list;
-		@action_list = $Catalog->find_requests_to_delete(
+		return $Catalog->find_requests_to_delete(
 			age      => $min_age, 
 			maxage   => $max_age,
 			year     => $year, 
@@ -620,7 +619,7 @@ sub generate_list {
 	# search for analyses to upload
 	elsif ($list_anal_upload) {
 		die "Can't find entries if list provided!\n" if @action_list;
-		@action_list = $Catalog->find_analysis_to_upload(
+		return $Catalog->find_analysis_to_upload(
 			age      => $min_age, 
 			maxage   => $max_age,
 			year     => $year, 
@@ -631,7 +630,7 @@ sub generate_list {
 	# search for analyses to hide
 	elsif ($list_anal_hide) {
 		die "Can't find entries if list provided!\n" if @action_list;
-		@action_list = $Catalog->find_analysis_to_hide(
+		return $Catalog->find_analysis_to_hide(
 			age      => $min_age, 
 			maxage   => $max_age,
 			year     => $year, 
@@ -644,7 +643,7 @@ sub generate_list {
 	# search for analyses to delete
 	elsif ($list_anal_delete) {
 		die "Can't find entries if list provided!\n" if @action_list;
-		@action_list = $Catalog->find_analysis_to_delete(
+		return $Catalog->find_analysis_to_delete(
 			age      => $min_age, 
 			maxage   => $max_age,
 			year     => $year, 
@@ -657,10 +656,9 @@ sub generate_list {
 	# search for projects owned by a principal investigator - last name only!
 	elsif ($list_pi) {
 		die "Can't find entries if list provided!\n" if @action_list;
-		@action_list = $Catalog->list_projects_for_pi($list_pi);
+		return $Catalog->list_projects_for_pi($list_pi);
 	}
 	
-	return @action_list;
 }
 
 
