@@ -204,6 +204,7 @@ my @removelist;
 my %filedata;
 my %checksums;
 my $failure_count = 0;
+my $runfolder_warning; # Gigantic Illumina RunFolder present
 
 # our sequence machine IDs to platform technology lookup
 my %machinelookup = (
@@ -541,7 +542,7 @@ sub callback {
 	}
 	elsif (-d $file) {
 		# skip directories
-		print "   > directory, skipping\n" if $verbose;
+		print "   > skipping directory\n" if $verbose;
 		return;
 	}
 	elsif ($file =~ /(?:libsnappyjava)\.so$/i) {
@@ -571,17 +572,36 @@ sub callback {
 	elsif ($file eq $Project->manifest_file) {
 		return;
 	}
-	elsif ($fname =~ m/^\.\/(?:bioanalysis|Sample.?QC|Library.?QC|Sequence.?QC|Cell.Prep.QC)\//) {
+	elsif ($fname =~ m/^\.\/(?:bioanalysis|Sample.?QC|Library.?QC|Sequence.?QC|Cell.Prep.QC)(?:.?\w+)?\//) {
 		# these are QC samples in a bioanalysis or Sample of Library QC folder
 		# directly under the main project 
-		print "   > skipping bioanalysis file\n" if $verbose;
+		print "   > skipping bioanalysis file $fname\n" if $verbose;
 		return;
 	}
 	elsif ($fname =~ /^\.\/RunFolder/) {
 		# a few external requesters want the entire original RunFolder 
 		# these folders typically have over 100K files!!!!
-		# immediately stop processing and print warning. These must be handled manually
-		die " ! Illumina RunFolder present! Terminating\n\n";
+		# print one warning and add to remove list
+		if ($runfolder_warning) {
+			push @removelist, $clean_name;
+			return;
+		}
+		else {
+			print " ! Illumina RunFolder present! Skipping contents!\n";
+			$runfolder_warning = 1;
+			push @removelist, $clean_name;
+			return;
+		}
+	}
+	elsif ($fname =~ /^\.\/upload_staging/) {
+		# somebody directly uploaded files to this directory!
+		print "   ! skipping uploaded file $fname!\n";
+		return;
+	}
+	elsif ($fname =~ /samplesheet\.\w+/i) {
+		# file run sample sheet, can safely ignore
+		print "   > skipping file $fname\n" if $verbose;
+		return;
 	}
 	
 	
@@ -722,7 +742,7 @@ sub callback {
 		return; # do not continue
 	}
 	# multiple checksum file
-	elsif ($file =~ m/^md5_.+\.txt$/) {
+	elsif ($file =~ m/^md5.+\.(?:txt|out)$/) {
 		my $fh = IO::File->new($file);
 		while (my $line = $fh->getline) {
 			my ($md5, $fastqpath) = split(/\s+/, $line);
