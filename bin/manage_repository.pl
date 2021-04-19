@@ -367,6 +367,8 @@ sub check_options {
 
 
 sub open_import_catalog {
+	
+	# open catalog
 	my $Cat = RepoCatalog->new($cat_file) or 
 		die "Cannot open catalog file '$cat_file'!\n";
 
@@ -400,88 +402,129 @@ sub open_import_catalog {
 			) or die "can't instantiate Gnomex object!\n";
 		}
 		
-		if (defined $G) {
 			
-			### Analysis
-			if ($fetch_analysis) {
-				print " Fetching new analysis projects from database...\n";
-				my ($update_list, $new_list, $skip_count) = $G->fetch_analyses($year);
-				printf " Finished processing %d Analysis project database entries\n", 
-					$skip_count + scalar(@$update_list) + scalar(@$new_list);
-				
-				# update information from the repository file server
-				if ($scan_size_age) {
-					foreach my $id (@$update_list, @$new_list) {
-						my $E = $Cat->entry($id);
-						my $path = $E->path;
-						if (-e $path) {
-							my $project = RepoProject->new($E->path);
-							if ($project) {
-								my ($size, $age) = $project->get_size_age;
-								if ($size) {
-									$E->size($size);
-								}
-								if ($age) {
-									$E->youngest_age($age);
-								}
+		### Analysis
+		if ($fetch_analysis) {
+			print " Fetching new analysis projects from database...\n";
+			my ($update_list, $new_list, $nochange_list, $skip_count) = 
+				$G->fetch_analyses($year);
+			printf " Finished processing %d Analysis project database entries\n", 
+				scalar(@$update_list) + scalar(@$new_list) + scalar(@$nochange_list);
+			
+			# update information from the repository file server
+			if ($scan_size_age) {
+				print " Updating project sizes and ages....\n";
+				foreach my $id (@$update_list, @$new_list, @$nochange_list) {
+					my $E = $Cat->entry($id);
+					my $path = $E->path;
+					if (-e $path) {
+						my $project = RepoProject->new($E->path);
+						if ($project) {
+							my ($size, $age) = $project->get_size_age;
+							if ($size) {
+								$E->size($size);
+							}
+							if ($age) {
+								$E->youngest_age($age);
 							}
 						}
-						else {
-							print " ! Missing project file path: $path\n";
-						}
+					}
+					else {
+						print "  ! Missing project file path: $path\n";
 					}
 				}
-				else {
-					print " Don't forget to update file sizes and ages on the file server\n Run again with --update_size_age\n";
-				}
-				
-				# print report
-				printf "  %d skipped\n  %d updated\n  %d new\n", $skip_count, 
-					scalar(@$update_list), scalar(@$new_list);
+			}
+			else {
+				print " Don't forget to update file sizes and ages on the file server\n Run again with --update_size_age\n";
 			}
 			
-			### Request
-			if ($fetch_request) {
-				print " Fetching new request projects from database...\n";
-				my ($update_list, $new_list, $skip_count) = $G->fetch_requests($year);
-				printf " Finished processing %d Experiment Request project database entries\n", 
-					$skip_count + scalar(@$update_list) + scalar(@$new_list);
-				
-				# update information from the repository file server
-				if ($scan_size_age) {
-					print "  Scanning file sizes and ages....\n";
-					foreach my $id (@$update_list, @$new_list) {
-						my $E = $Cat->entry($id);
-						my $path = $E->path;
-						if (-e $path) {
-							my $project = RepoProject->new($E->path);
-							if ($project) {
-								my ($size, $age) = $project->get_size_age;
-								if ($size) {
-									$E->size($size);
-								}
-								if ($age) {
-									$E->youngest_age($age);
-								}
-							}
-						}
-						else {
-							print " ! Missing project file path: $path\n";
-						}
-					}
-				}
-				else {
-					print " Don't forget to update file sizes and ages on the file server\n Run again with --update_size_age\n";
-				}
-				
-				# print report
-				printf "  %d skipped\n  %d updated\n  %d new\n", $skip_count, 
-					scalar(@$update_list), scalar(@$new_list);
-			}
-		
+			# print report
+			printf "\n Project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
+				$skip_count, scalar(@$nochange_list), scalar(@$update_list), 
+				scalar(@$new_list);
 		}
-		else {
-			die "Failed to initiate Gnomex database adapter! $@\n";
+		
+		### Request
+		if ($fetch_request) {
+			print " Fetching new request projects from database...\n";
+			my ($update_list, $new_list, $nochange_list, $skip_count) = 
+				$G->fetch_requests($year);
+			printf " Finished processing %d Experiment Request project database entries\n", 
+				scalar(@$update_list) + scalar(@$new_list) + scalar(@$nochange_list);
+			
+			# update information from the repository file server
+			if ($scan_size_age) {
+				print " Updating project sizes and ages....\n";
+				foreach my $id (@$update_list, @$new_list, @$nochange_list) {
+					my $E = $Cat->entry($id);
+					my $path = $E->path;
+					if (-e $path) {
+						my $project = RepoProject->new($E->path);
+						if ($project) {
+							my ($size, $age) = $project->get_size_age;
+							if ($size) {
+								$E->size($size);
+							}
+							if ($age) {
+								$E->youngest_age($age);
+							}
+						}
+					}
+					else {
+						print "  ! Missing project file path: $path\n";
+					}
+				}
+				
+				# reset flag as this is already done
+				$scan_size_age = 0;
+			}
+			else {
+				print " Don't forget to update file sizes and ages on the file server\n Run again with --update_size_age\n";
+			}
+			
+			# scan request projects
+			if ($project_scan) {
+				my @to_scan;
+				foreach my $id (@$update_list, @$new_list, @$nochange_list) {
+					my $E = $Cat->entry($id);
+					if ($E->size and $E->size > 100000000) {
+						# at least 100 Mb in size
+						if (
+							# has not been scanned yet or new files have been added 
+							# by at least a day since last scanned
+							not $E->scan_datestamp or 
+							( ($E->youngest_age - $E->scan_datestamp) > 86400)
+						) {
+							if ($verbose) {
+								printf "  > will scan %s, age %s, last scanned %s days ago\n",
+									$id, $E->age, $E->scan_datestamp ? 
+									sprintf("%.0f", (time - $E->scan_datestamp) / 86400)
+									: '-';
+							}
+							push @to_scan, $id;
+						}
+					} 
+				}
+				if (@to_scan) {
+					printf " Scanning %d project files....\n\n", scalar(@to_scan);
+					my $command = sprintf "%s/process_request_project.pl --catalog %s --scan ",
+						$Bin, $cat_file;
+					$command .= '--verbose ' if $verbose;
+					foreach my $id (@to_scan) {
+						my $c = $command . $id;
+						print " Executing $c\n";
+						system($c);
+					}
+				}
+				
+				# reset the scan flag - don't need to do it again
+				$project_scan = 0;
+			}
+			
+			# print report
+			printf "\n Project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
+				$skip_count, scalar(@$nochange_list), scalar(@$update_list), 
+				scalar(@$new_list);
 		}
 		exit;
 	}
