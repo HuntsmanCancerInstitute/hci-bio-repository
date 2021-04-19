@@ -1,5 +1,5 @@
 package RepoCatalog;
-our $VERSION = 5.1;
+our $VERSION = 5.2;
 
 =head1 NAME 
 
@@ -449,6 +449,8 @@ sub find_requests_to_upload {
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
 	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 100000000;
 		# set the minimum size to 100 MB
+	my $min_age = (exists $opts{age} and defined $opts{age}) ? $opts{age} : 0; 
+	my $max_age = (exists $opts{maxage} and defined $opts{maxage}) ? $opts{maxage} : 60; 
 	
 	# scan through list
 	my @list;
@@ -461,7 +463,8 @@ sub find_requests_to_upload {
 			$E->request_status eq 'COMPLETE' and
 			$E->division and 
 			substr($E->date, 0, 4) >= $year and
-			$E->age < 30 and
+			$E->age >= $min_age and
+			$E->age <= $max_age and
 			not $E->hidden_datestamp
 		) {
 			# we have a candidate
