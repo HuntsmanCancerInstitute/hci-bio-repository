@@ -1000,7 +1000,7 @@ sub callback {
 		$filetype = 'Analysis';
 		$filedata{$fname}{zip} = 0;
 	}
-	elsif ($file =~ /\.(?:bar|bar\.zip|useq|swi|egr|ser|mpileup|motif)$/i) {
+	elsif ($file =~ /\.(?:bar|bar\.zip|useq|swi|swi\.gz|egr|ser|mpileup|motif|cov)$/i) {
 		$filetype = 'Analysis';
 		$filedata{$fname}{zip} = 1;
 	}
