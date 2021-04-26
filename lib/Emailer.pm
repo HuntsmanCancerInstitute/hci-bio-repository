@@ -1,6 +1,6 @@
 package Emailer;
 
-our $VERSION = 5;
+our $VERSION = 5.1;
 
 =head1 NAME 
 
@@ -168,7 +168,7 @@ You will need a Seven Bridges account to view the project. If you are unable to 
 
 Your files are on standard AWS S3 storage and may be used immediately for analysis on the platform. It will cost about $opt->{s3_cost} per month.
 
-You may archive these files to AWS Glacier at a reduced cost of $opt->{glacier_cost} per month.
+You may archive these files to AWS Glacier at a reduced cost of $opt->{glacier_cost} per month. This is not done automatically.
 
 The files will remain on GNomEx for your convenience for an additional six months before being removed. A manifest of the files will remain on GNomEx, as well as the record of your sequencing request and samples.
 
@@ -199,7 +199,7 @@ You will need a Seven Bridges account to view the project. If you are unable to 
 
 Your files are on standard AWS S3 storage and may still be accessed immediately. It will cost about $opt->{s3_cost} per month to keep these files.
 
-You may archive these files to AWS Glacier at a reduced cost of $opt->{glacier_cost} per month.
+You may archive these files to AWS Glacier at a reduced cost of $opt->{glacier_cost} per month. This is not done automatically.
 
 The files on GNomEx have been removed, although a manifest of the files will always remain, as well as the database entry for the project. Certain analysis files may remain as a courtesy for serving to genome browsers.
 
@@ -224,13 +224,13 @@ sub send_request_deletion_email {
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Request project $opt->{id}, $opt->{name}, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED. Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files.
+Your GNomEx Request project $opt->{id}, $opt->{name}, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED. Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files, especially Fastq files.
 
 Files will be removed in one week.
 
 A manifest of the files will remain on GNomEx, as well as the record of your sequencing request and samples. 
 
-For more information, including cloud storage options, see our storage policy at https://uofuhealth.utah.edu/huntsman/shared-resources/gba/bioinformatics/cloud-storage/.
+For more information, including long-term cloud storage options, see our storage policy at https://uofuhealth.utah.edu/huntsman/shared-resources/gba/bioinformatics/cloud-storage/.
 
 DOC
 		
@@ -257,7 +257,7 @@ Files will be removed in one week.
 
 A manifest of the files will always remain on GNomEx, as well as the database entry for the project. Certain analysis files may remain as a courtesy for serving to genome browsers.
 
-For more information, including cloud storage options, see our storage policy at https://uofuhealth.utah.edu/huntsman/shared-resources/gba/bioinformatics/cloud-storage/. 
+For more information, including long-term cloud storage options, see our storage policy at https://uofuhealth.utah.edu/huntsman/shared-resources/gba/bioinformatics/cloud-storage/. 
 
 DOC
 		
