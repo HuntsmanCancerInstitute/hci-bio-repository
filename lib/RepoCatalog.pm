@@ -551,7 +551,7 @@ sub find_requests_to_delete {
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
 	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
-	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 60;
 	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
 	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
@@ -567,10 +567,10 @@ sub find_requests_to_delete {
 			$E->request_status eq 'COMPLETE' and        # finished
 			$E->hidden_datestamp and                    # hidden
 			not $E->deleted_datestamp and               # not yet deleted
-			$E->age >= $min_age and                     # older than 9 months
+			$E->hidden_age >= $min_age and              # older than 60 days
 			substr($E->date, 0, 4) >= $year and         # current year
-			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1) and
 			( $min_size ? ($E->size and $E->size >= $min_size) ? 1 : 0 : 1)
+			( $max_age ? ($E->hidden_age <= $max_age) ? 1 : 0 : 1) and
 		) {
 			# we have a possible candidate
 			if (defined $sb) {
@@ -677,7 +677,7 @@ sub find_analysis_to_delete {
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
 	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
-	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 360;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 60;
 	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
 	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
@@ -692,10 +692,10 @@ sub find_analysis_to_delete {
 			not $E->is_request and
 			$E->hidden_datestamp and                    # hidden
 			not $E->deleted_datestamp and               # not yet deleted
-			$E->age >= $min_age and                     # older than 12 months
+			$E->hidden_age >= $min_age and              # older than 60 days
 			substr($E->date, 0, 4) >= $year and         # current year
-			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1) and
 			( $min_size ? ($E->size and $E->size >= $min_size) ? 1 : 0 : 1)
+			( $max_age ? ($E->hidden_age <= $max_age) ? 1 : 0 : 1) and
 		) {
 			# we have a possible candidate
 			if (defined $sb) {
@@ -1060,6 +1060,15 @@ sub hidden_datestamp {
 	return $self->{data}->[HIDDEN];
 }
 
+
+sub hidden_age {
+	my $self = shift;
+	my $h = $self->hidden_datestamp;
+	if ($h) {
+		return sprintf("%.0f", (time - $h) / DAY);
+	}
+	return;
+}
 
 sub deleted_datestamp {
 	my $self = shift;
