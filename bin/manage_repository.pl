@@ -11,7 +11,7 @@ use RepoCatalog;
 use RepoProject;
 
 
-my $VERSION = 5.1;
+my $VERSION = 5.2;
 
 
 ######## Documentation
@@ -1345,14 +1345,18 @@ sub print_functions {
 		unless (@action_list) {
 			die "No list provided to show status!\n";
 		}
-		printf "%-6s\t%-10s\t%-16s\t%-16s\t%s\n", qw(ID Date UserLastName LabLastName Name);
+		printf "%-6s\t%-10s\t%-16s\t%-16s\t%s\n", qw(ID Date UserName LabName Name);
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
 			my $Entry = $Catalog->entry($id) or next;
 		
-			printf "%-6s\t%-10s\t%-16s\t%-16s\t%s\n", $id, $Entry->date, $Entry->user_last,
-				$Entry->lab_last, $Entry->name;
+			printf "%-6s\t%-10s\t%-16s\t%-16s\t%s\n", 
+				$id, 
+				$Entry->date, 
+				substr(sprintf("%s,%s", $Entry->user_last, $Entry->user_first),0,16),
+				substr(sprintf("%s,%s", $Entry->lab_last, $Entry->lab_first),0,16),
+				$Entry->name;
 		}
 	}
 	
