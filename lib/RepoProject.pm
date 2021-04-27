@@ -1,5 +1,5 @@
 package RepoProject;
-our $VERSION = 5.1;
+our $VERSION = 5.2;
 
 =head1 NAME 
 
@@ -783,7 +783,14 @@ sub _age_callback {
 	# get file size and time
 	my ($size, $age) = (stat($file))[7,9];
 	
+	# add to running total of file sizes
+	$project_size += $size;
+	
 	# check age
+	# but don't calculate anything if it appears to be a Request folder QC directory
+	if ($File::Find::name =~ m/\d+R\/(?:Sample.?QC|Library.?QC|Sequence.?QC|Cell.Prep.QC)(?:.?\w+)?\//) {
+		return;
+	}
 	if ($project_age == 0) {
 		# first file! seed with current data
 		$project_age = $age;
@@ -792,9 +799,6 @@ sub _age_callback {
 		# file is younger, so take this time
 		$project_age = $age;
 	}
-	
-	# add to running total of file sizes
-	$project_size += $size;
 }
 
 __END__
