@@ -318,8 +318,8 @@ sub list_all {
 		if (
 			substr($E->date, 0, 4) >= $year and
 			$E->age >= $min_age and
-			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1) and
-			( $min_size ? ($E->size and $E->size >= $min_size) ? 1 : 0 : 1)
+			( $max_age ? ($E->age <= $max_age) ? 1 : 0 : 1) and
+			( $min_size ? ($E->size >= $min_size) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
 			if (defined $sb) {
@@ -523,7 +523,7 @@ sub find_requests_to_hide {
 			$E->size > $min_size and                    # size > minimum size
 			substr($E->date, 0, 4) >= $year and         # current year
 			$E->age >= $min_age and                     # older than 6 months
-			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1)
+			( $max_age ? ($E->age <= $max_age) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
 			if (defined $sb) {
@@ -569,8 +569,8 @@ sub find_requests_to_delete {
 			not $E->deleted_datestamp and               # not yet deleted
 			$E->hidden_age >= $min_age and              # older than 60 days
 			substr($E->date, 0, 4) >= $year and         # current year
-			( $min_size ? ($E->size and $E->size >= $min_size) ? 1 : 0 : 1)
 			( $max_age ? ($E->hidden_age <= $max_age) ? 1 : 0 : 1) and
+			( $min_size ? ($E->size >= $min_size) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
 			if (defined $sb) {
@@ -614,7 +614,7 @@ sub find_analysis_to_upload {
 			$E->size > $min_size and                    # size > minimum
 			$E->age >= $min_age and                     # older than 9 months
 			substr($E->date, 0, 4) >= $year and         # current year
-			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1)
+			( $max_age ? ($E->age <= $max_age) ? 1 : 0 : 1)
 		) {
 			# we have a candidate
 			push @list, $key;
@@ -649,7 +649,7 @@ sub find_analysis_to_hide {
 			$E->size > $min_size and                    # size > minimum
 			$E->age >= $min_age and                     # older than 9 months
 			substr($E->date, 0, 4) >= $year and         # current year
-			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1)			
+			( $max_age ? ($E->age <= $max_age) ? 1 : 0 : 1)			
 		) {
 			# we have a possible candidate
 			if (defined $sb) {
@@ -694,8 +694,8 @@ sub find_analysis_to_delete {
 			not $E->deleted_datestamp and               # not yet deleted
 			$E->hidden_age >= $min_age and              # older than 60 days
 			substr($E->date, 0, 4) >= $year and         # current year
-			( $min_size ? ($E->size and $E->size >= $min_size) ? 1 : 0 : 1)
 			( $max_age ? ($E->hidden_age <= $max_age) ? 1 : 0 : 1) and
+			( $min_size ? ($E->size >= $min_size) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
 			if (defined $sb) {
@@ -992,13 +992,13 @@ sub size {
 		}
 		$self->{data}->[SIZE] = $newsize;
 	}
-	return $self->{data}->[SIZE];
+	return $self->{data}->[SIZE] || 0;
 }
 
 
 sub last_size {
 	my $self = shift;
-	return $self->{data}->[LASTSIZE];
+	return $self->{data}->[LASTSIZE] || 0;
 }
 
 
