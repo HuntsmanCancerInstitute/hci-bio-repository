@@ -43,7 +43,7 @@ manage_repository.pl --cat <file.db> --status A1234 A1235 A1236
     --list_anal_hide          Print or work on Analysis IDs for hiding
     --list_anal_delete        Print or work on Analysis IDs for deletion
     --list_lab <pi_lastname>  Print or select based on PI last name
-    --all                     Apply to all catalog entries
+    --list_all                Apply to all catalog entries
   
   Catalog selection modifiers:
     --year <YYYY>             Filter entries to given year or newer
@@ -97,7 +97,7 @@ manage_repository.pl --cat <file.db> --status A1234 A1235 A1236
     --update_up <YYYYMMDD>    Update project upload timestamp
     --update_em <YYYYMMDD>    Update project email timestamp
     --update_sb <text>        Update SB division name. Use 'none' to clear.
-    --update_size_age         Update project size and age from file server
+    --update_size             Update project size and age from file server
   
   Actions on catalog file:
     --export <path>           Dump the contents to tab-delimited text file
@@ -194,8 +194,8 @@ if (scalar(@ARGV) > 1) {
 		'list_anal_hide!'       => \$list_anal_hide,
 		'list_anal_delete'      => \$list_anal_delete,
 		'list_lab|list_pi=s'    => \$list_pi,
+		'list_all!'             => \$list_all,
 		'list=s'                => \$list_file,
-		'all!'                  => \$list_all,
 		'sb!'                   => \$include_sb,
 		'year=i'                => \$year,
 		'age=i'                 => \$min_age,
@@ -232,7 +232,7 @@ if (scalar(@ARGV) > 1) {
 		'update_del=i'          => \$update_delete_date,
 		'update_email=i'        => \$update_email_date,
 		'update_sb=s'           => \$update_division,
-		'update_size_age!'      => \$scan_size_age,
+		'update_size_age|update_size|update_age!' => \$scan_size_age,
 		'export_file=s'         => \$dump_file,
 		'import_file=s'         => \$import_file,
 		'force!'                => \$force,
