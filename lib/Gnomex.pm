@@ -230,8 +230,10 @@ sub fetch_analyses {
 					# check SBG division
 					if (
 						# check length of values to ensure comparing real values
+						# also, skip if it's already been uploaded
 						(length($E->division) > 1 or length($lab2info->{$lab}->[2]) > 1)
 						and $E->division ne $lab2info->{$lab}->[2]
+						and not $E->upload_datestamp
 					) {
 						# there's a difference here
 						# we assume the lab information file is correct and updated
@@ -391,8 +393,10 @@ sub fetch_requests {
 					# check SBG division
 					if (
 						# check length of values to ensure comparing real values
+						# also, skip if it's already been uploaded
 						(length($E->division) > 1 or length($lab2info->{$lab}->[2]) > 1)
 						and $E->division ne $lab2info->{$lab}->[2]
+						and not $E->upload_datestamp
 					) {
 						# there's a difference here
 						# we assume the lab information file is correct and updated
