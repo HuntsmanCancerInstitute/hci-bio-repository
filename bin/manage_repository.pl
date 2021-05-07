@@ -186,7 +186,7 @@ my $help;
 
 if (scalar(@ARGV) > 1) {
 	GetOptions(
-		'cat=s'                 => \$cat_file,
+		'c|cat=s'               => \$cat_file,
 		'list_req_up!'          => \$list_req_upload,
 		'list_req_hide!'        => \$list_req_hide,
 		'list_req_delete'       => \$list_req_delete,
