@@ -1,5 +1,5 @@
 package RepoCatalog;
-our $VERSION = 5.2;
+our $VERSION = 5.3;
 
 =head1 NAME 
 
@@ -1027,7 +1027,7 @@ sub age {
 sub upload_age {
 	my $self = shift;
 	my $u = $self->upload_datestamp;
-	if ($u) {
+	if ($u > 1) {
 		return sprintf("%.0f", (time - $u) / DAY);
 	}
 	return;
@@ -1039,7 +1039,7 @@ sub scan_datestamp {
 	if (@_) {
 		$self->{data}->[SCAN] = $_[0];
 	}
-	return $self->{data}->[SCAN];
+	return $self->{data}->[SCAN] || 0;
 }
 
 
@@ -1048,7 +1048,7 @@ sub upload_datestamp {
 	if (@_) {
 		$self->{data}->[UPLOAD] = $_[0];
 	}
-	return $self->{data}->[UPLOAD];
+	return $self->{data}->[UPLOAD] || 0;
 }
 
 
@@ -1057,7 +1057,7 @@ sub hidden_datestamp {
 	if (@_) {
 		$self->{data}->[HIDDEN] = $_[0];
 	}
-	return $self->{data}->[HIDDEN];
+	return $self->{data}->[HIDDEN] || 0;
 }
 
 
@@ -1075,7 +1075,7 @@ sub deleted_datestamp {
 	if (@_) {
 		$self->{data}->[DELETED] = $_[0];
 	}
-	return $self->{data}->[DELETED];
+	return $self->{data}->[DELETED] || 0;
 }
 
 
@@ -1084,7 +1084,7 @@ sub emailed_datestamp {
 	if (@_) {
 		$self->{data}->[EMAILED] = $_[0];
 	}
-	return $self->{data}->[EMAILED];
+	return $self->{data}->[EMAILED] || 0;
 }
 
 
