@@ -500,7 +500,9 @@ sub open_import_catalog {
 							# has not been scanned yet or new files have been added 
 							# by at least a day since last scanned
 							not $E->scan_datestamp or 
-							( ($E->youngest_age - $E->scan_datestamp) > 86400)
+							( $E->youngest_age and $E->scan_datestamp and
+							  ($E->youngest_age - $E->scan_datestamp) > 86400
+							)
 						) {
 							if ($verbose) {
 								printf "  > will scan %s, age %s, last scanned %s days ago\n",
