@@ -494,8 +494,8 @@ sub open_import_catalog {
 				my @to_scan;
 				foreach my $id (@$update_list, @$new_list, @$nochange_list) {
 					my $E = $Cat->entry($id);
-					if ($E->size and $E->size > 100000000) {
-						# at least 100 Mb in size
+					if ($E->size and $E->size > 200000000) {
+						# at least 200 Mb in size
 						if (
 							# has not been scanned yet or new files have been added 
 							# by at least a day since last scanned
