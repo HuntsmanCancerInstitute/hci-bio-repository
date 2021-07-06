@@ -490,8 +490,8 @@ sub open_import_catalog {
 			}
 			
 			# scan request projects
+			my @to_scan;
 			if ($project_scan) {
-				my @to_scan;
 				foreach my $id (@$update_list, @$new_list, @$nochange_list) {
 					my $E = $Cat->entry($id);
 					if ($E->size and $E->size > 200000000) {
@@ -534,6 +534,9 @@ sub open_import_catalog {
 			printf "\n Project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
 				$skip_count, scalar(@$nochange_list), scalar(@$update_list), 
 				scalar(@$new_list);
+			if (@to_scan) {
+				printf "  %d scanned\n", scalar(@to_scan);
+			}
 		}
 	
 	}
