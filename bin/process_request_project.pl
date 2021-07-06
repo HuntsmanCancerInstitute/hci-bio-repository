@@ -14,7 +14,7 @@ use RepoCatalog;
 use RepoProject;
 use Emailer;
 
-my $version = 5.2;
+my $version = 5.3;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -742,7 +742,7 @@ sub callback {
 		return; # do not continue
 	}
 	# multiple checksum file
-	elsif ($file =~ m/^md5.+\.(?:txt|out)$/) {
+	elsif ($file =~ m/^md5.*\.(?:txt|out)$/) {
 		my $fh = IO::File->new($file);
 		while (my $line = $fh->getline) {
 			my ($md5, $fastqpath) = split(/\s+/, $line);
@@ -769,6 +769,10 @@ sub callback {
 	elsif ($file eq $Project->zip_file) {
 		# really old projects might still have these - keep it
 		print "   ! old archive zip file $file present\n";
+	}
+	elsif ($file =~ /\.xlsx$/) {
+		# some stray request spreadsheet file
+		print "   ! skipping $file\n";
 	}
 	else {
 		# programmer error!
