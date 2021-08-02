@@ -93,24 +93,30 @@ These are bunch of old, deprecated scripts. See it's dedicated page for more inf
 
 The scripts are written in Perl and can be executed under the system Perl. Some 
 additional Perl modules are required for execution. These should be readily available 
-through the system package manager (`yum` or equivalent) or directly from CPAN. 
+through the system package manager (`yum` or equivalent) or Perl package manager, such 
+as [CPANminus](https://metacpan.org/pod/App::cpanminus) or CPAN. 
 
+Likely need to be installed:
 
-- [DBI](https://metacpan.org/pod/DBI)
-
-- [DBI::ODBC](https://metacpan.org/pod/DBI::ODBC)
+- [DBD::ODBC](https://metacpan.org/pod/DBD::ODBC)
 
 - [DBM::Deep](https://metacpan.org/pod/DBM::Deep)
-
-- [Digest::MD5](https://metacpan.org/pod/Digest::MD5)
 
 - [Email::Sender::Simple](https://metacpan.org/pod/Email::Sender::Simple)
 
 - [Email::Simple](https://metacpan.org/pod/Email::Simple)
 
+- [IO::Socket::SSL](https://metacpan.org/pod/IO::Socket::SSL)
+
+Likely standard with your Perl installation:
+
+- [Digest::MD5](https://metacpan.org/pod/Digest::MD5)
+
 - [HTTP::Tiny](https://metacpan.org/pod/HTTP::Tiny)
 
 - [JSON::PP](https://metacpan.org/pod/JSON::PP)
+
+External application:
 
 - [SB upload Java utility](https://docs.sevenbridges.com/docs/upload-via-the-command-line) 
 
