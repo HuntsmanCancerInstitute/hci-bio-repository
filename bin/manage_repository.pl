@@ -61,6 +61,7 @@ manage_repository.pl --cat <file.db> --status A1234 A1235 A1236
     --info                    Print basic information of listed projects
     --path                    Print the repository path to the project
     --print                   Print all the information of listed projects
+    --delete_entry            Delete catalog entry
   
   Actions on projects:
     --scan                    Scan the project directory and write METADATA
@@ -141,6 +142,7 @@ my $show_status = 0;
 my $show_info = 0;
 my $show_path = 0;
 my $print_info = 0;
+my $delete_entry = 0;
 my $scan_size_age;
 my $import_sizes = 0;
 my $update_scan_date;
@@ -206,6 +208,7 @@ if (scalar(@ARGV) > 1) {
 		'info!'                 => \$show_info,
 		'path!'                 => \$show_path,
 		'print!'                => \$print_info,
+		'delete_entry!'         => \$delete_entry,
 		'scan!'                 => \$project_scan,
 		'upload!'               => \$project_upload,
 		'zip!'                  => \$project_zip,
@@ -836,6 +839,21 @@ sub run_metadata_actions {
 
 
 sub run_project_actions {
+	
+	# delete projects
+	if ($delete_entry) {
+		print " Deleting projects...\n";
+		unless (@action_list) {
+			die "No list provided to delete entries!\n";
+		}
+		foreach my $item (@action_list) {
+			my ($id, @rest) = split(m/\s+/, $item);
+			next unless (defined $id);
+			if ($Catalog->delete_entry($id) ) {
+				print "  deleted $id\n";
+			}
+		}
+	}
 	
 	# scan the project
 	if ($project_scan) {
