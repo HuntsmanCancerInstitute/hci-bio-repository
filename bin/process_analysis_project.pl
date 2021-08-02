@@ -14,7 +14,7 @@ use RepoCatalog;
 use Emailer;
 
 
-my $version = 5.2;
+my $version = 5.3;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -1102,6 +1102,7 @@ sub upload_files {
 	else {
 		# generate description in markdown as necessary
 		if (not $description) {
+			# compose title and description paragraph
 			$description = sprintf "# %s\n## %s\n GNomEx project %s is an Analysis project for %s %s",
 				$Project->id, $title, $Project->id, $userfirst, $userlast;
 			if ($group) {
@@ -1115,6 +1116,14 @@ sub upload_files {
 			}
 			$description .= sprintf("Details on the experiment may be found in [GNomEx](https://hci-bio-app.hci.utah.edu/gnomex/?analysisNumber=%s).\n",
 				$Project->id);
+			
+			# zip instructions
+			if (-e $Project->zip_file) {
+				# project was zipped up, so include instructions
+				$description .= sprintf "\nSmall analysis files are zipped into the `%s` file, the contents of which are listed in the `%s` file. This is to ease and facilitate file transfer and Glacial archiving. You may download the zip file and extract the contents to reconstitute the original GNomEx contents with folder structure intact.\n", $Project->zip_file, $Project->ziplist_file;
+			}
+			
+			# warning
 			$description .= "\n**Warning:** After these files are removed from GNomEx, these may be your only copies. Do not delete!\n";
 		}
 		
