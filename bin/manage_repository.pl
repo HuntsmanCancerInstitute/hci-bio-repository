@@ -11,7 +11,7 @@ use RepoCatalog;
 use RepoProject;
 
 
-my $VERSION = 5.2;
+my $VERSION = 5.3;
 
 
 ######## Documentation
@@ -440,6 +440,9 @@ sub open_import_catalog {
 						print "  ! Missing project file path: $path\n";
 					}
 				}
+				
+				# reset flag as this is already done
+				$scan_size_age = 0;
 			}
 			else {
 				print " Don't forget to update file sizes and ages on the file server\n Run again with --update_size_age\n";
@@ -481,9 +484,6 @@ sub open_import_catalog {
 						print "  ! Missing project file path: $path\n";
 					}
 				}
-				
-				# reset flag as this is already done
-				$scan_size_age = 0;
 			}
 			else {
 				print " Don't forget to update file sizes and ages on the file server\n Run again with --update_size_age\n";
