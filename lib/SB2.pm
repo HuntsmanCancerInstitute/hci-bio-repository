@@ -381,7 +381,7 @@ sub new {
 	
 	# arguments
 	my %args = @_;
-	my $division = $args{div} || $args{division} || $args{profile} || undef;
+	my $division = $args{div} || $args{division} || $args{profile} || 'default';
 	my $cred_path = $args{cred} || $args{cred_path} || $args{credentials} || undef;
 	my $token = $args{token};
 	my $verb = $args{verbose} || $args{verb} || 0;
