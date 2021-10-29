@@ -149,8 +149,7 @@ foreach my $identifier (@projects) {
 	
 	# warning
 	if ($path =~ m#^/Repository/(?:Analysis|Microarray)Data/\d{4}# ) {
-		print " ! Directory $identifier looks to be part of the HCI-Bio-Repository for GNomEx\   You should be using 'manage_repository.pl with a catalog file. Skipping\n";
-		next;
+		print " ! Directory $identifier looks to be part of the HCI-Bio-Repository for GNomEx\   You should be using 'manage_repository.pl with a catalog file!\n";
 	}
 
 	### Initiate the project
