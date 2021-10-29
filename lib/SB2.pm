@@ -1,5 +1,5 @@
 package SB2;
-our $VERSION = 5;
+our $VERSION = 5.1;
 
 =head1 NAME
 
