@@ -383,7 +383,7 @@ sub new {
 	my %args = @_;
 	my $division = $args{div} || $args{division} || $args{profile} || 'default';
 	my $cred_path = $args{cred} || $args{cred_path} || $args{credentials} || undef;
-	my $token = $args{token};
+	my $token = $args{token} || undef;
 	my $verb = $args{verbose} || $args{verb} || 0;
 	my $endpoint = $args{endpoint} || 'https://api.sbgenomics.com/v2'; # default
 	
@@ -402,26 +402,34 @@ sub new {
 			croak "no credentials file available!";
 		}
 	}
+	
+	# bless early
+	my $self = {
+		div     => $division,
+		cred    => $cred_path,
+		verb    => $verb,
+		end     => $endpoint,
+	};
+	bless $self, $class;
+	
 		
 	# conditional return
 	if (defined $division) {
+		# go ahead and get token
+		unless (defined $token) {
+			$token = $self->token;
+		}
 		return SB2::Division->new(
 			div     => $division,
 			cred    => $cred_path,
 			token   => $token,
 			name    => $args{name}, # just in case?
 			verbose => $verb,
-			end     => $endpoint,
+			end     => $self->endpoint,
 		);
 	}
 	else {
-		my $self = {
-			div     => 'default',
-			cred    => $cred_path,
-			verb    => $verb,
-			end     => $endpoint,
-		};
-		return bless $self, $class;
+		return $self;
 	}
 }
 
@@ -483,13 +491,15 @@ sub token {
 						# we've gone too far!!!??? start of next section
 						last;
 					}
-					elsif ($line2 =~ /^api_endpoint\s*=\s*([\w\/\/:]+)$/) {
+					elsif ($line2 =~ /^api_endpoint\s*=\s*(https:\/\/[\w\/\.\-]+)$/) {
 						# we found the user's API endpoint
 						# go ahead and store it
+						print "> found endpoint: $1\n";
 						$self->endpoint($1);
 					}
 					elsif ($line2 =~ /^auth_token\s*=\s*(\w+)$/) {
 						# we found the user's token!
+						print "> found token\n";
 						$token = $1;
 					}
 				}
