@@ -720,7 +720,7 @@ sub callback {
 		}
 	}
 	# I give up! catchall for other weirdo fastq files!!!
-	elsif ($file =~ m/.+\.fastq\.gz$/i) {
+	elsif ($file =~ m/.+\.(?:fastq|fq)\.gz$/i) {
 		# I can't extract metadata information
 		# but at least it will get recorded in the manifest and list files
 		print "   ! processing unrecognized Fastq file $fname!\n";
