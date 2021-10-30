@@ -1,5 +1,5 @@
 package RepoProject;
-our $VERSION = 5.2;
+our $VERSION = 5.3;
 
 =head1 NAME 
 
@@ -231,41 +231,50 @@ sub new {
 	$verbose ||= 0;
 		
 	# check directory
-	unless ($path =~ /^\//) {
-		carp "given path does not begin with / Must use absolute paths!";
-		return;
-	}
 	unless (-e $path) {
 		carp "given path $path does not exist!";
 		return;
 	}
+	if (substr($path,-1,1) eq '/') {
+		# removing trailing slash, just in case
+		$path = substr($path,0,-1);
+	}
+	unless (substr($path,0,1) eq '/') {
+		# given path isn't rooted, try to fix
+		$path = File::Spec->catdir($ENV{'PWD'}, $path);
+	}
 
 	# extract the project ID
 	my $project;
-	if ($path =~ m/(A\d{1,5}|\d{3,5}R)\/?$/) {
-		# look for A prefix or R suffix project identifiers
-		# this ignores Request digit suffixes such as 1234R1, 
-		# when clients submitted replacement samples
-		$project = $1;
-	}
-	elsif ($path =~ m/(\d{2,4})\/?$/) {
-		# old style naming convention without an A prefix or R suffix
-		$project = $1;
+	my @dirs = File::Spec->splitdir($path);
+		# if path is full from root, the first element will be null
+	if (
+		$dirs[1] eq 'Repository' and 
+		($dirs[2] eq 'MicroarrayData' or $dirs[2] eq 'AnalysisData')
+	) {
+		# full path representing our Repository file system
+		if ($dirs[-1] =~ m/^(A\d{1,5})$/) {
+			# Analysis project
+			$project = $1;
+		}
+		elsif ($dirs[-1] =~ m/^(\d{3,5}R)\d?$/) {
+			# Request project
+			# this ignores Request digit suffixes such as 1234R1, 
+			# when clients submitted replacement samples
+			$project = $1;
+		}
+		else {
+			# huh? just take last directory then
+			$project = $dirs[-1];
+		}
 	}
 	else {
 		# non-canonical path, take the last given directory
-		my @dir = File::Spec->splitdir($path);
-		$project = @dir[-1];
+		$project = @dirs[-1];
 	}
 
 	# check directory 
-	my $parent_dir = './';
-	if ($path =~ m/^(\/Repository\/(?:MicroarrayData|AnalysisData)\/\d{4})\/?/) {
-		$parent_dir = $1;
-	}
-	elsif ($path =~ m/^(.+)$project\/?$/) {
-		$parent_dir = $1;
-	}
+	my $parent_dir = File::Spec->catdir(@dirs[0..$#dirs-1]);
 	
 	# initiate project
 	my $self = {
