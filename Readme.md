@@ -102,7 +102,7 @@ Likely need to be installed:
 
 - [DBM::Deep](https://metacpan.org/pod/DBM::Deep)
 
-- [Email::Sender::Simple](https://metacpan.org/pod/Email::Sender::Simple)
+- [Email::Sender](https://metacpan.org/pod/Email::Sender)
 
 - [Email::Simple](https://metacpan.org/pod/Email::Simple)
 
@@ -124,6 +124,11 @@ External application:
 In addition, you will need to generate your 
 [Seven Bridges credentials file](https://docs.sevenbridges.com/docs/store-credentials-to-access-seven-bridges-client-applications-and-libraries) 
 with developer tokens for each of your divisions.
+
+On a CentOS system, you can install dependencies as 
+
+    yum install perl-JSON perl-JSON-PP perl-Email-Simple perl-Email-Sender perl-IO-Socket-SSL perl-HTTP-Tiny perl-DBM-Deep perl-DBD-ODBC
+
 
 
 # License
