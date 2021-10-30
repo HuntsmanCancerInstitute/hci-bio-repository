@@ -722,7 +722,7 @@ sub scan_directory {
 	
 	# remove list
 	$fh = IO::File->new($Project->alt_remove_file, 'w') or 
-		die sprintf("unable to write manifest file : $!\n", $Project->alt_remove_file);
+		die sprintf("unable to write remove file %s: $!\n", $Project->alt_remove_file);
 	foreach (@removelist) {
 		$fh->print("$_\n");
 	}
