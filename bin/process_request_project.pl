@@ -14,7 +14,7 @@ use RepoCatalog;
 use RepoProject;
 use Emailer;
 
-my $version = 5.3;
+my $version = 5.4;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
