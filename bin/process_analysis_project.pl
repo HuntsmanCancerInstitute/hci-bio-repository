@@ -98,8 +98,7 @@ Options:
     --verbose           Tell me everything!
  
  Seven Bridges
-    --division <text>   The Seven Bridges division name. Should be name of 
-                        section in the credentials file. Default 'default'.
+    --division <text>   The Seven Bridges division name. 
 
  Paths
     --sbup <path>       Path to the Seven Bridges Java uploader start script,
