@@ -1,5 +1,5 @@
 package SB2;
-our $VERSION = 5.1;
+our $VERSION = 5.2;
 
 =head1 NAME
 
@@ -381,7 +381,7 @@ sub new {
 	
 	# arguments
 	my %args = @_;
-	my $division = $args{div} || $args{division} || $args{profile} || 'default';
+	my $division = $args{div} || $args{division} || $args{profile} || undef;
 	my $cred_path = $args{cred} || $args{cred_path} || $args{credentials} || undef;
 	my $token = $args{token} || undef;
 	my $verb = $args{verbose} || $args{verb} || 0;
@@ -663,6 +663,9 @@ sub list_divisions {
 	my $options = {
 		'x-sbg-advance-access' => 'advance'
 	};
+	unless ($self->{div}) {
+		$self->{div} = 'default';
+	}
 	my $token = $self->token; 
 		# we don't actually need the token yet, but it will force reading credentials file
 		# and update the api endpoint in case it's different from the default value
