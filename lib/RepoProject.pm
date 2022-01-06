@@ -1,5 +1,5 @@
 package RepoProject;
-our $VERSION = 5.3;
+our $VERSION = 5.4;
 
 =head1 NAME 
 
@@ -800,6 +800,10 @@ sub _age_callback {
 	if ($File::Find::name =~ m/\d+R\/(?:Sample.?QC|Library.?QC|Sequence.?QC|Cell.Prep.QC)(?:.?\w+)?\//) {
 		return;
 	}
+	# or checksum files, since these might be added since original scan
+	return if $file =~ m/\.md5$/;
+	return if $file =~ m/^md5.*\.(?:txt|out)$/; 
+	
 	if ($project_age == 0) {
 		# first file! seed with current data
 		$project_age = $age;
