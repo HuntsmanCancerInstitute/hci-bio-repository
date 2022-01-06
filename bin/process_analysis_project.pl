@@ -14,7 +14,7 @@ use RepoCatalog;
 use Emailer;
 
 
-my $version = 5.3;
+my $version = 5.4;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -939,8 +939,8 @@ sub callback {
 			print "   ! Possible HCI Fastq file detected! $clean_name\n";
 		}
 		$filetype = 'Sequence';
-		if ($file !~ /\.gz$/i and $size > 1000000) {
-			# file bigger than 1 MB, let's compress it separately
+		if ($file !~ /\.gz$/i) {
+			# file not compressed!!!????? let's compress it separately
 			my $command = sprintf "%s \"%s\"", $gzipper, $file;
 			if (system($command)) {
 				print "   ! failed to automatically compress '$fname': $!\n";
@@ -956,8 +956,14 @@ sub callback {
 				($date, $size) = get_file_stats($file);
 			}
 		}
+		
+		# check the size
+		if ($size > 100000) {
+			# Bigger than 1 KB, leave it out
+			$filedata{$fname}{zip} = 0;
+		}
 		else {
-			# otherwise we'll leave it for inclusion in the zip archive
+			# otherwise we'll include it in the zip archive
 			$filedata{$fname}{zip} = 1;
 		}
 	}
