@@ -14,7 +14,7 @@ use RepoCatalog;
 use RepoProject;
 use Emailer;
 
-my $version = 5.4;
+my $version = 5.5;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -883,6 +883,10 @@ sub upload_files {
 	if ($result =~ /FAILED/) {
 		$failure_count++;
 		print "   ! upload failed!\n";
+	}
+	elsif ($result =~ /Invalid files specified/) {
+		$failure_count++;
+		print "   ! Invalid files were encountered! File changes may have occurred since last scan\n";
 	}
 	elsif ($result =~ /Done\.\n$/) {
 		print "   > upload successful\n";
