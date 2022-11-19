@@ -1162,6 +1162,10 @@ sub upload_files {
 		);
 		if ($sbproject and $sbproject->id) {
 			printf "   > created SB project %s\n", $sbproject->id;
+			# rename the project to something more meaningful
+			$sbproject->update(
+				name => sprintf("%s: $title", $Project->id)
+			);
 		}
 		else {
 			print "   ! failed to make SB project!\n";
