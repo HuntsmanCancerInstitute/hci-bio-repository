@@ -34,8 +34,6 @@ inc/
 /pm_to_blib
 /*.zip
 
-# note files
-notes.txt
-api_curl_log.txt
-*test*.pl
-playground.pl
+# development
+playground/
+.pls_cache/
