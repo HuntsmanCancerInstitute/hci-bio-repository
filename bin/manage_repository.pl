@@ -11,7 +11,7 @@ use RepoCatalog;
 use RepoProject;
 
 
-my $VERSION = 5.3;
+our $VERSION = 5.4;
 
 
 ######## Documentation
@@ -78,7 +78,7 @@ manage_repository.pl --cat <file.db> --status A1234 A1235 A1236
     --delete                  Delete the to-delete files from the project 
                                 directory and/or hidden folder
     --notice                  Symlink the notice file into the project folder
-    --clean                   Safely remove manifest and list files ONLY
+    --clean                   Safely remove manifest, list files
   
   Actions to notify:
     --email_anal_del          Email Analysis scheduled deletion
@@ -437,6 +437,10 @@ sub open_import_catalog {
 							if ($age) {
 								$E->youngest_age($age);
 							}
+							# print warnings if something seems amiss
+							if ($E->hidden_datestamp and $age > $E->hidden_datestamp) {
+								print "  ! New files added to hidden project $id\n";
+							}
 						}
 					}
 					else {
@@ -480,6 +484,10 @@ sub open_import_catalog {
 							}
 							if ($age) {
 								$E->youngest_age($age);
+							}
+							# print warnings if something seems amiss
+							if ($E->hidden_datestamp and $age > $E->hidden_datestamp) {
+								print "  ! New files added to hidden project $id\n";
 							}
 						}
 					}
@@ -1151,8 +1159,8 @@ sub run_project_directory_actions {
 	
 				# zip archive
 				if (-e $Project->zip_file) {
-					printf "  ! Archive file can not be cleaned automatically!\n";
-					$failure_count++;
+					unlink $Project->zip_file;
+					printf "  ! Deleted %s\n", $Project->zip_file;
 				}
 	
 				# zip list
