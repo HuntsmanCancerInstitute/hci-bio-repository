@@ -14,7 +14,7 @@ use RepoCatalog;
 use Emailer;
 
 
-my $version = 5.5;
+our $VERSION = 5.6;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -246,6 +246,7 @@ my %filedata;
 my $Digest;
 my $failure_count = 0;
 my $post_zip_size = 0;
+my @ten_x_crap;
 
 # external commands
 my ($gzipper, $bgzipper, $zipper);
@@ -652,6 +653,20 @@ sub scan_directory {
 		}
 	}	
 	
+	### 10X temporary files
+	if (@ten_x_crap) {
+		# we have 10X crap files that need to be targeted for deletion
+		# have to do it now while scanning
+		# I don't have a specific function to do this, so use a low level function to 
+		# manually do this
+		# this is basically undoable and permanent
+		print "  ! Deleting 10X Genomics temporary analysis files\n";
+		$failure_count += $Project->_delete_directory_files('./', \@ten_x_crap);
+		
+		# clean up empty directories
+		$failure_count += $Project->clean_empty_directories('./');
+	}
+	
 	
 	### Zip archive the files
 	if ($zip and scalar @ziplist) {
@@ -787,6 +802,14 @@ sub callback {
 		# what the hell are SRA files doing in here!!!????
 		print "   ! deleting SRA file $clean_name\n";
 		unlink $file;
+		return;
+	}
+	elsif ($fname =~ /.+ \/ fork0 \/ .+/x) {
+		# these are left over 10X Genomics temporary processing files
+		# they are not needed and do not need to be saved
+		# add to custom remove list
+		print "     marking 10X Genomics temporary file for deletion\n" if $verbose;
+		push @ten_x_crap, $clean_name;
 		return;
 	}
 	elsif ($file eq '.DS_Store' or $file eq 'Thumbs.db') {
