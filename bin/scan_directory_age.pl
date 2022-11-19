@@ -3,8 +3,9 @@
 
 use strict;
 use File::Find;
+use Getopt::Long;
 
-our $version = 1.2;
+our $VERSION = 1.3;
 
 ######## Documentation
 my $doc = <<END;
@@ -14,31 +15,40 @@ It will scan all files in a given directory and sub-directories,
 and report the age in days from now for the youngest file found.
 It will also generate the total size of the directory.
 
-Version: $version
+Version: $VERSION
 
 Usage:
     scan_directory_age.pl [--verbose] /path/to/directory1 ...
 
 Options:
-    --verbose       Report youngest, oldest, and biggest file
-    
+    -i --hidden        Include "hidden" files beginning with dot
+    -v --verbose       Report youngest, oldest, and biggest file
+    -h --help          Show this help
+
 END
 
 
 
 ### Options
+my $hidden = 0;
 my $verbose = 0;
-
+my $help = 0;
 
 if (scalar @ARGV == 0) {
 	print $doc;
 	exit;
 }
-if (scalar $ARGV[0] =~ /^(?:\-v|\-\-verbose)$/i) {
-	$verbose = 1;
-	shift @ARGV;
-}
 
+GetOptions(
+	'i|hidden!'       => \$hidden,
+	'v|verbose!'      => \$verbose,
+	'h|help!'         => \$help
+) or die "please recheck your options!\n\n$doc\n";
+
+if ($help) {
+	print $doc;
+	exit;
+}
 
 
 ### Search the directory using File::Find to find oldest and youngest file
@@ -111,7 +121,7 @@ sub age_callback {
 	$running_size += $size;
 	
 	# dot files are often hidden, backup, or OS stuff - but we still count the size
-	return if substr($file,0,1) eq '.'; 
+	return if (substr($file,0,1) eq '.' and not $hidden);
 	
 	# initialize
 	if ($youngest == 0) {
