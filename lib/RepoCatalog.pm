@@ -1,166 +1,13 @@
 package RepoCatalog;
-our $VERSION = 5.3;
-
-=head1 NAME 
-
-RepoCatalog - Indexed catalog database for HCI-Bio-Repository
-
-=head1 DESCRIPTION
-
-Maintains an indexed database file based on 
-[DBM::Deep](https://metacpan.org/release/DBM-Deep) 
-with essential information for all the projects in the Repository. 
-
-Projects are indexed by their GNomEx ID, i.e. C<1234R> or C<A5678>.
-
-The database file is organized as a hash of arrays. Each key is the 
-GNomEx ID, and each value is an anonymous array. When iterating or 
-querying the database file, a L<RepoEntry> object is returned for each 
-database entry, i.e. GNomEx project. This object has functions to get/set 
-specific values in the database entry. 
-
-=head1 FUNCTIONS
-
-=item new
-
-Provide the path to an index file. If the file does not exist, a new 
-index file will be generated for you.
-
-B<NOTE> While L<DBM::Deep> database files can support multiple 
-processes reading/writing, this is not fully implemented here, and 
-multiple processes writing to the file may or may not work successfully.
-You've been warned.
-
-=item file
-
-Returns the file path
-
-=item db
-
-Returns the low level L<DBM::Deep> object. 
-
-=item entry
-
-Provide a project ID. If an entry for the ID does not exist yet, 
-a new one will be generated. Returns a L<RepoEntry> object. The 
-object is tied to the database. Setting values using the functions 
-of this object will be immediately written back to the database file.
-
-=item delete_entry
-
-Provide a project ID to remove.
-
-=item optimize
-
-Runs the L<DBM::Deep> C<optimize> function on the file.
-
-=item export
-
-Provide a path where the database file entries will be written as 
-a tab-delimited text file. A header line is included.
-
-=item search_for_pi
-
-=item calculate_path
-
-Provide a project ID, either Request or Analysis, and the expected 
-path on the C<hci-bio-repo> server is returned. Note that there are 
-some inconsistencies and projects are not located in its expected 
-year, primarily years 2008-2012 in C<MicroarrayData>.
-
-=back
-
-=head1 NAME
-
-RepoEntry - A Repository project entry in the catalog
-
-=head1 DESCRIPTION
-
-An object representing a project entry in the catalog. This is 
-what users interact with working with the catalog. 
-
-=head1 FUNCTIONS
-
-Provides a number of get/set functions for the various fields for 
-a Repository project entry. 
-
-The timestamp fields return an epoch time, which must be converted 
-to people time.
-
-=over 4
-
-=item is_request
-
-=item id
-
-=item path
-
-=item name
-
-=item date
-
-=item group
-
-=item user_email
-
-=item user_first
-
-=item user_last
-
-=item lab_first
-
-=item lab_last
-
-=item pi_email
-
-=item division
-
-=item project_url
-
-=item external
-
-=item request_status
-
-=item request_application
-
-=item organism
-
-=item genome
-
-=item size
-
-=item last_size
-
-=item youngest_age
-
-=item age
-
-=item scan_datestamp
-
-=item upload_datestamp
-
-=item hidden_datestamp
-
-=item deleted_datestamp
-
-=item emailed_datestamp
-
-=item send_email
-
-=back
-
-
-
-=cut
-
-
 
 
 use strict;
+use English qw(-no_match_vars);
 use Carp;
 use IO::File;
 use DBM::Deep;
 
+our $VERSION = 5.3;
 
 
 ### Base paths for catalog files
@@ -204,7 +51,7 @@ my %req2year = (
 	1000000 => 2020, # impossibly big number means current year
 );
 
-1;
+my $internal_org = qr/(?: Bioinformatics \s Shared \s Resource | HTG \s Core \s Facility | SYSTEM )/x;
 
 ### Initialize
 
@@ -216,13 +63,13 @@ sub new {
 	my $db;
 	if (-e $path) {
 		$db = DBM::Deep->new($path) or 
-			croak "unable to open database file '$path'! $!";
+			croak "unable to open database file '$path'! $OS_ERROR";
 	}
 	else {
 		# make a new database file
 		$db = DBM::Deep->new(
 			file     => $path,
-		) or croak "unable to initialize database file '$path'! $!";
+		) or croak "unable to initialize database file '$path'! $OS_ERROR";
 	}
 		
 	my $self = {
@@ -278,7 +125,7 @@ sub new_entry {
 		# path is always the second, and we can calculate that
 		# for very early projects, the calculated path may not be accurate
 		# $self->{db}->put($project, [$project, $self->calculate_path($project)] );
-		my @data = ($project, map {""} (1..25));
+		my @data = ($project, map { q() } (1..25));
 		my $p = $self->{db}->put($project, \@data);
 		if ($p) {
 			return RepoEntry->new( $self->{db}->get($project) );
@@ -386,7 +233,7 @@ sub export_to_file {
 	croak "no output file provided!" unless defined $file;
 	$transform ||= 0;
 	my $fh = IO::File->new($file, '>') or 
-		croak "unable to open $file for writing! $!\n";
+		croak "unable to open $file for writing! $OS_ERROR\n";
 	$fh->binmode(':utf8');
 	$fh->print("ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tDivision\tURL\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n");
 	
@@ -408,7 +255,7 @@ sub import_from_file {
 	croak "no output file provided!\n" unless defined $file;
 	$force ||= 0;
 	my $fh = IO::File->new($file, '<') or 
-		croak "unable to open $file for reading! $!\n";
+		croak "unable to open $file for reading! $OS_ERROR\n";
 	$fh->binmode(':utf8');
 	my $header = $fh->getline;
 	unless ($header eq "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tDivision\tURL\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n") {
@@ -432,7 +279,7 @@ sub import_from_file {
 	my $i = 0;
 	while (my $line = $fh->getline) {
 		chomp $line;
-		my @data = split "\t", $line;
+		my @data = split /\t/, $line;
 		my $id = $data[0];
 		$self->{db}->put($id => \@data);
 		$i++;
@@ -458,7 +305,7 @@ sub find_requests_to_upload {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility|SYSTEM)/ and
+			$E->lab_last !~ $internal_org and
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and
 			$E->division and 
@@ -516,7 +363,7 @@ sub find_requests_to_hide {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility|SYSTEM)/ and
+			$E->lab_last !~ $internal_org and
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and        # finished
 			not $E->hidden_datestamp and                # not hidden yet
@@ -562,7 +409,7 @@ sub find_requests_to_delete {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility|SYSTEM)/ and
+			$E->lab_last !~ $internal_org and
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and        # finished
 			$E->hidden_datestamp and                    # hidden
@@ -607,7 +454,7 @@ sub find_analysis_to_upload {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility|SYSTEM)/ and
+			$E->lab_last !~ $internal_org and
 			not $E->is_request and
 			$E->division and                            # has division
 			not $E->hidden_datestamp   and              # not already hidden
@@ -643,7 +490,7 @@ sub find_analysis_to_hide {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility|SYSTEM)/ and
+			$E->lab_last !~ $internal_org and
 			not $E->is_request and
 			not $E->hidden_datestamp and                # not already hidden
 			$E->size > $min_size and                    # size > minimum
@@ -688,7 +535,7 @@ sub find_analysis_to_delete {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ /(?:Bioinformatics\sShared\sResource|HTG\sCore\sFacility|SYSTEM)/ and
+			$E->lab_last !~ $internal_org and
 			not $E->is_request and
 			$E->hidden_datestamp and                    # hidden
 			not $E->deleted_datestamp and               # not yet deleted
@@ -719,7 +566,7 @@ sub find_analysis_to_delete {
 
 sub calculate_path {
 	my ($self, $project) = @_;
-	if ($project =~ /^(\d+)R\d?$/) {
+	if ($project =~ /^(\d+) R \d? $/x) {
 		# request project
 		my $number = $1;
 		foreach my $k (sort {$a <=> $b} keys %req2year) {
@@ -749,7 +596,7 @@ sub calculate_path {
 
 
 # search for other things? projects to upload, hide, delete?
-
+1;
 
 
 ######################## RepoEntry #######################################################
@@ -1131,7 +978,7 @@ sub print_string {
 			next unless (defined $data[$i] and $data[$i]);
 			my @times = localtime($data[$i]);
 			if ($times[5] == 69 or $times[5] == 70) {
-				$data[$i] = '';
+				$data[$i] = q();
 			}
 			else {
 				$data[$i] = sprintf("%04d-%02d-%02d", 
@@ -1164,9 +1011,158 @@ sub print_string {
 }
 
 
-
+1;
 
 __END__
+
+=head1 NAME 
+
+RepoCatalog - Indexed catalog database for HCI-Bio-Repository
+
+=head1 DESCRIPTION
+
+Maintains an indexed database file based on 
+[DBM::Deep](https://metacpan.org/release/DBM-Deep) 
+with essential information for all the projects in the Repository. 
+
+Projects are indexed by their GNomEx ID, i.e. C<1234R> or C<A5678>.
+
+The database file is organized as a hash of arrays. Each key is the 
+GNomEx ID, and each value is an anonymous array. When iterating or 
+querying the database file, a L<RepoEntry> object is returned for each 
+database entry, i.e. GNomEx project. This object has functions to get/set 
+specific values in the database entry. 
+
+=head1 FUNCTIONS
+
+=item new
+
+Provide the path to an index file. If the file does not exist, a new 
+index file will be generated for you.
+
+B<NOTE> While L<DBM::Deep> database files can support multiple 
+processes reading/writing, this is not fully implemented here, and 
+multiple processes writing to the file may or may not work successfully.
+You've been warned.
+
+=item file
+
+Returns the file path
+
+=item db
+
+Returns the low level L<DBM::Deep> object. 
+
+=item entry
+
+Provide a project ID. If an entry for the ID does not exist yet, 
+a new one will be generated. Returns a L<RepoEntry> object. The 
+object is tied to the database. Setting values using the functions 
+of this object will be immediately written back to the database file.
+
+=item delete_entry
+
+Provide a project ID to remove.
+
+=item optimize
+
+Runs the L<DBM::Deep> C<optimize> function on the file.
+
+=item export
+
+Provide a path where the database file entries will be written as 
+a tab-delimited text file. A header line is included.
+
+=item search_for_pi
+
+=item calculate_path
+
+Provide a project ID, either Request or Analysis, and the expected 
+path on the C<hci-bio-repo> server is returned. Note that there are 
+some inconsistencies and projects are not located in its expected 
+year, primarily years 2008-2012 in C<MicroarrayData>.
+
+=back
+
+=head1 NAME
+
+RepoEntry - A Repository project entry in the catalog
+
+=head1 DESCRIPTION
+
+An object representing a project entry in the catalog. This is 
+what users interact with working with the catalog. 
+
+=head1 FUNCTIONS
+
+Provides a number of get/set functions for the various fields for 
+a Repository project entry. 
+
+The timestamp fields return an epoch time, which must be converted 
+to people time.
+
+=over 4
+
+=item is_request
+
+=item id
+
+=item path
+
+=item name
+
+=item date
+
+=item group
+
+=item user_email
+
+=item user_first
+
+=item user_last
+
+=item lab_first
+
+=item lab_last
+
+=item pi_email
+
+=item division
+
+=item project_url
+
+=item external
+
+=item request_status
+
+=item request_application
+
+=item organism
+
+=item genome
+
+=item size
+
+=item last_size
+
+=item youngest_age
+
+=item age
+
+=item scan_datestamp
+
+=item upload_datestamp
+
+=item hidden_datestamp
+
+=item deleted_datestamp
+
+=item emailed_datestamp
+
+=item send_email
+
+=back
+
 
 =head1 AUTHOR
 

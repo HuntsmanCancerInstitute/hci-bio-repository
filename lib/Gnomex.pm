@@ -1,26 +1,15 @@
 package Gnomex;
 
-our $VERSION = 5.3;
-
-=head1 NAME 
-
-Gnomex - HCI-specific library for interacting with the GNomEx database
-
-=head1 DESCRIPTION
-
-These are subroutines for fetching new data from the GNomEx database.
-
-=cut
-
-
 use strict;
+use English qw(-no_match_vars);
 use Carp;
 use IO::File;
 use File::Spec;
 use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
 
-1;
+our $VERSION = 5.3;
+
 
 
 
@@ -104,7 +93,7 @@ sub new {
 		if ($opts{perm} and -e $opts{perm}) {
 			# excellent, we have permissions file
 			my $fh = IO::File->new($opts{perm}) or die 
-				"unable to open file '$opts{perm}'! $!\n";
+				"unable to open file '$opts{perm}'! $OS_ERROR\n";
 			my $u = $fh->getline;
 			chomp $u;
 			$opts{user} ||= $u;
@@ -124,11 +113,11 @@ sub new {
 	if ($opts{lab} and -e $opts{lab}) {
 		# open file
 		my $fh = IO::File->new($opts{lab}) or 
-			croak "unable to open $opts{lab}! $!";
+			croak "unable to open $opts{lab}! $OS_ERROR";
 		my $header = $fh->getline;
 		
 		# check header
-		unless ($header =~ /^Name	Email	Allow.Upload	SB.Division$/) {
+		unless ($header =~ /^ Name \t Email \t Allow.Upload \t SB.Division $/x) {
 			croak "lab division file must have four columns: Name, Email, Allow_Upload, SB_Division\n";
 		}
 		
@@ -136,7 +125,7 @@ sub new {
 		my %lab2info;
 		while (my $line = $fh->getline) {
 			chomp $line;
-			my @bits = split("\t", $line);
+			my @bits = split /\t/, $line;
 			my $name = shift @bits;
 			$lab2info{$name} = \@bits;
 		}
@@ -200,7 +189,7 @@ sub fetch_analyses {
 		}
 		
 		# check date
-		$row[2] =~ s/ \d\d:\d\d:\d\d\.\d+$//; # clean up time from date
+		$row[2] =~ s/\s+ \d\d: \d\d: \d\d \.\d+ $//x; # clean up time from date
 		my ($year) = $row[2] =~ /^(\d{4})/;
 		if ($year_to_pull and $year < $year_to_pull) {
 			$skip_count++;
@@ -212,7 +201,7 @@ sub fetch_analyses {
 		
 		# remove undefined nulls
 		foreach (@row) {
-			$_ = q() if not defined $_;
+			$_ = q() if not defined;
 		}
 		
 		# get entry
@@ -244,7 +233,7 @@ sub fetch_analyses {
 						}
 						elsif ($lab2info->{$lab}->[1] eq 'N' and length($E->division) > 1) {
 							printf "  > removing division '%s' from %s\n", $E->division, $row[0];
-							$E->division(''); # blank
+							$E->division( q() ); # blank
 							$u++;
 						}
 					}
@@ -356,7 +345,7 @@ sub fetch_requests {
 		}
 		
 		# check date
-		$row[2] =~ s/ \d\d:\d\d:\d\d\.\d+$//; # clean up time from date
+		$row[2] =~ s/\s+ \d\d: \d\d: \d\d \.\d+ $//x; # clean up time from date
 		my ($year) = $row[2] =~ /^(\d{4})/;
 		if ($year_to_pull and $year < $year_to_pull) {
 			$skip_count++;
@@ -367,7 +356,7 @@ sub fetch_requests {
 		$row[0] =~ s/\d+$//; # remove straggling number from request, ex 1234R1
 		foreach (@row) {
 			# remove undefined nulls
-			$_ = q() if not defined $_;
+			$_ = q() if not defined;
 		}
 
 	
@@ -407,7 +396,7 @@ sub fetch_requests {
 						}
 						elsif ($lab2info->{$lab}->[1] eq 'N' and length($E->division) > 1) {
 							printf "  > removing division '%s' from %s\n", $E->division, $row[0];
-							$E->division(''); # blank
+							$E->division( q() ); # blank
 							$u++;
 						}
 					}
@@ -499,9 +488,17 @@ sub DESTROY {
 	$self->{dbh}->disconnect;
 }
 
-
+1;
 
 __END__
+
+=head1 NAME 
+
+Gnomex - HCI-specific library for interacting with the GNomEx database
+
+=head1 DESCRIPTION
+
+These are subroutines for fetching new data from the GNomEx database.
 
 =head1 AUTHOR
 

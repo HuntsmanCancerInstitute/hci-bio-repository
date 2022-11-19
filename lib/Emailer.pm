@@ -1,118 +1,5 @@
 package Emailer;
 
-our $VERSION = 5.1;
-
-=head1 NAME 
-
-Emailer - HCI-specific library for sending out form emails
-
-=head1 DESCRIPTION
-
-These are subroutines for sending standard form emails to users 
-of the Huntsman Cancer Institute enterprise license of Seven Bridges.
-The content of the emails are included in here as code. Customizing 
-the emails requires changing the code.
-
-=head1 USAGE
-
-There are four exported functions for sending emails. 
-
-=over 4
-
-=item send_analysis_upload_email
-
-This is sent to the GNomEx user and the corresponding principal investigator 
-upon the completion of uploading a GNomEx Analysis project to their 
-corresponding Seven Bridges lab division.
-
-=item send_request_upload_email
-
-This is sent to the GNomEx user and the corresponding principal investigator 
-upon the completion of uploading a GNomEx Request project to their 
-corresponding Seven Bridges lab division.
-
-=item send_analysis_deletion_email
-
-This is sent to the GNomEx user and the corresponding principal investigator 
-to notify them of the impending scheduled removal of their GNomEx Analysis 
-project in one week. This is primarily meant for labs that do not have a 
-currently active Seven Bridges lab division.  
-
-=item send_request_deletion_email
-
-This is sent to the GNomEx user and the corresponding principal investigator 
-to notify them of the impending scheduled removal of their GNomEx Request 
-project in one week. This is primarily meant for labs that do not have a 
-currently active Seven Bridges lab division.  
-
-=back
-
-To use these functions, pass a L<RepoEntry> Catalog object, from which 
-various values regarding the project can be used to fill in specific 
-fields in the form email. Specific values can be overridden and/or 
-supplemented by passing additional C<key> =E<gt> C<value> pairs. 
-
-If no Catalog entry object is available, then all fields must be 
-provided as C<key> =E<gt> C<value> pairs.
-
-List of keys include the following:
-
-=over 4
-
-=item username
-
-User name, usually "First Last"
-
-=item useremail
-
-User email address
-
-=item piname
-
-Principal Investigator name, "First Last"
-
-=item piemail
-
-Principal Investigator email address
-
-=item id
-
-GNomEx project identifier
-
-=item name
-
-GNomEx project title name
-
-=item division
-
-Seven Bridges lab division identifier
-
-=item url
-
-Seven Bridges URL to the uploaded project
-
-=item size
-
-Size of project in bytes
-
-=item age
-
-Age of project in days
-
-=back
-
-An example of the usage is below.
-
-    my $Entry = $Catalog->entry('A1234');
-    my $success = send_analysis_upload_email(
-        $Entry, 
-        useremail => 'first.name@utah.edu',
-    );
-
-
-
-=cut
-
 use strict;
 use Carp;
 use Email::Simple;
@@ -123,8 +10,7 @@ use Email::Sender::Transport::SMTP;
 my $default_from_email = 'Timothy Parnell <timothy.parnell@hci.utah.edu>';
 my $default_smtp = 'smtp.utah.edu';
 
-1;
-
+our $VERSION = 5.1;
 
 
 sub new {
@@ -275,8 +161,8 @@ sub _process_options {
 	if (ref($_[0]) eq 'RepoEntry') {
 		# yay, an object to use!
 		my $E = shift @_;
-		$opt{username}  = $E->user_first . ' ' . $E->user_last;
-		$opt{piname}    = $E->lab_first . ' ' . $E->lab_last;
+		$opt{username}  = $E->user_first . q( ) . $E->user_last;
+		$opt{piname}    = $E->lab_first . q( ) . $E->lab_last;
 		$opt{useremail} = $E->user_email;
 		$opt{piemail}   = $E->pi_email;
 		$opt{id}        = $E->id;
@@ -291,7 +177,7 @@ sub _process_options {
 			# so do it old fashioned way
 			while (@_) {
 				my $key = shift @_;
-				my $val = shift @_ || '';
+				my $val = shift @_ || q();
 				$opt{$key} = $val;
 			}
 		}
@@ -299,15 +185,15 @@ sub _process_options {
 	else {
 		# a list of key values, I hope? hope we have the right ones!
 		%opt = @_;
-		$opt{username}  ||= '';
-		$opt{piname}    ||= '';
-		$opt{useremail} ||= '';
-		$opt{piemail}   ||= '';
-		$opt{id}        ||= '';
-		$opt{name}      ||= '';
-		$opt{division}  ||= '';
-		$opt{url}       ||= '';
-		$opt{size}      ||= '';
+		$opt{username}  ||= q();
+		$opt{piname}    ||= q();
+		$opt{useremail} ||= q();
+		$opt{piemail}   ||= q();
+		$opt{id}        ||= q();
+		$opt{name}      ||= q();
+		$opt{division}  ||= q();
+		$opt{url}       ||= q();
+		$opt{size}      ||= q();
 		$opt{age}       ||= '?';
 	}
 	unless (exists $opt{from}) {
@@ -320,8 +206,8 @@ sub _process_options {
 		$opt{glacier_cost} = sprintf "\$%.2f", ($opt{size} / 1000000000) * 0.004;
 	}
 	else {
-		$opt{s3_cost} = '';
-		$opt{glacier_cost} = '';
+		$opt{s3_cost} = q();
+		$opt{glacier_cost} = q();
 	}
 	
 	return \%opt;
@@ -351,8 +237,117 @@ sub _send_email {
 	return Email::Sender::Simple->try_to_send($email, {transport => $self->smtp});
 }
 
+1;
 
 __END__
+
+=head1 NAME 
+
+Emailer - HCI-specific library for sending out form emails
+
+=head1 DESCRIPTION
+
+These are subroutines for sending standard form emails to users 
+of the Huntsman Cancer Institute enterprise license of Seven Bridges.
+The content of the emails are included in here as code. Customizing 
+the emails requires changing the code.
+
+=head1 USAGE
+
+There are four exported functions for sending emails. 
+
+=over 4
+
+=item send_analysis_upload_email
+
+This is sent to the GNomEx user and the corresponding principal investigator 
+upon the completion of uploading a GNomEx Analysis project to their 
+corresponding Seven Bridges lab division.
+
+=item send_request_upload_email
+
+This is sent to the GNomEx user and the corresponding principal investigator 
+upon the completion of uploading a GNomEx Request project to their 
+corresponding Seven Bridges lab division.
+
+=item send_analysis_deletion_email
+
+This is sent to the GNomEx user and the corresponding principal investigator 
+to notify them of the impending scheduled removal of their GNomEx Analysis 
+project in one week. This is primarily meant for labs that do not have a 
+currently active Seven Bridges lab division.  
+
+=item send_request_deletion_email
+
+This is sent to the GNomEx user and the corresponding principal investigator 
+to notify them of the impending scheduled removal of their GNomEx Request 
+project in one week. This is primarily meant for labs that do not have a 
+currently active Seven Bridges lab division.  
+
+=back
+
+To use these functions, pass a L<RepoEntry> Catalog object, from which 
+various values regarding the project can be used to fill in specific 
+fields in the form email. Specific values can be overridden and/or 
+supplemented by passing additional C<key> =E<gt> C<value> pairs. 
+
+If no Catalog entry object is available, then all fields must be 
+provided as C<key> =E<gt> C<value> pairs.
+
+List of keys include the following:
+
+=over 4
+
+=item username
+
+User name, usually "First Last"
+
+=item useremail
+
+User email address
+
+=item piname
+
+Principal Investigator name, "First Last"
+
+=item piemail
+
+Principal Investigator email address
+
+=item id
+
+GNomEx project identifier
+
+=item name
+
+GNomEx project title name
+
+=item division
+
+Seven Bridges lab division identifier
+
+=item url
+
+Seven Bridges URL to the uploaded project
+
+=item size
+
+Size of project in bytes
+
+=item age
+
+Age of project in days
+
+=back
+
+An example of the usage is below.
+
+    my $Entry = $Catalog->entry('A1234');
+    my $success = send_analysis_upload_email(
+        $Entry, 
+        useremail => 'first.name@utah.edu',
+    );
+
 
 =head1 AUTHOR
 
