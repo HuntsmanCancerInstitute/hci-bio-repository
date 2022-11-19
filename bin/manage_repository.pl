@@ -1,7 +1,8 @@
 #!/usr/bin/env perl
 
-use strict;
 use warnings;
+use strict;
+use English qw(-no_match_vars);
 use IO::File;
 use Getopt::Long;
 use Time::Local;
@@ -156,7 +157,6 @@ my $project_upload;
 my $project_zip;
 my $move_zip_files;
 my $move_del_files;
-my $unhide_files;
 my $unhide_zip_files;
 my $unhide_del_files;
 my $restore_zip_files;
@@ -398,18 +398,20 @@ sub open_import_catalog {
 	if ($fetch_analysis or $fetch_request) {
 		
 		# Initialize the GNomEx database adapter
+		my $gnomex_good = 0;
 		eval {
-			require Gnomex; 
+			require Gnomex;
+			$gnomex_good = 1;
 		};
 		my $G;
-		if ($@) {
-			die "problem! $@\n";
-		}
-		else {
+		if ($gnomex_good) {
 			$G = Gnomex->new(
 				catalog => $Cat,
 				lab     => $labinfo_path,
 			) or die "can't instantiate Gnomex object!\n";
+		}
+		else {
+			die "problem! $EVAL_ERROR\n";
 		}
 		
 			
@@ -419,12 +421,12 @@ sub open_import_catalog {
 			my ($update_list, $new_list, $nochange_list, $skip_count) = 
 				$G->fetch_analyses($year);
 			printf " Finished processing %d Analysis project database entries\n", 
-				scalar(@$update_list) + scalar(@$new_list) + scalar(@$nochange_list);
+				scalar(@{$update_list}) + scalar(@{$new_list}) + scalar(@{$nochange_list});
 			
 			# update information from the repository file server
 			if ($scan_size_age) {
 				print " Updating project sizes and ages....\n";
-				foreach my $id (@$update_list, @$new_list, @$nochange_list) {
+				foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
 					my $E = $Cat->entry($id);
 					my $path = $E->path;
 					if (-e $path) {
@@ -457,8 +459,8 @@ sub open_import_catalog {
 			
 			# print report
 			printf "\n Project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
-				$skip_count, scalar(@$nochange_list), scalar(@$update_list), 
-				scalar(@$new_list);
+				$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
+				scalar(@{$new_list});
 		}
 		
 		### Request
@@ -467,12 +469,12 @@ sub open_import_catalog {
 			my ($update_list, $new_list, $nochange_list, $skip_count) = 
 				$G->fetch_requests($year);
 			printf " Finished processing %d Experiment Request project database entries\n", 
-				scalar(@$update_list) + scalar(@$new_list) + scalar(@$nochange_list);
+				scalar(@{$update_list}) + scalar(@{$new_list}) + scalar(@{$nochange_list});
 			
 			# update information from the repository file server
 			if ($scan_size_age) {
 				print " Updating project sizes and ages....\n";
-				foreach my $id (@$update_list, @$new_list, @$nochange_list) {
+				foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
 					my $E = $Cat->entry($id);
 					my $path = $E->path;
 					if (-e $path) {
@@ -503,7 +505,7 @@ sub open_import_catalog {
 			# scan request projects
 			my @to_scan;
 			if ($project_scan) {
-				foreach my $id (@$update_list, @$new_list, @$nochange_list) {
+				foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
 					my $E = $Cat->entry($id);
 					if ($E->size and $E->size > 200000000) {
 						# at least 200 Mb in size
@@ -543,8 +545,8 @@ sub open_import_catalog {
 			
 			# print report
 			printf "\n Project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
-				$skip_count, scalar(@$nochange_list), scalar(@$update_list), 
-				scalar(@$new_list);
+				$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
+				scalar(@{$new_list});
 			if (@to_scan) {
 				printf "  %d scanned\n", scalar(@to_scan);
 			}
@@ -568,12 +570,12 @@ sub generate_list {
 	# input file
 	elsif ($list_file) {
 		my $fh = IO::File->new($list_file) or 
-			die "Cannot open import file '$list_file'! $!\n";
+			die "Cannot open import file '$list_file'! $OS_ERROR\n";
 		my @list;
 		
 		# check header
 		my $header = $fh->getline;
-		if ($header =~ m/^(?:\d+R|A\d+)/) {
+		if ($header =~ m/^ (?: \d+R | A\d+ ) /x) {
 			# the first line looks like a project identifier, so keep it
 			chomp $header;
 			push @list, $header;
@@ -734,7 +736,7 @@ sub run_metadata_actions {
 	}
 	
 	# update the metadata scan date
-	if (defined $update_scan_date and $update_scan_date =~ /(\d\d\d\d)(\d\d)(\d\d)/) {
+	if (defined $update_scan_date and $update_scan_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
 		my $time = timelocal(0, 0, 12, $3, $2 - 1, $1);
 		print " Setting scan time ($update_scan_date) to $time\n";
 		unless (@action_list) {
@@ -752,7 +754,7 @@ sub run_metadata_actions {
 	}
 
 	# update the metadata upload date
-	if (defined $update_upload_date and $update_upload_date =~ /(\d\d\d\d)(\d\d)(\d\d)/) {
+	if (defined $update_upload_date and $update_upload_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
 		my $time = timelocal(0, 0, 12, $3, $2 - 1, $1);
 		print " Setting upload time ($update_upload_date) to $time\n";
 		unless (@action_list) {
@@ -770,7 +772,7 @@ sub run_metadata_actions {
 	}
 
 	# update the metadata hide date
-	if (defined $update_hide_date and $update_hide_date =~ /(\d\d\d\d)(\d\d)(\d\d)/) {
+	if (defined $update_hide_date and $update_hide_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
 		my $time = timelocal(0, 0, 12, $3, $2 - 1, $1);
 		print " Setting hide time ($update_hide_date) to $time\n";
 		unless (@action_list) {
@@ -788,7 +790,7 @@ sub run_metadata_actions {
 	}
 
 	# update the metadata deletion date
-	if (defined $update_delete_date and $update_delete_date =~ /(\d\d\d\d)(\d\d)(\d\d)/) {
+	if (defined $update_delete_date and $update_delete_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
 		my $time = timelocal(0, 0, 12, $3, $2 - 1, $1);
 		print " Setting delete time ($update_delete_date) to $time\n";
 		unless (@action_list) {
@@ -806,7 +808,7 @@ sub run_metadata_actions {
 	}
 
 	# update the metadata email date
-	if (defined $update_email_date and $update_email_date =~ /(\d\d\d\d)(\d\d)(\d\d)/) {
+	if (defined $update_email_date and $update_email_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
 		my $time = timelocal(0, 0, 12, $3, $2 - 1, $1);
 		print " Setting email time ($update_email_date) to $time\n";
 		unless (@action_list) {
@@ -830,7 +832,7 @@ sub run_metadata_actions {
 			die "No list provided to update division name!\n";
 		}
 		if ($update_division eq 'none') {
-			$update_division = '';
+			$update_division = q();
 		}
 		my $count = 0;
 		foreach my $item (@action_list) {
@@ -1014,7 +1016,7 @@ sub run_project_directory_actions {
 
 			# change to the given directory
 			unless (chdir $Project->given_dir) {
-				print "cannot change to given directory! $!\n";
+				print "cannot change to given directory! $OS_ERROR\n";
 				next;
 			};
 	
@@ -1136,7 +1138,7 @@ sub run_project_directory_actions {
 				}
 				else  {
 					printf " > deleting %s files in %s\n", $Project->project, $Project->given_dir;
-					my $failure += $Project->delete_project_files();
+					my $failure = $Project->delete_project_files();
 					if (not $failure) {
 						$Entry->deleted_datestamp(time);
 						print "    updated catalog deleted timestamp\n";
@@ -1217,7 +1219,7 @@ sub run_email_notifications {
 			$Email = Emailer->new();
 		};
 		unless ($Email) {
-			die " Unable to initialize Emailer! $@\n";
+			die " Unable to initialize Emailer! $EVAL_ERROR\n";
 		}
 	}
 	else {
@@ -1342,19 +1344,19 @@ sub print_functions {
 		
 			# scan day
 			my @scan   = localtime($Entry->scan_datestamp || 0);
-			my $scan_day = ($scan[5] == 69 or $scan[5] == 70) ? '          ' : 
+			my $scan_day = ($scan[5] == 69 or $scan[5] == 70) ? q(          ) : 
 				sprintf("%04d-%02d-%02d", $scan[5] + 1900, $scan[4] + 1, $scan[3]);
 			# upload day
 			my @upload = localtime($Entry->upload_datestamp || 0);
-			my $up_day = ($upload[5] == 69 or $upload[5] == 70) ? '          ' : 
+			my $up_day = ($upload[5] == 69 or $upload[5] == 70) ? q(          ) : 
 				sprintf("%04d-%02d-%02d", $upload[5] + 1900, $upload[4] + 1, $upload[3]);
 			# hide day
 			my @hide   = localtime($Entry->hidden_datestamp || 0);
-			my $hide_day = ($hide[5] == 69 or $hide[5] == 70) ? '          ' : 
+			my $hide_day = ($hide[5] == 69 or $hide[5] == 70) ? q(          ) : 
 				sprintf("%04d-%02d-%02d", $hide[5] + 1900, $hide[4] + 1, $hide[3]);
 			# delete day
 			my @delete = localtime($Entry->deleted_datestamp || 0);
-			my $delete_day = ($delete[5] == 69 or $delete[5] == 70) ? '          ' : 
+			my $delete_day = ($delete[5] == 69 or $delete[5] == 70) ? q(          ) : 
 				sprintf("%04d-%02d-%02d", $delete[5] + 1900, $delete[4] + 1, $delete[3]);
 			
 			# division

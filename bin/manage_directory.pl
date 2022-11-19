@@ -1,13 +1,15 @@
 #!/usr/bin/perl
 
+use warnings;
 use strict;
+use English qw(-no_match_vars);
 use Getopt::Long;
 use IO::File;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use RepoProject;
 
-my $version = 6;
+our $VERSION = 6;
 
 
 
@@ -26,7 +28,7 @@ See manage_repository.pl for that.
 
 More than one operation may be provided.
 
-Version: $version
+Version: $VERSION
 
 Usage:
     manage_directory.pl [options] </directory> ...
@@ -96,7 +98,7 @@ if (@ARGV) {
 }
 elsif ($list_file) {
 	my $fh = IO::File->new($list_file) or 
-		die "Cannot open import file '$list_file'! $!\n";
+		die "Cannot open import file '$list_file'! $OS_ERROR\n";
 	my $header = $fh->getline;
 	while (my $l = $fh->getline) {
 		chomp $l;
@@ -148,7 +150,7 @@ foreach my $identifier (@projects) {
 	}
 	
 	# warning
-	if ($path =~ m#^/Repository/(?:Analysis|Microarray)Data/\d{4}# ) {
+	if ($path =~ m#^ /Repository / (?: Analysis | Microarray ) Data / \d{4} #x ) {
 		print " ! Directory $identifier looks to be part of the HCI-Bio-Repository for GNomEx\   You should be using 'manage_repository.pl with a catalog file!\n";
 	}
 
@@ -163,7 +165,7 @@ foreach my $identifier (@projects) {
 
 	# change to the given directory
 	printf " > changing to %s\n", $Project->given_dir;
-	chdir $Project->given_dir or die "cannot change to given directory! $!\n";
+	chdir $Project->given_dir or die "cannot change to given directory! $OS_ERROR\n";
 	
 	
 	#### Main operations 
@@ -186,8 +188,7 @@ foreach my $identifier (@projects) {
 		if (-e $Project->delete_folder) {
 			printf " > unhiding %s deleted files from directory %s to %s\n",
 				$Project->project, $Project->delete_folder, $Project->given_dir;
-			my $failure = $Project->unhide_deleted_files;
-			$failure_count += $failure;
+			$failure_count = $Project->unhide_deleted_files;
 		}
 		else {
 			printf " ! Deleted folder %s doesn't exist!\n", $Project->delete_folder;
@@ -255,8 +256,7 @@ foreach my $identifier (@projects) {
 		if (-e $Project->alt_remove_file) {
 			printf " > hiding %s deleted files to %s\n", $Project->project, 
 				$Project->delete_folder;
-			my $failure = $Project->hide_deleted_files;
-			$failure_count += $failure;
+			$failure_count = $Project->hide_deleted_files;
 		}
 		else {
 			printf " ! %s has no deleted files to hide!\n", $Project->project;
@@ -269,13 +269,11 @@ foreach my $identifier (@projects) {
 		if (-e $Project->delete_folder and -e $Project->remove_file) {
 			printf " > deleting %s files in hidden delete folder %s\n", $Project->project, 
 				$Project->delete_folder;
-			my $failure = $Project->delete_hidden_deleted_files();
-			$failure_count += $failure;
+			$failure_count = $Project->delete_hidden_deleted_files();
 		}
 		else  {
 			printf " > deleting %s files in %s\n", $Project->project, $Project->given_dir;
-			my $failure += $Project->delete_project_files();
-			$failure_count += $failure;
+			$failure_count += $Project->delete_project_files();
 		}
 	}
 	

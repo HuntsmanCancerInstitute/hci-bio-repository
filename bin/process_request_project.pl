@@ -1,7 +1,8 @@
 #!/usr/bin/env perl
 
-
+use warnings;
 use strict;
+use English qw(-no_match_vars);
 use IO::File;
 use File::Find;
 use File::Spec;
@@ -42,7 +43,7 @@ A Markdown description is generated for the Seven Bridges Project
 using the GNomEx metadata, including user name, strategy, title, 
 and group name.
 
-Version: $version
+Version: $VERSION
 
 Example usage:
     process_request_project.pl [options] /Repository/MicroarrayData/2019/1234R
@@ -227,13 +228,13 @@ elsif ($strategy =~ /mirna/i) {
 elsif ($strategy =~ /rna/i) {
 	$experimental_strategy = 'RNA-Seq';
 }
-elsif ($strategy =~ /(?:methyl|bisulfite)/i) {
+elsif ($strategy =~ m/(?: methyl | bisulfite )/xi) {
 	$experimental_strategy = 'Bisulfite-Seq';
 }
-elsif ($strategy =~ /(?:exon|exome|capture)/i) {
+elsif ($strategy =~ /(?: exon | exome | capture)/xi) {
 	$experimental_strategy = 'WXS';
 }
-elsif ($strategy =~ /(?:dna|chip|atac)/i) {
+elsif ($strategy =~ /(?: dna | chip | atac)/xi) {
 	$experimental_strategy = 'DNA-Seq';
 }
 else {
@@ -250,7 +251,7 @@ my $Project = RepoProject->new($path, $verbose) or
 	die "unable to initiate Repository Project!\n";
 
 # check project ID
-if ($Project->given_dir =~ m/A\d{1,5}\/?$/) {
+if ($Project->given_dir =~ m/A \d{1,5} \/? $/x) {
 	# looks like an analysis project
 	die "given path is an Analysis project! Stopping!\n";
 }
@@ -311,11 +312,13 @@ if ($scan) {
 	scan_directory();
 	
 	# update scan time stamp
-	if ($cat_file and not $failure_count) {
-		my $Catalog = RepoCatalog->new($cat_file) if -e $cat_file;
-		my $Entry = $Catalog->entry($Project->id) if $Catalog;
-		$Entry->scan_datestamp(time);
-		print " > updated Catalog scan date stamp\n";
+	if ($cat_file and -e $cat_file and not $failure_count) {
+		my $Catalog = RepoCatalog->new($cat_file);
+		if ( $Catalog ) {
+			my $Entry = $Catalog->entry($Project->id) ;
+			$Entry->scan_datestamp(time);
+			print " > updated Catalog scan date stamp\n";
+		}
 	}
 }
 
@@ -458,7 +461,7 @@ sub scan_directory {
 	### Write files
 	# manifest
 	my $fh = IO::File->new($Project->manifest_file, 'w') or 
-		die sprintf("unable to write manifest file %s: $!\n", $Project->manifest_file);
+		die sprintf("unable to write manifest file %s: $OS_ERROR\n", $Project->manifest_file);
 	foreach (@manifest) {
 		$fh->print("$_\n");
 	}
@@ -468,7 +471,7 @@ sub scan_directory {
 	
 	# remove list
 	$fh = IO::File->new($Project->alt_remove_file, 'w') or 
-		die sprintf("unable to write manifest file %s: $!\n", $Project->alt_remove_file);
+		die sprintf("unable to write manifest file %s: $OS_ERROR\n", $Project->alt_remove_file);
 	foreach (@removelist) {
 		$fh->print("$_\n");
 	}
@@ -502,13 +505,13 @@ sub callback {
 		print "   > skipping directory\n" if $verbose;
 		return;
 	}
-	elsif ($file =~ /(?:libsnappyjava)\.so$/i) {
+	elsif ($file =~ /libsnappyjava\.so$/xi) {
 		# devil java spawn, delete!!!!
 		print "   ! deleting java file $clean_name\n";
 		unlink $file;
 		return;
 	}
-	elsif ($file =~ /(?:fdt|fdtCommandLine)\.jar/) {
+	elsif ($file =~ m/(?: fdt | fdtCommandLine ) \.jar $/x) {
 		# fdt files, don't need
 		print "   ! deleting java file $clean_name\n";
 		unlink $file;
@@ -529,13 +532,13 @@ sub callback {
 	elsif ($file eq $Project->manifest_file) {
 		return;
 	}
-	elsif ($fname =~ m/^\.\/(?:bioanalysis|Sample.?QC|Library.?QC|Sequence.?QC|Cell.Prep.QC)(?:.?\w+)?\//) {
+	elsif ($fname =~ m/^\. \/ (?: bioanalysis | Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC ) (?:.?\w+)? \/ /x) {
 		# these are QC samples in a bioanalysis or Sample of Library QC folder
 		# directly under the main project 
 		print "   > skipping bioanalysis file $fname\n" if $verbose;
 		return;
 	}
-	elsif ($fname =~ /^\.\/RunFolder/) {
+	elsif ($fname =~ /^\. \/ RunFolder/x) {
 		# a few external requesters want the entire original RunFolder 
 		# these folders typically have over 100K files!!!!
 		# print one warning and add to remove list
@@ -550,12 +553,12 @@ sub callback {
 			return;
 		}
 	}
-	elsif ($fname =~ /^\.\/upload_staging/) {
+	elsif ($fname =~ /^ \. \/ upload_staging/x) {
 		# somebody directly uploaded files to this directory!
 		print "   ! skipping uploaded file $fname!\n";
 		return;
 	}
-	elsif ($fname =~ /samplesheet\.\w+/i) {
+	elsif ($fname =~ / samplesheet \. \w+ /xi) {
 		# file run sample sheet, can safely ignore
 		print "   > skipping file $fname\n" if $verbose;
 		return;
@@ -566,103 +569,103 @@ sub callback {
 	my ($sample, $machineID, $laneID, $pairedID);
 	# 15945X8_190320_M05774_0049_MS7833695-50V2_S1_L001_R2_001.fastq.gz
 	# new style: 16013X1_190529_D00550_0563_BCDLULANXX_S12_L001_R1_001.fastq.gz
-	if ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_([ADM]\d+)_\d+_[A-Z\d\-]+_S\d+_L(\d+)_R(\d)_001\.(?:txt|fastq)\.gz$/) {
+	if ($file =~ m/^ (\d{4,5} [xX] \d+ ) _\d+ _( [ADM]\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _R(\d) _001 \. (?: txt | fastq ) \.gz$/x) {
 		$sample = $1;
 		$machineID = $2;
 		$laneID = $3;
 		$pairedID = $4;
 	}
 	# new style index: 15603X1_181116_A00421_0025_AHFM7FDSXX_S4_L004_I1_001.fastq.gz
-	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_([ADM]\d+)_\d+_[A-Z\d\-]+_S\d+_L(\d+)_I\d_001\.(?:txt|fastq)\.gz$/) {
+	elsif ($file =~ m/^ (\d{4,5} [xX] \d+) _\d+ _( [ADM]\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _I\d _001 \. (?: txt | fastq ) \.gz$/x) {
 		$sample = $1;
 		$machineID = $2;
 		$laneID = $3;
 		$pairedID = 3;
 	}
 	# new old style HiSeq: 15079X10_180427_D00294_0392_BCCEA1ANXX_R1.fastq.gz
-	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_([ADM]\d+)_\d+_[A-Z\d\-]+_R(\d)\.(?:txt|fastq)\.gz$/){
+	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _\d+ _( [ADM]\d+ ) _\d+ _[A-Z\d\-]+ _R(\d) \. (?: txt | fastq ) \.gz$/x){
 		$sample = $1;
 		$machineID = $2;
 		$laneID = 1;
 		$pairedID = $3;
 	}
 	# old style, single-end: 15455X2_180920_D00294_0408_ACCFVWANXX_2.txt.gz
-	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_([ADM]\d+)_\d+_[A-Z\d]+_(\d)\.txt\.gz$/) {
+	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _\d+ _( [ADM] \d+ ) _\d+ _[A-Z\d]+ _(\d) \.txt \.gz $/x) {
 		$sample = $1;
 		$machineID = $2;
 		$laneID = $3;
 	}
 	# old style, paired-end: 15066X1_180427_D00294_0392_BCCEA1ANXX_5_1.txt.gz
-	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_([ADM]\d+)_\d+_[A-Z\d]+_(\d)_[12]\.txt\.gz$/) {
+	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _\d+ _( [ADM] \d+ ) _\d+ _[A-Z\d]+ _(\d) _[12] \.txt \.gz$/x) {
 		$sample = $1;
 		$machineID = $2;
 		$laneID = $3;
 		$pairedID = $4;
 	}
 	# 10X genomics and MiSeq read file: 15454X1_S2_L001_R1_001.fastq.gz, sometimes not gz????
-	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_S\d+_L(\d+)_R(\d)_001\.fastq(?:\.gz)?$/) {
+	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _S\d+ _L(\d+) _R(\d) _001 \.fastq (?:\.gz)? $/x) {
 		$sample = $1;
 		$laneID = $2;
 		$pairedID = $3;
 		# must grab the machine ID from the read name
 		my $head = $file =~ m/\.gz$/ ? qx(gzip -dc $file | head -n 1) : qx(head -n 1 $file);
-		if ($head =~ /^@([ADM]\d+):/) {
+		if ($head =~ /^ @ ( [ADM]\d+ ) :/x) {
 			$machineID = $1;
 		}
 	}
 	# 10X genomics index file: 15454X1_S2_L001_I1_001.fastq.gz
-	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_S\d+_L(\d+)_I1_001\.fastq\.gz$/) {
+	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _S\d+ _L(\d+) _I1 _001 \.fastq \.gz $/x) {
 		$sample = $1;
 		$laneID = $2;
 		$pairedID = 3;
 		# must grab the machine ID from the read name
 		my $head = qx(gzip -dc $file | head -n 1);
-		if ($head =~ /^@([ADM]\d+):/) {
+		if ($head =~ /^ @ ( [ADM]\d+ ) :/x) {
 			$machineID = $1;
 		}
 	}
 	# another MiSeq file: 15092X7_180424_M00736_0255_MS6563328-300V2_R1.fastq.gz
-	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_([ADM]\d+)_\d+_[A-Z\d\-]+_R(\d)\.fastq\.gz$/) {
+	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _\d+ _( [ADM] \d+ ) _\d+ _[A-Z\d\-]+ _R(\d) \.fastq \.gz $/x) {
 		$sample = $1;
 		$machineID = $2;
 		$pairedID = $3;
 		$laneID = 1;
 	}
 	# crazy name: GUPTA_S1_L001_R1_001.fastq.gz
-	elsif ($file =~ m/^(\w+)_S\d+_L(\d+)_R(\d)_00\d\.fastq\.gz$/) {
+	elsif ($file =~ m/^ ( \w+ ) _S\d+ _L(\d+) _R(\d )_00\d \.fastq \.gz $/x) {
 		$sample = $1;
 		$laneID = $2;
 		$pairedID = $3;
 		# must grab the machine ID from the read name
 		my $head = qx(gzip -dc $file | head -n 1);
-		if ($head =~ /^@([ADM]\d+):/) {
+		if ($head =~ /^ @ ( [ADM]\d+ ) :/x) {
 			$machineID = $1;
 		}
 	}
 	# crazy index: GUPTA_S1_L001_I1_001.fastq.gz
-	elsif ($file =~ m/^(\w+)_S\d+_L(\d+)_I\d_00\d\.fastq\.gz$/) {
+	elsif ($file =~ m/^ ( \w+ ) _S\d+ _L(\d+) _I\d _00\d \.fastq \.gz $/x) {
 		$sample = $1;
 		$laneID = $2;
 		$pairedID = 3;
 		# must grab the machine ID from the read name
 		my $head = qx(gzip -dc $file | head -n 1);
-		if ($head =~ /^@([ADM]\d+):/) {
+		if ($head =~ /^ @ ( [ADM]\d+ ) :/x) {
 			$machineID = $1;
 		}
 	}
 	# really old single-end file: 9428X9_120926_SN1117_0117_AC168KACXX_8.txt.gz
-	elsif ($file =~ m/^(\d{4,5}[xX]\d+)_\d+_SN\d+_\d+_[A-Z\d]+_(\d)\.txt\.gz$/) {
+	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _\d+ _SN\d+ _\d+ _[A-Z\d]+ _(\d) \.txt \.gz $/x) {
 		$sample = $1;
 		$laneID = $2;
 		$pairedID = 1;
 		# must grab the machine ID from the read name
 		my $head = qx(gzip -dc $file | head -n 1);
-		if ($head =~ /^@([A-Z\d\-]+):/) {
+		if ($head =~ /^ @ ( [ADM]\d+ ) :/x) {
 			$machineID = $1;
 		}
 	}
 	# undetermined file: Undetermined_S0_L001_R1_001.fastq.gz
-	elsif ($file =~ m/^Undetermined_.+\.fastq\.gz$/) {
+	elsif ($file =~ m/^ Undetermined _.+ \.fastq \.gz $/x) {
 		$sample = 'undetermined';
 		if ($file =~ m/_L(\d+)/) {
 			$laneID = $1;
@@ -672,19 +675,19 @@ sub callback {
 		}
 		# must grab the machine ID from the read name
 		my $head = qx(gzip -dc $file | head -n 1);
-		if ($head =~ /^@([ADM]\d+):/) {
+		if ($head =~ /^ @ ( [ADM]\d+ ) :/x) {
 			$machineID = $1;
 		}
 	}
 	# I give up! catchall for other weirdo fastq files!!!
-	elsif ($file =~ m/.+\.(?:fastq|fq)\.gz$/i) {
+	elsif ($file =~ m/ .+ \. (?: fastq | fq ) \.gz $/xi) {
 		# I can't extract metadata information
 		# but at least it will get recorded in the manifest and list files
 		print "   ! processing unrecognized Fastq file $fname!\n";
-		$sample = '';
-		$laneID = '';
-		$pairedID = '';
-		$machineID = '';
+		$sample = q();
+		$laneID = q();
+		$pairedID = q();
+		$machineID = q();
 	}
 	# single checksum file
 	elsif ($file =~ m/\.gz\.md5$/) {
@@ -699,7 +702,7 @@ sub callback {
 		return; # do not continue
 	}
 	# multiple checksum file
-	elsif ($file =~ m/^md5.*\.(?:txt|out)$/) {
+	elsif ($file =~ m/^ md5.* \. (?: txt | out ) $/x) {
 		my $fh = IO::File->new($file);
 		while (my $line = $fh->getline) {
 			my ($md5, $fastqpath) = split(/\s+/, $line);
@@ -714,7 +717,7 @@ sub callback {
 		push @removelist, $clean_name;
 		return; # do not continue
 	}
-	elsif ($fname =~ /^\.\/Fastq\/.+\.(?:xml|csv)$/) {
+	elsif ($fname =~ /^ \. \/ Fastq \/ .+ \. (?: xml | csv ) $/x) {
 		# other left over files from de-multiplexing
 		print "   ! skipping demultiplexing file $fname!\n";
 		return;
@@ -762,7 +765,7 @@ sub upload_files {
 		my $fh = IO::File->new($Project->manifest_file) or die "unable to read manifest file!";
 		my $h = $fh->getline;
 		my $l = $fh->getline;
-		my @d = split(',', $l);
+		my @d = split(/,/, $l);
 		$userfirst = $d[9];
 		$userlast  = $d[10];
 		$strategy  = $d[8];

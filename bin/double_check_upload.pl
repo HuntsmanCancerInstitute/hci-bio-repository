@@ -1,7 +1,8 @@
 #!/usr/bin/env perl
 
-use strict;
 use warnings;
+use strict;
+use English qw(-no_match_vars);
 use IO::File;
 use Time::Local;
 use FindBin qw($Bin);
@@ -11,7 +12,7 @@ use RepoProject;
 
 
 unless (@ARGV) {
-	print "
+	print <<DOC;
 
 A script to double-check that all the files have been uploaded to 
 Seven Bridges, usually before a drastic action occurs, like deleting 
@@ -25,9 +26,9 @@ It requires the catalog database file and a text file of a list of
 project identifiers. 
 
 Example usage:
-$0 <catalog_file> <list_file.txt>
+double_check_upload.pl <catalog_file> <list_file.txt>
 
-"
+DOC
 }
 
 my $cat_file = shift;
@@ -40,11 +41,11 @@ my $Catalog = RepoCatalog->new($cat_file) or
 # open list
 my @list;
 my $fh = IO::File->new($list_file) or 
-	die "Cannot open import file '$list_file'! $!\n";
+	die "Cannot open import file '$list_file'! $OS_ERROR\n";
 my $header = $fh->getline;
 while (my $l = $fh->getline) {
 	chomp $l;
-	my @a = split "\t", $l;
+	my @a = split /\t/, $l;
 	push @list, $a[0];
 }
 $fh->close;

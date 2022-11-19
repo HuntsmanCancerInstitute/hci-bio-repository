@@ -1,7 +1,8 @@
 #!/usr/bin/env perl
 
-use strict;
 use warnings;
+use strict;
+use English qw(-no_match_vars);
 use Getopt::Long;
 use IO::File;
 use FindBin qw($Bin);
@@ -222,7 +223,8 @@ foreach my $id (@projects) {
 			last;
 		}
 		else {
-			if ($member->username !~ /kclemens|tjparnell/) {
+			# these support staff are in most lab divisions
+			if ($member->username !~ /kclemens | tjparnell/x) {
 				push @possibles, $member;
 			}
 		}
@@ -263,7 +265,7 @@ foreach my $id (@projects) {
 	# permissions
 	my @permissions;
 	if ($perms) {
-		foreach (split ',', $perms) {
+		foreach (split /,/, $perms) {
 			push @permissions, $_, 'true';
 		}
 	}
@@ -285,7 +287,7 @@ foreach my $id (@projects) {
 			printf "  updated permissions to %s\n", join(", ", 
 				map {sprintf("$_ => %s", $result->{$_})} 
 				sort {$a cmp $b}
-				keys %$result);
+				keys %{$result});
 		}
 		else {
 			printf "  updating permission resulted in %s\n", $result;

@@ -60,9 +60,9 @@ my $youngest      = 0;
 my $oldest        = 0;
 my $running_size  = 0;
 my $biggest_size  = 0;
-my $youngest_file = '';
-my $oldest_file   = '';
-my $biggest_file  = '';
+my $youngest_file = q();
+my $oldest_file   = q();
+my $biggest_file  = q();
 my $day = 60 * 60 * 24; # in seconds
 
 foreach my $given_dir (@ARGV) {
@@ -74,9 +74,9 @@ foreach my $given_dir (@ARGV) {
 	$oldest        = 0;
 	$running_size  = 0;
 	$biggest_size  = 0;
-	$youngest_file = '';
-	$oldest_file   = '';
-	$biggest_file  = '';
+	$youngest_file = q();
+	$oldest_file   = q();
+	$biggest_file  = q();
 	
 	# search
 	find( {
@@ -110,11 +110,11 @@ sub age_callback {
 	# skip specific files, including SB preparation files
 	return if -d $file;
 	return if -l $file;
-	return if $file =~ /_MANIFEST\.csv$/; 
-	return if $file =~ /_MANIFEST\.txt$/; 
-	return if $file =~ /_ARCHIVE\.zip$/;
-	return if $file =~ /_ARCHIVE_LIST\.txt$/;
-	return if $file =~ /_REMOVE_LIST\.txt$/;
+	return if $file =~ /_MANIFEST \.csv $/x; 
+	return if $file =~ /_MANIFEST \.txt $/x; 
+	return if $file =~ /_ARCHIVE \.zip $/x;
+	return if $file =~ /_ARCHIVE_LIST \.txt $/x;
+	return if $file =~ /_REMOVE_LIST \.txt $/x;
 	
 	# get file stats
 	my ($size, $age) = (stat($file))[7,9];

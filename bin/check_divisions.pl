@@ -1,13 +1,14 @@
 #!/usr/bin/env perl
 
-use strict;
 use warnings;
+use strict;
+use English qw(-no_match_vars);
 use Getopt::Long;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use SB2;
 
-my $VERSION = 6;
+our $VERSION = 6;
 
 
 ######## Documentation
@@ -81,7 +82,7 @@ if (scalar(@ARGV) > 0) {
 		'counts!'           => \$get_counts,
 		'cred=s'            => \$credentials,
 		'verbose!'          => \$verbose,
-	) or die "please recheck your options!\n$!\n";
+	) or die "please recheck your options!\n$OS_ERROR\n";
 }
 else {
 	print $doc;
@@ -118,9 +119,9 @@ if ($all) {
 		cred       => $credentials,
 	) or die "unable to initialize SB object!\n";
 	my $div_list = $sb->list_divisions;
-	die "no divisions found!\n" unless @$div_list;
-	# printf " > collected %d divisions\n", scalar @$div_list;
-	foreach my $div (@$div_list) {
+	die "no divisions found!\n" unless @{$div_list};
+	# printf " > collected %d divisions\n", scalar @{$div_list};
+	foreach my $div (@{$div_list}) {
 		my $token = $div->token;
 		if ($token) {
 			push @divisions, $div;
@@ -174,23 +175,23 @@ foreach my $div (@divisions) {
 	
 	if ($get_members) {
 		my $memberlist = $sbproject->list_members;
-		foreach my $member (@$memberlist) {
+		foreach my $member (@{$memberlist}) {
 			printf "%s\t%s\t%s\t%s\n", $sbproject->id, $member->name, $member->role, 
 				$member->email;
 		}
 	}
 	elsif ($get_projects) {
 		my $projectlist = $sbproject->list_projects;
-		foreach my $project (@$projectlist) {
+		foreach my $project (@{$projectlist}) {
 			my $memberlist = $project->list_members;
 			printf "%s\t%s\t%s\t%d\n", $sbproject->id, $project->id, $project->name, 
-				scalar(@$memberlist);
+				scalar(@{$memberlist});
 		}
 	}
 	elsif ($get_tasks) {
 		# using custom API execution for now
 		my $tasklist = $sbproject->execute('GET', sprintf("%s/tasks", $sbproject->endpoint));
-		foreach my $task (@$tasklist) {
+		foreach my $task (@{$tasklist}) {
 			printf "%s\t%s\t%s\n", $sbproject->id, $task->{project}, $task->{name};
 		}
 	}
@@ -210,7 +211,7 @@ foreach my $div (@divisions) {
 		my $bill = $sbproject->execute('GET', sprintf("%s/billing/groups/%s", 
 			$sbproject->endpoint, $billgroup));
 		printf "%s\t%s\t%d\t%d\t%d\t%.2f\n", $sbproject->id, $sbproject->name, 
-			scalar(@$memberlist), scalar(@$projectlist), scalar(@$tasklist), 
+			scalar(@{$memberlist}), scalar(@{$projectlist}), scalar(@{$tasklist}), 
 			$bill->{balance}{amount} || 0;
 	}
 	else {

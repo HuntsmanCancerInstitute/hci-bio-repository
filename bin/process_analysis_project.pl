@@ -1,7 +1,8 @@
 #!/usr/bin/env perl
 
-
+use warnings;
 use strict;
+use English qw(-no_match_vars);
 use IO::File;
 use File::Find;
 use POSIX qw(strftime);
@@ -56,7 +57,7 @@ using the project identifier as the name. A Markdown description is
 generated for the Project using the GNomEx metadata, including user
 name, title, group name, and genome version. 
 
-Version: $version
+Version: $VERSION
 
 Example Usage:
     process_analysis_project.pl [options] /Repository/AnalysisData/2019/A5678
@@ -237,7 +238,6 @@ my $start_time = time;
 my @removelist;
 my @ziplist;
 my %filedata;
-my $Digest;
 my $failure_count = 0;
 my $post_zip_size = 0;
 my @ten_x_crap;
@@ -282,10 +282,10 @@ my ($gzipper, $bgzipper, $zipper);
 ### Species
 # the SB metadata expects simple values, so define this by matching with regex
 my $sb_species;
-if ($species =~ /human|sapiens/i) {
+if ($species =~ /human | sapiens/xi) {
 	$sb_species = 'Homo sapiens';
 }
-elsif ($species =~ /mouse|musculus/i) {
+elsif ($species =~ /mouse | musculus/xi) {
 	$sb_species = 'Mus musculus';
 }
 elsif ($species =~ /zebrafish/i) {
@@ -303,13 +303,13 @@ elsif ($species =~ /rabbit/i) {
 elsif ($species =~ /pig/i) {
 	$sb_species = 'Sus scrofa';
 }
-elsif ($species =~ /fly|melanogaster/i) {
+elsif ($species =~ /fly | melanogaster/xi) {
 	$sb_species = 'Drosophila melanogaster';
 }
-elsif ($species =~ /yeast|cerevisiae/i) {
+elsif ($species =~ /yeast | cerevisiae/xi) {
 	$sb_species = 'Saccharomyces cerevisiae';
 }
-elsif ($species =~ /worm|elegans/i) {
+elsif ($species =~ /worm | elegans/xi) {
 	$sb_species = 'Caenorhabditis elegans';
 }
 else {
@@ -379,7 +379,7 @@ my $Project = RepoProject->new($path, $verbose) or
 	die "unable to initiate Repository Project!\n";
 
 # check project ID
-if ($Project->id =~ m/\d{3,5}R\/?$/) {
+if ($Project->id =~ m/ \d{3,5}R \/? $/x) {
 	# looks like a Request project
 	die "given path is a Request project! Stopping!\n";
 }
@@ -456,11 +456,13 @@ if ($scan) {
 	scan_directory();
 	
 	# update scan time stamp
-	if ($cat_file and not $failure_count) {
-		my $Catalog = RepoCatalog->new($cat_file) if -e $cat_file;
-		my $Entry = $Catalog->entry($Project->id) if $Catalog;
-		$Entry->scan_datestamp(time);
-		print " > updated Catalog scan date stamp\n";
+	if ($cat_file and -e $cat_file and not $failure_count) {
+		my $Catalog = RepoCatalog->new($cat_file);
+		if ( $Catalog ) {
+			my $Entry = $Catalog->entry($Project->id) ;
+			$Entry->scan_datestamp(time);
+			print " > updated Catalog scan date stamp\n";
+		}
 	}
 }
 
@@ -550,7 +552,7 @@ sub scan_directory {
 	foreach my $f (sort {$a cmp $b} keys %filedata) {
 		
 		# set genome information for files that need it
-		my ($file_species, $file_genome) = ('','');
+		my ($file_species, $file_genome) = (q(),q());
 		my $type = $filedata{$f}{type};
 		if (
 			$type eq 'IndexedAnalysis' or 
@@ -617,7 +619,7 @@ sub scan_directory {
 		
 		## write zip list file
 		my $fh = IO::File->new($Project->ziplist_file, 'w') or 
-			die sprintf("unable to write zip list file %s: $!\n", $Project->ziplist_file);
+			die sprintf("unable to write zip list file %s: $OS_ERROR\n", $Project->ziplist_file);
 		foreach (@ziplist) {
 			$fh->print("$_\n");
 		}
@@ -672,7 +674,7 @@ sub scan_directory {
 	### Write files
 	# manifest
 	my $fh = IO::File->new($Project->manifest_file, 'w') or 
-		die sprintf("unable to write manifest file %s: $!\n", $Project->manifest_file);
+		die sprintf("unable to write manifest file %s: $OS_ERROR\n", $Project->manifest_file);
 	foreach (@manifest) {
 		$fh->print("$_\n");
 	}
@@ -680,7 +682,7 @@ sub scan_directory {
 	
 	# remove list
 	$fh = IO::File->new($Project->alt_remove_file, 'w') or 
-		die sprintf("unable to write remove file %s: $!\n", $Project->alt_remove_file);
+		die sprintf("unable to write remove file %s: $OS_ERROR\n", $Project->alt_remove_file);
 	foreach (@removelist) {
 		$fh->print("$_\n");
 	}
@@ -730,13 +732,13 @@ sub callback {
 		print "     skipping project metadata file\n" if $verbose;
 		return;
 	}
-	elsif ($file =~ /(?:libsnappyjava)\.so$/i) {
+	elsif ($file =~ /libsnappyjava \.so $/xi) {
 		# devil java spawn, delete!!!!
 		print "   ! deleting java file $clean_name\n";
 		unlink $file;
 		return;
 	}
-	elsif ($file =~ /(?:fdt|fdtCommandLine)\.jar/) {
+	elsif ($file =~ /(?: fdt | fdtCommandLine ) \. jar/x) {
 		# fdt files, don't need
 		print "   ! deleting java file $clean_name\n";
 		unlink $file;
@@ -773,12 +775,12 @@ sub callback {
 	# this will also dictate zip file status
 	
 	my $filetype;
-	if ($file =~ /\.(?:bw|bigwig|bb|bigbed)$/i) {
+	if ($file =~ /\. (?: bw | bigwig | bb | bigbed ) $/xi) {
 		# an indexed analysis file
 		$filetype = 'IndexedAnalysis';
 		$filedata{$fname}{zip} = 0;
 	}
-	elsif ($file =~ /\.(?:bam|bai|cram|crai|csi|sam\.gz)$/i) {
+	elsif ($file =~ /\. (?: bam | bai | cram | crai | csi | sam\.gz ) $/xi) {
 		# an alignment file
 		$filetype = 'Alignment';
 		$filedata{$fname}{zip} = 0;
@@ -790,7 +792,7 @@ sub callback {
 			# file bigger than 1 MB, let's compress it separately
 			my $command = sprintf "%s \"%s\"", $gzipper, $file;
 			if (system($command)) {
-				print "   ! failed to automatically compress '$fname': $!\n";
+				print "   ! failed to automatically compress '$fname': $OS_ERROR\n";
 				$filedata{$fname}{zip} = 1; 
 			}
 			else {
@@ -838,7 +840,7 @@ sub callback {
 			# file bigger than 1 MB, let's compress it separately
 			my $command = sprintf "%s \"%s\"", $bgzipper, $file;
 			if (system($command)) {
-				print "   ! failed to automatically compress '$fname': $!\n";
+				print "   ! failed to automatically compress '$fname': $OS_ERROR\n";
 				$filetype = 'Variant';
 				$filedata{$fname}{zip} = 1; # we'll store it archive
 			}
@@ -859,7 +861,7 @@ sub callback {
 			$filedata{$fname}{zip} = 1;
 		}
 	}
-	elsif ($file =~ /\.vcf\.idx$/i) {
+	elsif ($file =~ / \.vcf \.idx $/xi) {
 		# a GATK-style index for non-tabix, uncompressed VCF files
 		# This index isn't useful for browsing or for anything other than GATK
 		# and it will auto-recreate anyway, so toss
@@ -885,7 +887,7 @@ sub callback {
 				$filedata{$fname}{zip} = 0;
 			}
 		} 
-		elsif ($f =~ /\.(?:bed|bed\d+|gtf|gff|gff\d|narrowpeak|broadpeak|gappedpeak|refflat|genepred|ucsc)\.gz$/i) {
+		elsif ($f =~ /\. (?: bed | bed\d+ | gtf | gff | gff\d | narrowpeak | broadpeak | gappedpeak | refflat | genepred | ucsc ) \.gz $/xi) {
 			$filetype = 'Annotation';
 			$filedata{$fname}{zip} = 0; # don't archive if indexed
 		}
@@ -894,12 +896,12 @@ sub callback {
 			$filedata{$fname}{zip} = 1;
 		}
 	}
-	elsif ($file =~ /\.\w*loupe$/i) {
+	elsif ($file =~ /\. \w* loupe$/xi) {
 		# 10X genomics loupe file
 		$filetype = 'Analysis';
 		$filedata{$fname}{zip} = 0;
 	}
-	elsif ($file =~ /\.(?:fq|fastq)(?:\.gz)?$/i) {
+	elsif ($file =~ /\. (?: fq | fastq ) (?: \.gz)? $/xi) {
 		# fastq file
 		if ($file =~ /^\d+X\d+_/) {
 			print "   ! Possible HCI Fastq file detected! $clean_name\n";
@@ -909,7 +911,7 @@ sub callback {
 			# file not compressed!!!????? let's compress it separately
 			my $command = sprintf "%s \"%s\"", $gzipper, $file;
 			if (system($command)) {
-				print "   ! failed to automatically compress '$fname': $!\n";
+				print "   ! failed to automatically compress '$fname': $OS_ERROR\n";
 				$filedata{$fname}{zip} = 1; 
 			}
 			else {
@@ -933,12 +935,12 @@ sub callback {
 			$filedata{$fname}{zip} = 1;
 		}
 	}
-	elsif ($file =~ /\.(?:fa|fasta|fai|ffn|dict)(?:\.gz)?$/i) {
+	elsif ($file =~ /\. (?: fa | fasta | fai | ffn | dict ) (?: \.gz )? $/xi) {
 		# sequence file of some sort
 		$filetype = 'Sequence';
 		$filedata{$fname}{zip} = 1;
 	}
-	elsif ($file =~ /\.(?:bed|bed\d+|gtf|gff|gff\d|narrowpeak|broadpeak|gappedpeak|refflat|genepred|ucsc)(?:\.gz)?$/i) {
+	elsif ($file =~ /\. (?: bed | bed\d+ | gtf | gff | gff\d | narrowpeak | broadpeak | gappedpeak | refflat | genepred | ucsc) (?:\.gz)? $/xi) {
 		$filetype = 'Annotation';
 		my $i = $file . '.tbi';
 		if ($file =~ /\.gz$/ and -e $i) {
@@ -949,7 +951,7 @@ sub callback {
 			$filedata{$fname}{zip} = 1;
 		}
 	}
-	elsif ($file =~ /\.(?:sh|pl|py|pyc|r|rmd|rscript|awk|sm|sing)$/i) {
+	elsif ($file =~ /\. (?: sh | pl | py | pyc | r | rmd | rscript | awk | sm | sing ) $/xi) {
 		$filetype = 'Script';
 		$filedata{$fname}{zip} = 1;
 	}
@@ -958,36 +960,36 @@ sub callback {
 		$filetype = 'Script';
 		$filedata{$fname}{zip} = 1;
 	}
-	elsif ($file =~ /\.(?:txt|tsv|tab|csv|cdt|counts|results|cns|cnr|cnn|md|log|biotypes)(?:\.gz)?$/i) {
+	elsif ($file =~ /\. (?: txt | tsv | tab | csv | cdt | counts | results | cns | cnr | cnn | md | log | biotypes ) (?:\.gz)? $/xi) {
 		# general analysis text files, may be compressed
 		$filetype = 'Text';
 		$filedata{$fname}{zip} = 1;
 	}
-	elsif ($file =~ /\.(?:wig|bg|bdg|bedgraph)(?:\.gz)?$/i) {
+	elsif ($file =~ /\. (?: wig | bg | bdg | bedgraph ) (?:\.gz)? $/xi) {
 		$filetype = 'Wiggle';
 		$filedata{$fname}{zip} = 1;
 	}
-	elsif ($file =~ /\.mpileup.*\.gz$/) {
+	elsif ($file =~ /\. mpileup.* \.gz $/xi) {
 		# compressed mpileup files ok?, some people stick in text between mpileup and gz
 		$filetype = 'Analysis';
 		$filedata{$fname}{zip} = 0;
 	}
-	elsif ($file =~ /\.(?:bar|bar\.zip|useq|swi|swi\.gz|egr|ser|mpileup|motif|cov)$/i) {
+	elsif ($file =~ /\. (?: bar | bar\.zip | useq | swi | swi\.gz | egr | ser | mpileup | motif | cov ) $/xi) {
 		$filetype = 'Analysis';
 		$filedata{$fname}{zip} = 1;
 	}
-	elsif ($file =~ /\.(?:xls|ppt|pptx|doc|docx|pdf|ps|eps|png|jpg|jpeg|gif|tif|tiff|svg|ai|out|rout|rda|rdata|rds|rproj|xml|json|json\.gz|html|pzfx|err|mtx|mtx\.gz)$/i) {
+	elsif ($file =~ /\. (?: xls | ppt | pptx | doc | docx | pdf | ps | eps | png | jpg | jpeg | gif | tif | tiff | svg | ai | out | rout | rda | rdata | rds | rproj | xml | json | json\.gz | html | pzfx | err | mtx | mtx\.gz ) $/xi) {
 		$filetype = 'Results';
 		$filedata{$fname}{zip} = 1;
 	}
-	elsif ($file =~ /\.(?:xlsx|h5|hd5|hdf5)$/i) {
+	elsif ($file =~ /\. (?: xlsx | h5 | hd5 | hdf5 ) $/xi) {
 		# leave out certain result files from zip archive just to be nice
 		$filetype = 'Results';
 		$filedata{$fname}{zip} = 0;
 	}
-	elsif ($file =~ /\.(?:tar|tar\.gz|tar\.bz2|zip)$/i) {
+	elsif ($file =~ /\. (?: tar |tar\.gz | tar\.bz2 | zip ) $/xi) {
 		$filetype = 'Archive';
-		if ($file =~ /fastqc\.zip$/) {
+		if ($file =~ /fastqc \.zip $/x) {
 			# no need keeping fastqc zip files separate
 			$filedata{$fname}{zip} = 1; 
 		}
@@ -996,7 +998,7 @@ sub callback {
 			$filedata{$fname}{zip} = 0; 
 		}
 	}
-	elsif ($file =~ /\.(?:bt2|amb|ann|bwt|pac|nix|novoindex|index)$/) {
+	elsif ($file =~ /\. (?: bt2 | amb | ann | bwt | pac | nix | novoindex | index ) $/x) {
 		$filetype = 'AlignmentIndex';
 		$filedata{$fname}{zip} = 1; # zip I guess?
 	}
@@ -1046,7 +1048,7 @@ sub upload_files {
 		my $fh = IO::File->new($Project->manifest_file) or die "unable to read manifest file!";
 		my $h = $fh->getline;
 		my $l = $fh->getline;
-		my @d = split(',', $l);
+		my @d = split(/,/, $l);
 		$userfirst = $d[4];
 		$userlast  = $d[5];
 		$fh->close;
@@ -1081,7 +1083,7 @@ sub upload_files {
 				$description .= " in the group '$group'. ";
 			}
 			else {
-				$description .= ". ";
+				$description .= '. ';
 			}
 			if ($sb_species and $sb_genome) {
 				$description .= "Analysis files are for species $sb_species, genome build version $sb_genome. ";
