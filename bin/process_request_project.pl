@@ -14,7 +14,7 @@ use RepoCatalog;
 use RepoProject;
 use Emailer;
 
-my $version = 5.5;
+our $VERSION = 5.5;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -53,7 +53,7 @@ Options:
  
  Main functions - not exclusive
     --scan              Scan the project folder and generate the manifest
-    --upload            Run the sbg-uploader program to upload
+    --upload            Prepare the project for upload
     --hide              Hide the Fastq files in hidden deletion folder
 
  Metadata
@@ -80,8 +80,6 @@ Options:
     --division <text>   The Seven Bridges division name
 
  Paths
-    --sbup <path>       Path to the Seven Bridges Java uploader start script,
-                        sbg-uploader.sh
     --cred <path>       Path to the Seven Bridges credentials file. 
                         Default is ~/.sevenbridges/credentials. Each profile 
                         should be named after the SB division.
@@ -104,7 +102,6 @@ my $title;
 my $group;
 my $description   = q();
 my $sb_division   = q();
-my $sbupload_path = q();
 my $cred_path     = q();
 my $send_email;
 my $verbose;
@@ -123,7 +120,6 @@ if (scalar(@ARGV) > 1) {
 		'desc=s'        => \$description,
 		'notify!'       => \$send_email,
 		'division=s'    => \$sb_division,
-		'sbup=s'        => \$sbupload_path,
 		'cred=s'        => \$cred_path,
 		'verbose!'      => \$verbose,
 	) or die "please recheck your options!\n\n$doc\n";
@@ -265,7 +261,6 @@ printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
 # given application paths
 if ($verbose) {
-	print " =>    SB uploader path: $sbupload_path\n" if $sbupload_path;
 	print " => SB credentials path: $cred_path\n" if $cred_path;
 }
 
@@ -359,44 +354,6 @@ if ($failure_count) {
 	
 }
 else {
-	if ($cat_file) {
-		my $Catalog = RepoCatalog->new($cat_file) if -e $cat_file;
-		my $Entry = $Catalog->entry($Project->id) if $Catalog;
-		if ($Entry) {
-			my $t = time;
-			if ($upload) {
-				$Entry->upload_datestamp($t);
-				print " > updated Catalog upload date stamp\n";
-				
-				# send an upload notification email
-				if ($send_email) {
-					my $Email = Emailer->new();
-					if ($Email) {
-						my $result = $Email->send_request_upload_email($Entry);
-						if ($result) {
-							printf " > Sent Request SB upload notification email: %s\n", 
-								$result->message;
-							$Entry->emailed_datestamp($t);
-							print " > updated Catalog email date stamp\n";
-						}
-						else {
-							print " ! Failed to send Request upload notification email!\n";
-						}
-					}
-					else {
-						print " ! Failed to initialize Emailer! unable to send!\n";
-					}
-				}
-			}
-			if ($hide_files) {
-				$Entry->hidden_datestamp($t);
-				print " > updated Catalog hide date stamp\n";
-			}
-		}
-		else {
-			print " ! no catalog entry to update!?\n";
-		}
-	}
 	printf " > finished with %s in %.1f minutes\n\n", $Project->id, 
 		(time - $start_time)/60;
 }
@@ -866,51 +823,8 @@ sub upload_files {
 			return;
 		}
 	}
+	print "     Ready for upload\n";
 	
-	
-	### Upload the files
-	# upload options
-	my @up_options = ('--manifest-file', $Project->manifest_file, '--manifest-metadata', 
-					'sample_id', 'investigation', 'library_id', 'platform', 
-					'platform_unit_id', 'paired_end', 'quality_scale', 
-					'experimental_strategy', 'UserFirstName', 'UserLastName');
-	
-	# upload command
-	my $path = $sbproject->bulk_upload_path($sbupload_path);
-	unless ($path) {
-		print "   ! no sbg-upload.sh executable path!\n";
-		$failure_count++;
-		return;
-	};
-	my $result = $sbproject->bulk_upload(@up_options);
-	print $result;
-	if ($result =~ /FAILED/) {
-		$failure_count++;
-		print "   ! upload failed!\n";
-	}
-	elsif ($result =~ /Invalid files specified/) {
-		$failure_count++;
-		print "   ! Invalid files were encountered! File changes may have occurred since last scan\n";
-	}
-	elsif ($result =~ /Done\.\n$/) {
-		print "   > upload successful\n";
-		
-		# add the user to the project
-		if ($email_address) {
-			my $name = add_user_to_sb_project($sb, $sbproject);
-			if ($name) {
-				print "   > added user $name to SB project\n";
-			}
-			else {
-				printf "   ! SB user for %s %s not found on platform\n", 
-					$userfirst, $userlast;
-			}
-		}
-	}
-	else {
-		$failure_count++;
-		print "   ! upload error!\n";
-	}
 	return 1;
 }
 

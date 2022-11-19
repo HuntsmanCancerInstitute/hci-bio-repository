@@ -68,7 +68,7 @@ Options:
  Main functions - not exclusive
     --scan              Scan the project folder and generate the manifest
                           also zip archives and/or compresses files
-    --upload            Run the sbg-uploader program to upload
+    --upload            Prepare the project for upload
     --hide              Hide the deleted files in hidden folder
 
  Metadata
@@ -101,8 +101,6 @@ Options:
     --division <text>   The Seven Bridges division name. 
 
  Paths
-    --sbup <path>       Path to the Seven Bridges Java uploader start script,
-                        sbg-uploader.sh
     --cred <path>       Path to the Seven Bridges credentials file. 
                         Default is ~/.sevenbridges/credentials. Each profile 
                         should be named after the SB division.
@@ -130,8 +128,6 @@ my $max_zip_size        = 200000000; # 200 MB
 my $keepzip             = 0;
 my $deletezip           = 0;
 my $sb_division         = q();
-my $sb_path             = q();
-my $sbupload_path       = q();
 my $cred_path           = q();
 my $send_email;
 my $everything;
@@ -157,8 +153,6 @@ if (scalar(@ARGV) > 1) {
 		'notify!'       => \$send_email,
 		'all!'          => \$everything,
 		'division=s'    => \$sb_division,
-		'sb=s'          => \$sb_path,
-		'sbup=s'        => \$sbupload_path,
 		'cred=s'        => \$cred_path,
 		'verbose!'      => \$verbose,
 	) or die "please recheck your options!\n\n";
@@ -395,8 +389,6 @@ printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
 # application paths
 if ($verbose) {
-	print " =>             SB path: $sb_path\n" if $sb_path;
-	print " =>    SB uploader path: $sbupload_path\n" if $sbupload_path;
 	print " => SB credentials path: $cred_path\n" if $cred_path;
 	print " =>    gzip compression: $gzipper\n";
 	print " =>   bgzip compression: $bgzipper\n";
@@ -512,54 +504,6 @@ if ($failure_count) {
 	
 }
 else {
-	if ($cat_file) {
-		my $Catalog = RepoCatalog->new($cat_file) if -e $cat_file;
-		my $Entry = $Catalog->entry($Project->id) if $Catalog;
-		if ($Entry) {
-			my $t = time;
-			if ($upload) {
-				$Entry->upload_datestamp($t);
-				print " > updated Catalog upload date stamp\n";
-				
-				# send an upload notification email
-				if ($send_email) {
-					# use the pre-cleaned but post-zipped file size
-					unless ($post_zip_size) {
-						# this should not be null, but just in case
-						($post_zip_size, undef) = $Project->get_size_age;
-					}
-					# initialize
-					my $Email = Emailer->new();
-					if ($Email) {
-						my $result = $Email->send_analysis_upload_email(
-							$Entry,
-							'size' => $post_zip_size
-							# force using the post-zip, pre-cleanup size
-						);
-						if ($result) {
-							printf " > Sent Analysis SB upload notification email: %s\n", 
-								$result->message;
-							$Entry->emailed_datestamp($t);
-							print " > updated Catalog email date stamp\n";
-						}
-						else {
-							print " ! Failed to send Analysis upload notification email!\n";
-						}
-					}
-					else {
-						print " ! Failed to initialize Emailer! unable to send!\n";
-					}
-				}
-			}
-			if ($hide_files) {
-				$Entry->hidden_datestamp($t);
-				print " > updated Catalog hide date stamp\n";
-			}
-		}
-		else {
-			print " ! no catalog entry to update!?\n";
-		}
-	}
 	printf " > finished with %s in %.1f minutes\n\n", $Project->id, 
 		(time - $start_time)/60;
 }
@@ -1173,52 +1117,8 @@ sub upload_files {
 			return;
 		}
 	}
+	print "     Ready for upload\n";
 	
-	
-	### Upload the files
-	# upload options
-	# The bulk uploader currently doesn't handle manifest files while preserving 
-	# folders, and the sb command line tool doesn't handle folders either, so I'm 
-	# basically screwed here. The best we can do is upload with folders. That's 
-	# more important than the small amount of metadata that could be added anyway.
-	my @up_options = ('--preserve-folders', '*');
-	
-	# upload command
-	my $path = $sbproject->bulk_upload_path($sbupload_path);
-	unless ($path) {
-		print "   ! no sbg-upload.sh executable path!\n";
-		$failure_count++;
-		return;
-	};
-	my $result = $sbproject->bulk_upload(@up_options);
-	print $result;
-	if ($result =~ /FAILED/) {
-		$failure_count++;
-		print "   ! upload failed!\n";
-	}
-	elsif ($result =~ /Invalid files specified/) {
-		$failure_count++;
-		print "   ! Invalid files were encountered! File changes may have occurred since last scan\n";
-	}
-	elsif ($result =~ /Done\.\n$/) {
-		print "   > upload successful\n";
-		
-		# add the user to the project
-		if ($email_address) {
-			my $name = add_user_to_sb_project($sb, $sbproject);
-			if ($name) {
-				print "   > added user $name to SB project\n";
-			}
-			else {
-				printf "   ! SB user for %s %s not found on platform\n", 
-					$userfirst, $userlast;
-			}
-		}
-	}
-	else {
-		$failure_count++;
-		print "   ! upload error!\n";
-	}
 	return 1;
 }
 
