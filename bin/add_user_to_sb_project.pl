@@ -3,12 +3,13 @@
 use strict;
 use warnings;
 use Getopt::Long;
+use IO::File;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use RepoCatalog;
 use SB2;
 
-my $VERSION = 5;
+our $VERSION = 5.1;
 
 
 ######## Documentation
@@ -18,7 +19,9 @@ A script to add a user to a SB project. By default, the owner
 (user) of the GNomEx project will be added with full rights (read,
 copy, write, execute, and admin). 
 
-More than one project may be specified to updated.
+More than one project may be specified to updated. For convenience, 
+a text file of project identifiers (one per line) may be provided. 
+Any additional columns are ignored.
 
 If a catalog file is not provided, then the division and email of 
 the user to be added must be provided. 
@@ -40,8 +43,10 @@ add_user_sb_project.pl --id 1234R --division big-shot-pi --email grad.student\@u
 
 OPTIONs:
     --cat <path>            Provide the path to a catalog file
-    --division <text>       Provide the SB division
-    --id <text>             Project identifier: 1234R or A5678
+    --list <file>           Provide project identifiers in a text file
+    --id <text>             Project identifier: (1234R, A5678, etc). Repeat as 
+                               necessary or simply append to end of command.
+    --division <text>       Provide the SBG division
     --email <text>          Email of user to check and/or add
     --perm <text>           Comma-delimited list of true permissions:
                               read,copy,write,execute,admin
@@ -60,6 +65,7 @@ END
 ####### Input
 my $cat_file;
 my @projects;
+my $list_file;
 my $division;
 my $email;
 my $perms;
@@ -70,9 +76,10 @@ my $verbose     = 0;
 
 if (scalar(@ARGV) > 1) {
 	GetOptions(
-		'cat=s'             => \$cat_file,
+		'c|cat=s'           => \$cat_file,
 		'division=s'        => \$division,
 		'id=s'              => \@projects,
+		'list=s'            => \$list_file,
 		'check!'            => \$check_only,
 		'email=s'           => \$email,
 		'perm=s'            => \$perms,
@@ -86,12 +93,44 @@ else {
 	exit;
 }
 
+
+### Projects
+if ($list_file) {
+	# projects given in a list file
+	
+	my $fh = IO::File->new($list_file) or 
+		die "Cannot open import file '$list_file'! $OS_ERROR\n";
+	
+	# check header
+	my $header = $fh->getline;
+	if ($header =~ m/^ (?: \d+R | A\d+ ) \b /x) {
+		# the first line looks like a project identifier, so keep it
+		chomp $header;
+		my @bits = split /\s+/, $header;
+		push @projects, $bits[0];
+	}
+	
+	# load remaining file
+	while (my $l = $fh->getline) {
+		chomp $l;
+		my @bits = split /\s+/, $l;
+		push @projects, $bits[0];
+	}
+	
+	printf " loaded %d lines from $list_file\n", scalar(@projects);
+	$fh->close;
+}
 if (@ARGV) {
+	# projects given on command line
 	push @projects, @ARGV;
 }
+
 unless (@projects) {
 	die "One or more GNomEx project IDs (1234R or A5678) must be provided!\n";
 }
+
+
+### Additional checks
 if (not $division) {
 	unless ($cat_file) {
 		die "A catalog file or division must be provided!\n";
