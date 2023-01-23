@@ -9,13 +9,13 @@ use POSIX qw(strftime);
 use Getopt::Long;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
-use SB2;
+use Net::SB;
 use RepoProject;
 use RepoCatalog;
 use Emailer;
 
 
-our $VERSION = 5.6;
+our $VERSION = 5.7;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -1055,7 +1055,7 @@ sub upload_files {
 	}
 	
 	### Initialize SB wrapper
-	my $sb = SB2->new(
+	my $sb = Net::SB->new(
 		div     => $sb_division,
 		cred    => $cred_path,
 	) or die "unable to initialize SB wrapper module!";

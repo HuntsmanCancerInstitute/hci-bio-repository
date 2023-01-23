@@ -6,9 +6,9 @@ use English qw(-no_match_vars);
 use Getopt::Long;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
-use SB2;
+use Net::SB;
 
-our $VERSION = 6;
+our $VERSION = 6.1;
 
 
 ######## Documentation
@@ -114,7 +114,7 @@ elsif ($sanity > 1) {
 # check divisions
 if ($all) {
 	# initialize without a specific division - should default to "default" token
-	my $sb = SB2->new(
+	my $sb = Net::SB->new(
 		verbose    => $verbose,
 		cred       => $credentials,
 	) or die "unable to initialize SB object!\n";
@@ -157,12 +157,12 @@ foreach my $div (@divisions) {
 	
 	# get the SB project
 	my $sbproject;
-	if (ref($div) eq 'SB2::Division') {
+	if (ref($div) eq 'Net::SB::Division') {
 		# we already have a project
 		$sbproject = $div;
 	}
 	else {
-		$sbproject = SB2->new(
+		$sbproject = Net::SB->new(
 			division   => $div,
 			verbose    => $verbose,
 			cred       => $credentials

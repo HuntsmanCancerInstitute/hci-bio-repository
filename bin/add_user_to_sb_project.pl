@@ -7,10 +7,10 @@ use Getopt::Long;
 use IO::File;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
+use Net::SB;
 use RepoCatalog;
-use SB2;
 
-our $VERSION = 5.1;
+our $VERSION = 5.2;
 
 
 ######## Documentation
@@ -188,7 +188,7 @@ foreach my $id (@projects) {
 	}
 	
 	# get SB project
-	my $Division = SB2->new(
+	my $Division = Net::SB->new(
 		division   => $curr_division,
 		verbose    => $verbose,
 		cred       => $credentials,

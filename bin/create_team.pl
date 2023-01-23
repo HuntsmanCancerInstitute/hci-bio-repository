@@ -5,10 +5,10 @@ use warnings;
 use Getopt::Long;
 use FindBin qw($Bin);
 use lib $Bin;
-use SB2;
+use Net::SB;
 
 
-my $VERSION = 5;
+my $VERSION = 5.1;
 
 
 ######## Documentation
@@ -34,7 +34,7 @@ else {
 }
 my @members = @ARGV;
 
-my $sb = SB2->new(
+my $sb = Net::SB->new(
 	division    => $division,
 	credentials => $cred,
 ) or die "unable to initialize!";
