@@ -4,9 +4,9 @@ These are scripts for working with the HCI [GNomEx](https://hci-bio-app.hci.utah
 Bio-Repository file server, particularly with respect in preparation and migration of 
 GNomEx data to [Seven Bridges](https://www.sevenbridges.com). 
 
-**NOTE:** Most of the scripts are specific to HCI infrastructure and might not be 
-applicable elsewhere. The possible exception is the `SB2` Perl module for interacting 
-with the Seven Bridges platform using the 
+**NOTE:** Most of the scripts are specific to HCI infrastructure and likely not
+applicable elsewhere, with the notable exception of 
+[sbg_project_manager](https://github.com/HuntsmanCancerInstitute/hci-bio-repository/blob/master/bin/sbg_project_manager.pl).
 
 Main scripts are in the `bin` directory. Modules required for execution are in the `lib` 
 directory. Old stuff are placed in the `deprecated` directory for posterity only.
@@ -19,43 +19,15 @@ into a Catalog database file. Actions on the GNomEx projects take place through,
 recorded into, the Catalog file. 
 
 
-## Modules
-
-General API Perl modules for use in the accompanying scripts.
-
-- `SB2`
-
-A general purpose Perl API for interacting with the 
-[Seven Bridges RESTful API](https://docs.sevenbridges.com/page/api). This is by no 
-means complete coverage, but is sufficient for purposes of this project.
-
-- `RepoCatalog`
-
-The main API module for working with the Catalog database file.
-
-- `RepoProject`
-
-A module providing common code functions for working with Repository project directory 
-folders on the bio-repository file server.
-
-- `Gnomex`
-
-A HCI-specific interface for querying the GNomEx database.
-
-- `Emailer`
-
-A module for sending out form email notifications to GNomEx users. The content of the 
-email forms are embedded in this module.
-
-
 ## Scripts
 
 Main scripts in the `bin` folder. 
 
 - `manage_repository.pl`
 
-The main script for working with the repository Catalog and GNomEx projects and file 
-directories. All actions go through here.
+The primary script for working with the repository Catalog database and GNomEx projects 
+and file directories. This is a comprehensive application for indexing, managing, and 
+processing GNomEx projects. All functions revolve around the Catalog database file.
 
 - `process_analysis_project.pl`
 
@@ -74,6 +46,13 @@ status, and MD5 checksum. Metadata is written to a `MANIFEST.csv` file. Optional
 will handle creating a corresponding Seven Bridges project and uploading the folder 
 contents to it.
 
+- `sbg_project_manager.pl`
+
+A comprehensive script application for working with files and folders on the Seven 
+Bridges platform. Unlike their simple `sb` command line tool, this will exhaustively 
+recurse through a project when performing file tasks. Tasks include listing, filtering, 
+generating download URLs, deleting, and exporting files. 
+
 - `add_user_sb_project.pl`
 
 A simple script for quickly adding a Seven Bridges division member to an existing project. 
@@ -82,6 +61,17 @@ A simple script for quickly adding a Seven Bridges division member to an existin
 
 A simple script to check one or all divisions and print the number of members and 
 projects.
+
+- other
+
+There are a few other sundry scripts for various one-off purposes and such.
+
+
+## Modules
+
+There are a few specific Perl library modules for working with the Catalog database 
+file, Repository project folders on the file server, and GNomEx. These are fairly 
+specific to the scripts here and unlikely of general interest.
 
 
 ## Deprecated Stuff
@@ -95,6 +85,10 @@ The scripts are written in Perl and can be executed under the system Perl. Some
 additional Perl modules are required for execution. These should be readily available 
 through the system package manager (`yum` or equivalent) or Perl package manager, such 
 as [CPANminus](https://metacpan.org/pod/App::cpanminus) or CPAN. 
+
+The [Net::SB](https://github.com/tjparnell/Net-SB) library module is the Perl wrapper 
+around the Seven Bridges API. The code was originally part of this package but split 
+off to make it more generally accessible.
 
 Likely need to be installed:
 
@@ -116,14 +110,11 @@ Likely standard with your Perl installation:
 
 - [JSON::PP](https://metacpan.org/pod/JSON::PP)
 
-External application:
-
-- [SB upload Java utility](https://docs.sevenbridges.com/docs/upload-via-the-command-line) 
-
 
 In addition, you will need to generate your 
 [Seven Bridges credentials file](https://docs.sevenbridges.com/docs/store-credentials-to-access-seven-bridges-client-applications-and-libraries) 
-with developer tokens for each of your divisions.
+with developer tokens for each of your divisions. The scripts make an assumption that 
+the profile and division name are the same.
 
 On a CentOS system, you can install dependencies as 
 
