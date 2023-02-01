@@ -45,7 +45,7 @@ my $fh = IO::File->new($list_file) or
 my $header = $fh->getline;
 while (my $l = $fh->getline) {
 	chomp $l;
-	my @a = split /\t/, $l;
+	my @a = split /\s+/, $l;
 	push @list, $a[0];
 }
 $fh->close;
