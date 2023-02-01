@@ -631,7 +631,7 @@ sub scan_directory {
 		# use file sync option to add, update, and/or delete members in zip archive
 		# regardless if it's present or new
 		print "  > zipping files\n";
-		my $command = sprintf("cat %s | $zipper -3 -FS -@ %s", $Project->ziplist_file, 
+		my $command = sprintf("cat %s | $zipper -FS -@ %s", $Project->ziplist_file, 
 			$Project->zip_file);
 		print "  > executing: $command\n";
 		my $result = system($command);
