@@ -120,18 +120,17 @@ if ($all) {
 	) or die "unable to initialize SB object!\n";
 	my $div_list = $sb->list_divisions;
 	die "no divisions found!\n" unless @{$div_list};
-	# printf " > collected %d divisions\n", scalar @{$div_list};
+	printf STDERR " found %d divisions\n", scalar @{$div_list};
+	my $default_token = $sb->token;
 	foreach my $div (@{$div_list}) {
 		my $token = $div->token;
-		if ($token) {
+		if ( $token and $token ne $default_token ) {
 			push @divisions, $div;
-			# printf " > division %s has token $token\n", $div->id;
 		}
-		else {
-			# printf " > division %s has no token\n", $div->id;
-		}
+		# do not keep if it is using the default token
 	}
-	# printf "collected %d divisions to check\n", scalar(@divisions);
+	printf STDERR "collected %d divisions with unique tokens to check\n",
+		scalar(@divisions);
 }
 
 
