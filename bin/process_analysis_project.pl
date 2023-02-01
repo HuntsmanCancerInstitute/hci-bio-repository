@@ -963,7 +963,14 @@ sub callback {
 	elsif ($file =~ /\. (?: txt | tsv | tab | csv | cdt | counts | results | cns | cnr | cnn | md | log | biotypes ) (?:\.gz)? $/xi) {
 		# general analysis text files, may be compressed
 		$filetype = 'Text';
-		$filedata{$fname}{zip} = 1;
+		my $i = $file . '.tbi';
+		if ($file =~ /\.gz$/ and -e $i) {
+			# it is tabix indexed, do not archive
+			$filedata{$fname}{zip} = 0;
+		}
+		else {
+			$filedata{$fname}{zip} = 1;
+		}
 	}
 	elsif ($file =~ /\. (?: wig | bg | bdg | bedgraph ) (?:\.gz)? $/xi) {
 		$filetype = 'Wiggle';
