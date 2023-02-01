@@ -62,10 +62,6 @@ Options for volume export:
     --copy                      Copy files only, don't move and link (default)
     --overwrite                 Overwrite pre-existing files (default false)
     --wait          <int>       Wait time between status checks (30 seconds)
-    --connection    <file>      File for connection credentials to attach volume
-                                   a white-space delimited text file of key value
-                                   pairs, including bucket, access_key_id, and
-                                   secret_access_key
 
 General:
     --cred          <file>      Path to SBG credentials file 
@@ -252,7 +248,7 @@ sub print_project_list {
 
 sub print_volume_list {
 	my $volumes = $Sb->list_volumes;
-	if (@{$volumes}) {
+	if ($volumes and scalar @{$volumes}) {
 		my $len = max( map {length} map {$_->id} @{$volumes} );
 		my $formatter = '%-' . $len . 's %s' . "\n";
 		printf $formatter, 'ID', 'Name';
@@ -465,7 +461,7 @@ sub print_download_file_links {
 sub export_files_to_volume {
 	# check volume
 	my $Volume = $Sb->get_volume($volume_name);
-	if ($Volume) {
+	if ($Volume and ref($Volume) eq 'Net::SB::Volume' ) {
 		# external volume is already attached
 		# make sure it is active
 		unless ($Volume->active) {
@@ -473,27 +469,30 @@ sub export_files_to_volume {
 		}
 	}
 	else {
-		if ($vol_connection_file) {
-			print STDERR "  volume not found, attempting to mount\n";
-			my $fh = IO::File->new($vol_connection_file) or
-				die "unable to open file '$vol_connection_file'! $OS_ERROR\n";
-			my %options = (
-				name  => $volume_name
-			);
-			while (my $line = $fh->getline) {
-				chomp $line;
-				next if substr($line, 0, 1) eq '#';
-				next unless $line =~ /\w+/;
-				my ($key, $value) = split /\s+=?\s*/, $line;
-				$options{$key} = $value;
-			}
-			$fh->close;
-			$Volume = $Sb->attach_volume(%options) or
-				die "unable to attach requested volume!\n";
-		}
-		else {
-			die " requested volume '$volume_name' is not attached!\n";
-		}
+# 		if ($vol_connection_file) {
+# 			print STDERR "  volume not found, attempting to mount\n";
+# 			my $fh = IO::File->new($vol_connection_file) or
+# 				die "unable to open file '$vol_connection_file'! $OS_ERROR\n";
+# 			my %options = (
+# 				name  => $volume_name
+# 			);
+# 			while (my $line = $fh->getline) {
+# 				chomp $line;
+# 				next if substr($line, 0, 1) eq '#';
+# 				next unless $line =~ /\w+/;
+# 				my ($key, $value) = split /\s+=?\s*/, $line;
+# 				$options{$key} = $value;
+# 			}
+# 			$fh->close;
+# 			$Volume = $Sb->attach_volume(%options) or
+# 				die "unable to attach requested volume!\n";
+# 		}
+# 		else {
+# 			die " requested volume '$volume_name' is not attached!\n";
+# 		}
+		print 
+" Requested volume '$volume_name' is not attached! Double check or attach\n";
+		exit 1;
 	}
 
 	# collect file list from the project
