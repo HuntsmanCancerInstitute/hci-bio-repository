@@ -215,23 +215,28 @@ my %machinelookup = (
 # values are suggested by SB documentation, except for Single-cell-Seq
 # the GNomEx application is too varied for anything more complicated. 
 my $experimental_strategy;
-if ($strategy =~ /10X Genomics/) {
-	$experimental_strategy = 'Single-Cell-Seq';
-}
-elsif ($strategy =~ /mirna/i) {
-	$experimental_strategy = 'miRNA-Seq';
-}
-elsif ($strategy =~ /rna/i) {
-	$experimental_strategy = 'RNA-Seq';
-}
-elsif ($strategy =~ m/(?: methyl | bisulfite )/xi) {
-	$experimental_strategy = 'Bisulfite-Seq';
-}
-elsif ($strategy =~ /(?: exon | exome | capture)/xi) {
-	$experimental_strategy = 'WXS';
-}
-elsif ($strategy =~ /(?: dna | chip | atac)/xi) {
-	$experimental_strategy = 'DNA-Seq';
+if ($strategy) {
+	if ($strategy =~ /10X Genomics/) {
+		$experimental_strategy = 'Single-Cell-Seq';
+	}
+	elsif ($strategy =~ /mirna/i) {
+		$experimental_strategy = 'miRNA-Seq';
+	}
+	elsif ($strategy =~ /rna/i) {
+		$experimental_strategy = 'RNA-Seq';
+	}
+	elsif ($strategy =~ m/(?: methyl | bisulfite )/xi) {
+		$experimental_strategy = 'Bisulfite-Seq';
+	}
+	elsif ($strategy =~ /(?: exon | exome | capture)/xi) {
+		$experimental_strategy = 'WXS';
+	}
+	elsif ($strategy =~ /(?: dna | chip | atac)/xi) {
+		$experimental_strategy = 'DNA-Seq';
+	}
+	else {
+		$experimental_strategy = 'Not available';
+	}
 }
 else {
 	$experimental_strategy = 'Not available';
@@ -439,7 +444,7 @@ sub scan_directory {
 			$filedata{$f}{sample},
 			$Project->id,
 			$filedata{$f}{sample},
-			sprintf("\"%s\"", $machinelookup{$filedata{$f}{machineID}}),
+			sprintf("\"%s\"", $machinelookup{$filedata{$f}{machineID}} || q() ),
 			$filedata{$f}{laneID},
 			$is_paired ? $filedata{$f}{pairedID} : '-',
 			'sanger',
@@ -729,6 +734,7 @@ sub callback {
 	elsif ($file =~ /\.xlsx$/) {
 		# some stray request spreadsheet file
 		print "   ! skipping $file\n";
+		return;
 	}
 	else {
 		# programmer error!
