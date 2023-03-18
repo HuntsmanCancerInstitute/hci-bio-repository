@@ -746,7 +746,7 @@ sub callback {
 		unlink $file;
 		return;
 	}
-	elsif ($fname =~ /.+ \/ fork0 \/ .+/x) {
+	elsif ($fname =~ /.+ \/ fork\d \/ .+/x) {
 		# these are left over 10X Genomics temporary processing files
 		# they are not needed and do not need to be saved
 		# add to custom remove list
@@ -757,6 +757,13 @@ sub callback {
 	elsif ($file eq '.DS_Store' or $file eq 'Thumbs.db') {
 		# Windows and Mac file browser devil spawn, delete these immediately
 		print "   ! deleting file browser metadata file\n" if $verbose;
+		unlink $file;
+		return;
+	}
+	elsif ( $file =~ /~$/ ) {
+		# files ending in ~ are typically backup copies of an edited text file
+		# these can be safely deleted
+		print "   ! deleting backup file $clean_name\n";
 		unlink $file;
 		return;
 	}
@@ -912,11 +919,40 @@ sub callback {
 			}
 			else {
 				# succesfull compression! update values
-				print "   > automatically gzip compressed $file\n";
+				print "   > automatically gzip compressed $fname\n";
 				$file  .= '.gz';
 				$fname .= '.gz';
 				$clean_name .= '.gz';
-				$filedata{$fname}{zip} = 0;
+				($date, $size) = get_file_stats($file);
+			}
+		}
+		
+		# check the size
+		if ($size > 100000) {
+			# Bigger than 1 KB, leave it out
+			$filedata{$fname}{zip} = 0;
+		}
+		else {
+			# otherwise we'll include it in the zip archive
+			$filedata{$fname}{zip} = 1;
+		}
+	}
+	elsif ($file =~ /^Unmapped \.out \.mate [12] .*$/xi) {
+		# unmapped fastq from STAR - seriously, does anyone clean up their droppings?
+		$filetype = 'Sequence';
+		if ($file !~ /\.gz$/i) {
+			# file not compressed!!!????? let's compress it
+			my $command = sprintf "%s \"%s\"", $gzipper, $file;
+			if (system($command)) {
+				print "   ! failed to automatically compress '$fname': $OS_ERROR\n";
+				$filedata{$fname}{zip} = 1; 
+			}
+			else {
+				# succesfull compression! update values
+				print "   > automatically gzip compressed $fname\n";
+				$file  .= '.gz';
+				$fname .= '.gz';
+				$clean_name .= '.gz';
 				($date, $size) = get_file_stats($file);
 			}
 		}
@@ -969,7 +1005,7 @@ sub callback {
 		}
 	}
 	elsif ($file =~ /\. (?: wig | bg | bdg | bedgraph ) (?:\.gz)? $/xi) {
-		$filetype = 'Wiggle';
+		$filetype = 'Analysis';
 		$filedata{$fname}{zip} = 1;
 	}
 	elsif ($file =~ /\. mpileup.* \.gz $/xi) {
