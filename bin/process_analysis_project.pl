@@ -218,10 +218,6 @@ if ($cat_file) {
 	}
 }
 
-if ($scan) {
-	die "must provide user first name or Catalog db file to scan!\n" unless $userfirst;
-	die "must provide user last name or Catalog db file to scan!\n" unless $userlast;
-}
 if ($upload) {
 	die "must provide a SB division name or Catalog db file!\n" unless $sb_division;
 	die "must provide a title for SB project or Catalog db file!\n" unless $title;

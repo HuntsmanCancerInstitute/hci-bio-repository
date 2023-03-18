@@ -95,12 +95,12 @@ my $scan;
 my $hide_files;
 my $upload;
 my $cat_file;
-my $userfirst;
-my $userlast;
-my $email_address;
+my $userfirst     = q();
+my $userlast      = q();
+my $email_address = q();
 my $strategy;
-my $title;
-my $group;
+my $title         = q();
+my $group         = q();
 my $description   = q();
 my $sb_division   = q();
 my $cred_path     = q();
@@ -182,10 +182,6 @@ if ($cat_file) {
 }
 
 
-if ($scan) {
-	die "must provide user first name to scan!\n" unless $userfirst;
-	die "must provide user last name to scan!\n" unless $userlast;
-}
 if ($upload) {
 	die "must provide a SB division name!\n" unless $sb_division;
 	die "must provide a title for SB project!\n" unless $title;
