@@ -376,6 +376,14 @@ sub fetch_requests {
 			# sb lab division 
 			if ($E->external eq 'N') {
 				# for university clients only
+				
+				if ( $row[7] ne $E->lab_first or $row[8] ne $E->lab_last ) {
+					$E->lab_first($row[7]);
+					$E->lab_last($row[8]);
+					printf "  > updating lab name %s %s for %s\n", $E->lab_first, 
+						$E->lab_last, $E->id;
+					$u++;
+				}
 				my $lab = sprintf("%s %s", $row[7], $row[8]);
 				if (exists $lab2info->{$lab}) {
 					
@@ -417,11 +425,18 @@ sub fetch_requests {
 				}
 			}
 			
-			# check user email address
+			# check user info
 			if ($row[4] ne $E->user_email) {
 				printf "  > updating user %s %s email address for %s\n", $E->user_first, 
 					$E->user_last, $E->id;
 				$E->user_email($row[4]);
+				$u++;
+			}
+			if ( $row[5] ne $E->user_first or $row[6] ne $E->user_last ) {
+				$E->user_first($row[5]);
+				$E->user_last($row[6]);
+				printf "  > updating user name %s %s for %s\n", $E->user_first, 
+					$E->user_last, $E->id;
 				$u++;
 			}
 			
