@@ -564,6 +564,16 @@ sub callback {
 		print "   > skipping file $fname\n" if $verbose;
 		return;
 	}
+	elsif ($file =~ /\.xlsx$/) {
+		# some stray request spreadsheet file
+		print "   ! skipping $file\n";
+		return;
+	}
+	elsif ($file =~ /\.pdf$/) {
+		# some PDF files 
+		print "   ! skipping $file\n";
+		return;
+	}
 	
 	
 	### Possible Fastq file types
@@ -730,11 +740,6 @@ sub callback {
 	elsif ($file eq $Project->zip_file) {
 		# really old projects might still have these - keep it
 		print "   ! old archive zip file $file present\n";
-	}
-	elsif ($file =~ /\.xlsx$/) {
-		# some stray request spreadsheet file
-		print "   ! skipping $file\n";
-		return;
 	}
 	else {
 		# programmer error!
