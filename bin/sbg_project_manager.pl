@@ -10,7 +10,7 @@ use Net::SB;
 use Net::SB::File;
 use Net::SB::Folder;
 
-our $VERSION = 1;
+our $VERSION = 1.1;
 
 
 ######## Documentation
@@ -30,6 +30,7 @@ Main function: Pick one only
                                     default if no options and no project given
     -l --list                   Recursively list all the files in project
                                     default if project given and no options
+    -y --summary                Print a summary file count and size summary
     -u --url                    Print signed download URLs for all found files
     -V --listvolumes            List available attached volumes
     -x --export                 Export files to the attached external volume
@@ -51,6 +52,7 @@ Options for file filtering:
                                    '\\.fastq\\.gz\$'
                                    '(?:b|cr)a[mi](?:\\.(?:b|cr)ai)?\$'
     -D --printdir               Print folders in the list
+    --limit         <integer>   Limit recursive depth to specified depth
  
 Options for download URLs:
     --aria                      Format download URLs as an aria2c input file
@@ -77,6 +79,7 @@ END
 ######## Process command line options
 my $list_projects  = 0;
 my $list_files     = 0;
+my $sum_files      = 0;
 my $list_volumes   = 0;
 my $download_links = 0;
 my $export_files   = 0;
@@ -87,6 +90,7 @@ my $remote_dir_name;
 my $filelist_name;
 my $file_filter;
 my $print_folders;
+my $recurse_limit  = 0;
 my $aria_formatting;
 my $volume_name;
 my $vol_prefix;
@@ -102,6 +106,7 @@ if (scalar(@ARGV) > 0) {
 	GetOptions(
 		'P|listprojects!'   => \$list_projects,
 		'l|list!'           => \$list_files,
+		'y|summary!'        => \$sum_files,
 		'V|listvolumes!'    => \$list_volumes,
 		'u|url!'            => \$download_links,
 		'x|export!'         => \$export_files,
@@ -112,6 +117,7 @@ if (scalar(@ARGV) > 0) {
 		'F|filelist=s'      => \$filelist_name,
 		'f|filter=s'        => \$file_filter,
 		'D|printdir!'       => \$print_folders,
+		'limit=i'           => \$recurse_limit,
 		'aria!'             => \$aria_formatting,
 		'volume=s'          => \$volume_name,
 		'prefix=s'          => \$vol_prefix,
@@ -185,6 +191,10 @@ elsif ($download_links) {
 	print_download_file_links();
 	exit 0;
 }
+elsif ($sum_files) {
+	print_project_file_summary();
+	exit 0;
+}
 elsif ($export_files) {
 	export_files_to_volume();
 	exit 0;
@@ -212,7 +222,7 @@ sub check_options {
 		die " SBG division name is required!\n";
 	}
 	my $check = $list_files + $download_links + $export_files + $delete_files
-		+ $list_projects + $list_volumes;
+		+ $list_projects + $list_volumes + $sum_files;
 	if ($project_name and $check == 0) {
 		$list_files = 1;
 		$check = 1;
@@ -226,6 +236,9 @@ sub check_options {
 	}
 	elsif ($check > 1) {
 		die " Can only pick one function: see help!\n";
+	}
+	if ($recurse_limit > 0) {
+		$print_folders = 1;
 	}
 	$vol_prefix = $project_name;
 }
@@ -270,10 +283,20 @@ sub collect_files {
 	if ($remote_dir_name) {
 		my $folder = $Project->get_file_by_name($remote_dir_name) or
 			die " unable to find remote folder '$remote_dir_name'!\n";
-		$files = $folder->recursive_list($file_filter);
+		if ($folder and $folder->type eq 'file') {
+			# it's actually a file!!!!
+			$files = [ $folder ];
+		}
+		elsif ($folder and $folder->type eq 'folder') {
+			$files = $folder->recursive_list($file_filter, $recurse_limit);
+		}
+		else {
+			warn sprintf(" returned unrecognized object %s\n", ref($folder) );
+			$files = [];
+		}
 	}
 	else {
-		$files = $Project->recursive_list($file_filter);
+		$files = $Project->recursive_list($file_filter, $recurse_limit);
 	}
 	return $files;
 }
@@ -394,6 +417,7 @@ sub print_project_file_list {
 	my @f = map {$_->[1]}
 			sort {$a->[0] cmp $b->[0]}
 			map { [ $_->type eq 'file' ? $_->pathname : $_->path, $_ ] } @{$files};
+	my $count = 0;
 	my $total = 0;
 	foreach (@f) {
 		if ($_->type eq 'folder') {
@@ -403,24 +427,51 @@ sub print_project_file_list {
 		else {
 			my $size = $_->size || 0;
 			printf "File %s %6s  %-13s  %s\n", $_->id, format_human_size($size),
-				substr($_->file_status,0,14), $_->pathname;
+				substr($_->file_status,0,13), $_->pathname;
 			$total += $size;
+			$count++;
 		}
 	}
 	# print summary
-	if ($file_filter) {
-		printf "\nTotal size of selected files in %s is %s\n",
+	if ($file_filter or $recurse_limit or $remote_dir_name) {
+		printf "\nTotal size of selected files in %s is %s for %d files\n",
 			join('/', $division_name, $project_name, $remote_dir_name || q()),
-			format_human_size($total);
+			format_human_size($total), $count;
 	}
 	else {
-		printf "\nTotal size for %s is %s\n",
-			join('/', $division_name, $project_name, $remote_dir_name || q()),
-			format_human_size($total);
+		printf "\nTotal size for %s/%s is %s for %d files\n",
+			$division_name, $project_name, format_human_size($total), $count;
 	}
 	return;
 }
 
+sub print_project_file_summary {
+	# collect file list from the project
+	my $files = collect_files();
+	unless (@{$files}) {
+		print " No files to list!\n";
+		return;
+	}
+
+	# bulk collect details for file status and size
+	$Sb->bulk_get_file_details($files);
+
+	# summarize
+	my $count = 0;
+	my $total = 0;
+	foreach my $f ( @{$files} ) {
+		if ($f->type eq 'file') {
+			$count++;
+			$total += $f->size || 0; # just in case?
+		}
+	}
+
+	# print summary
+	printf "\n%s is %s for %d files\n",
+		join('/', $division_name, $project_name, $remote_dir_name || q()),
+		format_human_size($total), $count;
+	return;
+}
 
 sub print_download_file_links {
 	# collect file list from the project
@@ -548,7 +599,7 @@ sub export_files_to_volume {
 sub delete_platform_files {
 	# collect file list from the project
 	my $files = collect_files();
-	printf " !! Deleting %d files !!\n", scalar @{$files};
+	printf " !! Bulk deleting %d files!!\n", scalar @{$files};
 	my $results = $Sb->bulk_delete($files);
 	foreach my $r (@{$results}) {
 		print "$r\n";
