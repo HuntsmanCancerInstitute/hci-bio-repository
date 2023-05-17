@@ -548,7 +548,7 @@ sub callback {
 			return;
 		}
 		else {
-			print " ! Illumina RunFolder present! Skipping contents!\n";
+			print " ! Illumina RunFolder present - skipping contents\n";
 			$runfolder_warning = 1;
 			push @removelist, $clean_name;
 			return;
@@ -556,7 +556,7 @@ sub callback {
 	}
 	elsif ($fname =~ /^ \. \/ upload_staging/x) {
 		# somebody directly uploaded files to this directory!
-		print "   ! skipping uploaded file $fname!\n";
+		print "   ! skipping uploaded file $fname\n";
 		return;
 	}
 	elsif ($fname =~ / samplesheet \. \w+ /xi) {
@@ -694,7 +694,7 @@ sub callback {
 	elsif ($file =~ m/ .+ \. (?: fastq | fq ) \.gz $/xi) {
 		# I can't extract metadata information
 		# but at least it will get recorded in the manifest and list files
-		print "   ! processing unrecognized Fastq file $fname!\n";
+		print "   ! processing unrecognized Fastq file $fname\n";
 		$sample = q();
 		$laneID = q();
 		$pairedID = q();
@@ -730,7 +730,7 @@ sub callback {
 	}
 	elsif ($fname =~ /^ \. \/ Fastq \/ .+ \. (?: xml | csv ) $/x) {
 		# other left over files from de-multiplexing
-		print "   ! skipping demultiplexing file $fname!\n";
+		print "   ! skipping demultiplexing file $fname\n";
 		return;
 	}
 	elsif ($file eq $Project->ziplist_file) {
@@ -743,7 +743,7 @@ sub callback {
 	}
 	else {
 		# programmer error!
-		print "   ! unrecognized file $fname!\n";
+		print "   ! unrecognized file $fname\n";
 		$failure_count++;
 		return;
 	}
