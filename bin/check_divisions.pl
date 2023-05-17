@@ -8,7 +8,7 @@ use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use Net::SB;
 
-our $VERSION = 6.1;
+our $VERSION = 7;
 
 
 ######## Documentation
@@ -20,16 +20,17 @@ and can be imported into whatever.
 Member lists print division id, member name, member role in division, 
 and email address.
 
-Project lists print division id, project id, project name, and the 
-number of members.
+Project lists print division id, project id, project name, the 
+number of members, and the amount of Active and Archived storage 
+in units of GB/Month.
 
 Tasks lists division id, project name, and task name.
 
-Billing lists division id, billing group name, and running total cost 
-to the billing group (not current invoice).
+Invoice prints the storage, analysis, and total costs for the last 
+completed invoice (not the current billing period).
 
 Default function is to simply print a count of the projects, members, 
-tasks, and current total cost for each division.
+and tasks for each division.
 
 Version: $VERSION
 
@@ -41,9 +42,9 @@ Main function: Pick one only
     --members                   Print list of members
     --projects                  Print list projects
     --tasks                     Print list of tasks
-    --billing                   Print current billing charge
-    --counts                    Print counts of members, projects, tasks, current bill
+    --counts                    Print counts of members, projects, tasks
                                   (default action if no other function)
+    --invoice                   Print totals from the last invoice
 
 Options:
     --division <text>           Indicate the division to check. May repeat as necessary
@@ -67,9 +68,10 @@ my $get_members  = 0;
 my $get_projects = 0;
 my $get_tasks    = 0;
 my $get_counts   = 0;
-my $get_billing  = 0;
+my $get_invoice  = 0;
 my $credentials;
 my $verbose = 0;
+my $help;
 
 if (scalar(@ARGV) > 0) {
 	GetOptions(
@@ -78,13 +80,19 @@ if (scalar(@ARGV) > 0) {
 		'members!'          => \$get_members,
 		'projects!'         => \$get_projects,
 		'tasks!'            => \$get_tasks,
-		'billing!'          => \$get_billing,
 		'counts!'           => \$get_counts,
+		'invoice!'          => \$get_invoice,
 		'cred=s'            => \$credentials,
 		'verbose!'          => \$verbose,
+		'h|help!'           => \$help,
 	) or die "please recheck your options!\n$OS_ERROR\n";
 }
 else {
+	print $doc;
+	exit;
+}
+
+if ($help) {
 	print $doc;
 	exit;
 }
@@ -96,13 +104,13 @@ if (@ARGV) {
 unless (@divisions) {
 	push @divisions, "default"
 }
-my $sanity = $get_members + $get_projects + $get_tasks + $get_counts + $get_billing;
+my $sanity = $get_members + $get_projects + $get_tasks + $get_counts + $get_invoice;
 if ($sanity == 0) {
 	# default function
 	$get_counts = 1;
 }
 elsif ($sanity > 1) {
-	die "Only one function allowed at a time! members, projects, tasks, or counts!\n";
+	die "Only one function allowed at a time! see help with --help!\n";
 }
 
 
@@ -139,16 +147,19 @@ if ($get_members) {
 	print "Division\tName\tRole\tEmail\n";
 }
 elsif ($get_projects) {
-	print "Division\tID\tName\tMembers\n";
+	print "Division\tID\tMemberCount\tActive_GB\tArchive_GB\tName\n";
 }
 elsif ($get_tasks) {
 	print "Division\tProject\tTaskName\n";
 }
-elsif ($get_billing) {
-	print "Division\tBillingName\tTotalCost\n";
-}
 elsif ($get_counts) {
-	print "Division\tName\tMembers\tProjects\tTasks\tTotalCost\n";
+	print "Division\tName\tMembers\tProjects\tTasks\n";
+}
+elsif ($get_invoice) {
+	print "Division\tEnding\tAnalysis\tStorage\tTotal\n";
+}
+else {
+	print " no method defined!\n";
 }
 
 # Loop through the divisions
@@ -180,38 +191,88 @@ foreach my $div (@divisions) {
 		}
 	}
 	elsif ($get_projects) {
+
+		# first collect the storage summary
+		my $billgroup = $sbproject->billing_group;
+		my $storage_list = $sbproject->execute('GET', 
+			sprintf( "%s/billing/groups/%s/breakdown/storage", $sbproject->endpoint, 
+			$billgroup ) );
+		my %proj2cost;
+		if ($storage_list and scalar @{ $storage_list } ) {
+			foreach my $storage ( @{ $storage_list } ) {
+				if ( exists $storage->{'project_name'} ) {
+					my $name = $storage->{'project_name'};
+					$proj2cost{ $name } = [
+						$storage->{'active'}{'size'},
+						$storage->{'archived'}{'size'},
+					];
+				}
+				else {
+					next;
+				}
+			}
+		}
+
+		# then get the project list itself
 		my $projectlist = $sbproject->list_projects;
 		foreach my $project (@{$projectlist}) {
 			my $memberlist = $project->list_members;
-			printf "%s\t%s\t%s\t%d\n", $sbproject->id, $project->id, $project->name, 
-				scalar(@{$memberlist});
+			my $name = $project->name;
+			printf "%s\t%s\t%d\t%.4f\t%.4f\t%s\n", 
+				$sbproject->id,
+				$project->id, 
+				scalar( @{$memberlist} ),
+				$proj2cost{ $name }->[0] || 0,
+				$proj2cost{ $name }->[1] || 0,
+				$name;
 		}
 	}
 	elsif ($get_tasks) {
 		# using custom API execution for now
 		my $tasklist = $sbproject->execute('GET', sprintf("%s/tasks", $sbproject->endpoint));
-		foreach my $task (@{$tasklist}) {
-			printf "%s\t%s\t%s\n", $sbproject->id, $task->{project}, $task->{name};
+		if ($tasklist and scalar @{ $tasklist } ) {
+			foreach my $task (@{$tasklist}) {
+				printf "%s\t%s\t%s\n", $sbproject->id, $task->{project}, $task->{name};
+			}
 		}
-	}
-	elsif ($get_billing) {
-		# using custom API execution for now
-		my $billgroup = $sbproject->billing_group;
-		my $bill = $sbproject->execute('GET', sprintf("%s/billing/groups/%s", 
-			$sbproject->endpoint, $billgroup));
-		printf "%s\t%s\t%.2f\n", $sbproject->id, $bill->{name}, 
-			$bill->{balance}{amount} || 0;
+		else {
+			printf STDERR " No task lists for %s\n", $sbproject->id;
+		}
 	}
 	elsif ($get_counts) {
 		my $memberlist = $sbproject->list_members;
 		my $projectlist = $sbproject->list_projects;
 		my $tasklist = $sbproject->execute('GET', sprintf("%s/tasks", $sbproject->endpoint));
+		printf "%s\t%s\t%d\t%d\t%d\n", $sbproject->id, $sbproject->name, 
+			scalar(@{$memberlist}), scalar(@{$projectlist}), scalar(@{$tasklist});
+	}
+	elsif ($get_invoice) {
+		# using custom API execution for now
 		my $billgroup = $sbproject->billing_group;
-		my $bill = $sbproject->execute('GET', sprintf("%s/billing/groups/%s", 
-			$sbproject->endpoint, $billgroup));
-		printf "%s\t%s\t%d\t%d\t%d\t%.2f\n", $sbproject->id, $sbproject->name, 
-			scalar(@{$memberlist}), scalar(@{$projectlist}), scalar(@{$tasklist}), 
-			$bill->{balance}{amount} || 0;
+		my $invoice_list = $sbproject->execute('GET', 
+			sprintf( "%s/billing/invoices?billing_group=%s", $sbproject->endpoint, 
+			$billgroup ) );
+		if ($invoice_list and scalar @{ $invoice_list } ) {
+			my $last_id = $invoice_list->[-1]->{id};
+			my $invoice = $sbproject->execute('GET', 
+				sprintf( "%s/billing/invoices/%s", $sbproject->endpoint, $last_id) );
+			if ($invoice and exists $invoice->{id}) {
+				my $end = $invoice->{'invoice_period'}{'to'};
+				$end =~ s/T.+$//;
+				printf "%s\t%s\t\$%s\t\$%s\t\$%s\n",
+					$sbproject->id, 
+					$end,
+					$invoice->{'analysis_costs'}{'amount'},
+					$invoice->{'storage_costs'}{'amount'},
+					$invoice->{'total'}{'amount'};
+			}
+			else {
+				printf STDERR " cannot get last invoice for %s\n", $sbproject->id;
+			}
+		}
+		else {
+			printf STDERR " no invoices for %s\n", $sbproject->id;
+		}
 	}
 	else {
 		die "you've got a bug! No function defined\n";
