@@ -15,7 +15,7 @@ use RepoCatalog;
 use Emailer;
 
 
-our $VERSION = 5.7;
+our $VERSION = 5.8;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -778,7 +778,7 @@ sub callback {
 	# this will also dictate zip file status
 	
 	my $filetype;
-	if ($file =~ /\. (?: bw | bigwig | bb | bigbed ) $/xi) {
+	if ($file =~ /\. (?: bw | bigwig | bb | bigbed | hic) $/xi) {
 		# an indexed analysis file
 		$filetype = 'IndexedAnalysis';
 		$filedata{$fname}{zip} = 0;
@@ -837,8 +837,8 @@ sub callback {
 			$filedata{$fname}{zip} = 0;
 		}
 	}
-	elsif ($file =~ /\.vcf$/i) {
-		# uncompressed variant file
+	elsif ($file =~ /\.(?: vcf | maf ) $/xi) {
+		# uncompressed variant file, either VCF or MAF
 		if ($size > 1000000) {
 			# file bigger than 1 MB, let's compress it separately
 			my $command = sprintf "%s \"%s\"", $bgzipper, $file;
@@ -1046,7 +1046,7 @@ sub callback {
 		$filetype = 'Other';
 		if ($size > $max_zip_size) {
 			# it's pretty big
-			printf "   ! Large unknown file $file at %.1fG\n", $size / 1000000000;
+			printf "   ! Large unknown file $clean_name at %.1fG\n", $size / 1000000000;
 		}
 		$filedata{$fname}{zip} = 1;
 	}
@@ -1153,7 +1153,7 @@ sub upload_files {
 			);
 		}
 		else {
-			print "   ! failed to make SB project!\n";
+			print "   ! failed to make SB project\n";
 			$failure_count++;
 			return;
 		}
