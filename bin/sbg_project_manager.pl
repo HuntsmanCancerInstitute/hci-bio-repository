@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use warnings;
 use strict;
@@ -10,7 +10,7 @@ use Net::SB;
 use Net::SB::File;
 use Net::SB::Folder;
 
-our $VERSION = 1.1;
+our $VERSION = 1.2;
 
 
 ######## Documentation
@@ -52,16 +52,17 @@ Options for file filtering:
                                    '\\.fastq\\.gz\$'
                                    '(?:b|cr)a[mi](?:\\.(?:b|cr)ai)?\$'
     -D --printdir               Print folders in the list
-    --limit         <integer>   Limit recursive depth to specified depth
+    --limit --depth <integer>   Limit recursive depth to specified depth
  
 Options for download URLs:
     --aria                      Format download URLs as an aria2c input file
+                                    necessary to preserve folder structure
 
 Options for volume export:
     --volume        <text>      Name of the attached external volume
     --prefix        <text>      Prefix used for new file path on external volume
                                   default is project name
-    --copy                      Copy files only, don't move and link (default)
+    --volcopy                   Copy only to volume, don't move and link (default)
     --overwrite                 Overwrite pre-existing files (default false)
     --wait          <int>       Wait time between status checks (30 seconds)
 
@@ -117,11 +118,11 @@ if (scalar(@ARGV) > 0) {
 		'F|filelist=s'      => \$filelist_name,
 		'f|filter=s'        => \$file_filter,
 		'D|printdir!'       => \$print_folders,
-		'limit=i'           => \$recurse_limit,
+		'limit|depth=i'     => \$recurse_limit,
 		'aria!'             => \$aria_formatting,
 		'volume=s'          => \$volume_name,
 		'prefix=s'          => \$vol_prefix,
-		'copy!'             => \$vol_copy,
+		'volcopy!'          => \$vol_copy,
 		'overwrite!'        => \$vol_overwrite,
 		'wait=i'            => \$wait_time,
 		'connection=s'      => \$vol_connection_file,
@@ -240,7 +241,7 @@ sub check_options {
 	if ($recurse_limit > 0) {
 		$print_folders = 1;
 	}
-	$vol_prefix = $project_name;
+	$vol_prefix ||= $project_name;
 }
 
 
