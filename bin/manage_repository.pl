@@ -17,19 +17,46 @@ our $VERSION = 5.4;
 
 ######## Documentation
 my $doc = <<END;
+
 The main application for managing HCI Bio Repository GNomEx Projects.
 This requires a catalog database file and access to the hci-bio-repo server.
-It is 
+
+It is primarily used for managing the life cycles of GNomEx projects, both 
+Analysis and Experiment Requests. This includes searching and listing 
+projects based on status, age, size, ownership, etc. Projects that have 
+exceeded their lifespan can be prepared for offloading to other storage 
+platforms, for example Seven Bridges. 
+
+Expired projects may be scanned and inventoried, moved to a hidden directory, 
+and permanently deleted. Scanning and archiving files is done by separate 
+applications, process_analysis_project and process_request_project. This 
+writes important file lists in the project directory or parent – all subsequent 
+project file actions depend on these lists and cannot proceed without them.
+No project file manipulation is performed through blind or bulk wildcards. 
+
+All data is stored in a local catalog (database). This catalog may be 
+exported (and imported) as a simple tab-delimited text file for backup purposes
+and/or work in other applications (Excel). Importing new projects can be 
+done directly from the GNomEx database.
+
+Best practices include searching for projects and directing output to a 
+text file. This file can then be provided to this application as an input 
+list. Any errors are printed with leading exclamation marks and should 
+be rectified before repeating or proceeding.
 
 
-
+USAGE
 
 manage_repository.pl --cat <file.db> [options] [projects]
 
-manage_repository.pl --cat <file.db> --list projects.txt --scan --up --email_req_up
+manage_repository.pl --cat analysis.db --status A1234 A1235 A1236
 
-manage_repository.pl --cat <file.db> --status A1234 A1235 A1236
+manage_repository.pl --cat request.db --list_req_up --status > projects.txt
 
+manage_repository.pl --cat request.db --list projects.txt --scan > projects.scan.txt
+
+
+OPTIONS
 
   Required:
     --cat <path>              Provide the path to a catalog file
@@ -66,7 +93,8 @@ manage_repository.pl --cat <file.db> --status A1234 A1235 A1236
   
   Actions on projects:
     --scan                    Scan the project directory and write METADATA
-    --upload                  Upload the project to Seven Bridges division
+    --upload                  Create a new project in the Seven Bridges division
+                                 (actual uploads must now be done separately)
     --zip                     Zip archive Analysis files during scan
 
   Actions on project directories:
