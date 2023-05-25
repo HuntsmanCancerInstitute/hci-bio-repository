@@ -270,6 +270,9 @@ run_project_actions();
 run_project_directory_actions();
 run_email_notifications();
 print_functions();
+if (@action_list) {
+	printf STDERR " => %d projects\n", scalar(@action_list);
+}
 final_catalog_functions();
 
 
