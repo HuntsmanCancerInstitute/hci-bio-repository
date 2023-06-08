@@ -437,13 +437,13 @@ sub cleanup {
 	if (length($name) > 30) {
 		# split naturally on a word after 20 characters
 		my $i = index $name, q(_), 20;
-		if ($i < 30) {
+		if ( $i > 19 and $i <= 31 ) {
 			$name = substr $name, 0, $i;
 		}
 		else {
 			# no word after 30 characters? try a dash delimiter
 			$i = index $name, q(-), 20;
-			if ($i < 30) {
+			if ( $i > 19 and $i <= 31 ) {
 				$name = substr $name, 0, $i;
 			}
 			else {
