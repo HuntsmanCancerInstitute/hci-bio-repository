@@ -10,7 +10,7 @@ use Net::SB;
 use Net::SB::File;
 use Net::SB::Folder;
 
-our $VERSION = 1.2;
+our $VERSION = 1.3;
 
 
 ######## Documentation
