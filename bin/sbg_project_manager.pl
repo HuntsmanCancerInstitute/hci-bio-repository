@@ -34,6 +34,9 @@ Main function: Pick one only
     -u --url                    Print signed download URLs for all found files
     -V --listvolumes            List available attached volumes
     -x --export                 Export files to the attached external volume
+    -c --copy                   Copy the files to the indicated project
+    -m --move                   Move the files to the indicated folder
+                                    (Copy/Move does not currently preserve folders!)
     --delete                    DELETE all (selected) files from the project!!!
                                    
 
@@ -66,6 +69,12 @@ Options for volume export:
     --overwrite                 Overwrite pre-existing files (default false)
     --wait          <int>       Wait time between status checks (30 seconds)
 
+Options for file copy/move:
+    --destination   <text>      The [project]/[folder] destination.
+                                    Copy should be a project/[folder]
+                                    Move should be a folder within same project
+    --new                       Indicate that the destination should be created
+
 General:
     --cred          <file>      Path to SBG credentials file 
                                   default ~/.sevenbridges/credentials
@@ -84,6 +93,8 @@ my $sum_files      = 0;
 my $list_volumes   = 0;
 my $download_links = 0;
 my $export_files   = 0;
+my $copy_files     = 0;
+my $move_files     = 0;
 my $delete_files   = 0;
 my $division_name;
 my $project_name;
@@ -99,6 +110,8 @@ my $vol_copy = 0;
 my $vol_overwrite = 0;
 my $vol_connection_file;
 my $wait_time = 30;
+my $destination;
+my $new_destination;
 my $credentials_file;
 my $verbose;
 my $help;
@@ -111,6 +124,8 @@ if (scalar(@ARGV) > 0) {
 		'V|listvolumes!'    => \$list_volumes,
 		'u|url!'            => \$download_links,
 		'x|export!'         => \$export_files,
+		'c|copy!'           => \$copy_files,
+		'm|move!'           => \$move_files,
 		'delete!'           => \$delete_files,
 		'd|division=s'      => \$division_name,
 		'p|project=s'       => \$project_name,
@@ -126,6 +141,8 @@ if (scalar(@ARGV) > 0) {
 		'overwrite!'        => \$vol_overwrite,
 		'wait=i'            => \$wait_time,
 		'connection=s'      => \$vol_connection_file,
+		'destination=s'     => \$destination,
+		'new!'              => \$new_destination,
 		'cred=s'            => \$credentials_file,
 		'v|verbose!'        => \$verbose,
 		'h|help!'           => \$help,
@@ -200,6 +217,14 @@ elsif ($export_files) {
 	export_files_to_volume();
 	exit 0;
 }
+elsif ($copy_files) {
+	copy_files_to_project();
+	exit 0;
+}
+elsif ($move_files) {
+	move_files_to_folder();
+	exit 0;
+}
 elsif ($delete_files) {
 	delete_platform_files();
 	exit 0;
@@ -223,7 +248,7 @@ sub check_options {
 		die " SBG division name is required!\n";
 	}
 	my $check = $list_files + $download_links + $export_files + $delete_files
-		+ $list_projects + $list_volumes + $sum_files;
+		+ $list_projects + $list_volumes + $sum_files + $copy_files + $move_files;
 	if ($project_name and $check == 0) {
 		$list_files = 1;
 		$check = 1;
@@ -240,6 +265,11 @@ sub check_options {
 	}
 	if ($recurse_limit > 0) {
 		$print_folders = 1;
+	}
+	if ($copy_files or $move_files) {
+		unless ($destination) {
+			die " Must set a destination with copy or move functions!\n";
+		}
 	}
 	$vol_prefix ||= $project_name;
 }
@@ -593,6 +623,122 @@ sub export_files_to_volume {
 		else {
 			printf "%s %s %-10s %s\n", $id, $results->{$id}{transfer_id},
 				$results->{$id}{status}, $results->{$id}{destination};
+		}
+	}
+}
+
+sub copy_files_to_project {
+
+	# first check destination
+	if ( $destination =~ m|/| ) {
+		my @bits = split m|/|, $destination;
+		if ( scalar(@bits) == 2 and $bits[0] eq $division_name ) {
+			# division is ok, we ignore it
+			$destination = $bits[1];
+		}
+		else {
+			print STDERR <<END;
+ ERROR: Destination has a / character. The destination for the copy function must be
+ another project in the same lab division. The destination must not include a folder
+ or be in a different lab division, and therefore cannot include a / character."
+END
+		}
+	}
+
+	# open Destination project
+	my $Dest;
+	if ($new_destination) {
+		$Dest = $Sb->create_project( name => $destination );
+		if ($Dest and ref $Dest eq 'Net::SB::Project') {
+			printf " Created new project $destination\n";
+		}
+	}
+	else {
+		$Dest = $Sb->get_project($destination);
+	}
+	unless ($Dest and ref $Dest eq 'Net::SB::Project') {
+		die " Destination project cannot be opened or created!";
+	}
+	
+	# collect file list from the project
+	my $files = collect_files();
+	my @copied;
+	my @errors;
+	foreach my $file ( @{ $files} ) {
+		next unless $file->type eq 'file';
+		my $result = $file->copy_to_project($Dest);
+		if ($result and ref $result eq 'Net::SB::File') {
+			push @copied, $result;
+		}
+		else {
+			push @errors, sprintf("%s failed to copy", $file->pathname);
+		}
+	}
+	
+	# print results
+	printf " Copied %d files to $destination\n Updated files:\n", scalar(@copied);
+	foreach (@copied) {
+		printf " File %s %s\n", $_->id, $_->pathname;
+	}
+	if (@errors) {
+		printf "\n\n The following %d errors occurred in copying files:\n", 
+			scalar(@errors);
+		foreach (@errors) {
+			print "$_\n";
+		}
+	}
+}
+
+sub move_files_to_folder {
+	# first check destination
+	if ( $destination =~ m|/| ) {
+		my @bits = split m|/|, $destination;
+		if ( $bits[0] eq $division_name ) {
+			shift @bits;
+		}
+		if ($bits[0] eq $project_name) {
+			shift @bits;
+		}
+		$destination = join '/', @bits;
+	}
+
+	# open Destination project
+	my $Dest;
+	if ($new_destination) {
+		$Dest = $Project->create_folder( $destination );
+	}
+	else {
+		$Dest = $Project->get_file_by_name( $destination );
+	}
+	unless ($Dest and ref $Dest eq 'Net::SB::Folder') {
+		die " Destination folder cannot be opened or created!";
+	}
+	
+	# collect file list from the project
+	my $files = collect_files();
+	my @copied;
+	my @errors;
+	foreach my $file ( @{ $files} ) {
+		next unless $file->type eq 'file';
+		my $result = $file->move_to_folder($Dest);
+		if ($result and ref $result eq 'Net::SB::File') {
+			push @copied, $result;
+		}
+		else {
+			push @errors, sprintf("%s failed to move", $file->pathname);
+		}
+	}
+	
+	# print results
+	printf " Moved %d files to $destination\n Updated files:\n", scalar(@copied);
+	foreach (@copied) {
+		printf " File %s %s\n", $_->id, $_->pathname;
+	}
+	if (@errors) {
+		printf "\n\n The following %d errors occurred in moving files:\n", 
+			scalar(@errors);
+		foreach (@errors) {
+			print "$_\n";
 		}
 	}
 }
