@@ -11,7 +11,7 @@ use lib "$Bin/../lib";
 use RepoCatalog;
 use Net::SB;
 
-our $VERSION = 0.4;
+our $VERSION = 0.3;
 
 
 ######## Documentation
@@ -38,7 +38,8 @@ This will descend into Legacy GNomEx projects and look up legacy projects
 as well.
 
 Project names are truncated to between 20-30 characters, preferrably
-at word boundaries, when generating prefixes. 
+at word boundaries, when generating prefixes. Prefixes are checked for 
+uniqueness. 
 
 The output file is a tab-delimited file of SBG division ID bucket, and 
 new prefix.
@@ -52,8 +53,6 @@ OPTIONS
    -d --division    <text>      The lab division name to check
    -o --out         <file>      The output file of ID and prefix mappings
    -e --exclude     <file>      An optional list of SBG IDs to exclude/skip
-   -m --min         <int>       Minimum number projects to consolidate (0)
-   --current                    Consolidate current projects too
    -h --help                    This help
 
 
@@ -64,12 +63,9 @@ my $division;
 my $cat_file;
 my $out_file;
 my $exclude_file;
-my $min_project_number = 1;
-my $consolidate_current = 0;
 my $verbose;
 my $help;
-my $core_members = 
-	qr/^ (?: nix | boyle | atkinson | parnell | lohman | li | milash | mossbruger | ames | conley | admin | batch) $/xi;
+my $core_members = qr/^(?: nix | boyle | atkinson | parnell | lohman | li )/xi;
 
 if (scalar(@ARGV) > 0) {
 	GetOptions(
@@ -77,8 +73,6 @@ if (scalar(@ARGV) > 0) {
 		'd|division=s'      => \$division,
 		'o|out=s'           => \$out_file,
 		'e|exclude=s'       => \$exclude_file,
-		'm|min=i'           => \$min_project_number,
-		'current!'          => \$consolidate_current,
 		'v|verbose!'        => \$verbose,
 		'h|help!'           => \$help,
 	) or die "please recheck your options!! Run with --help to display options\n";
@@ -125,8 +119,7 @@ my $Cat = RepoCatalog->new($cat_file) or
 	die "Cannot open catalog file '$cat_file'!\n";
 
 
-# Pull out division-specific information
-# PI name
+# Identify investigator
 # relying on the fact that virtually all SBG divisions are named after PI
 my ($div_pi_first, $div_pi_last) = split /\-/, $division, 2;
 $div_pi_last =~ s/\-lab$//;
@@ -139,8 +132,6 @@ if ( $div_pi_last =~ /\-/ ) {
 		$div_pi_last = $bits[1]; # take the second name;
 	}
 }
-# division members
-my @members= $Sb->list_members;
 
 
 # Main
@@ -148,11 +139,7 @@ my %bucket2count;
 my %bucket2data;
 my $generated_count = 0;
 process_sbg_projects();
-if ($min_project_number) {
-	consolidate_buckets();
-	# run it twice to cover issues
-	consolidate_buckets();
-}
+consolidate_buckets();
 print_output();
 
 
@@ -167,15 +154,12 @@ print_output();
 sub process_sbg_projects {
 	my $projects = $Sb->list_projects;
 	printf " > identifed %d projects in %s\n", scalar( @{ $projects } ), $division;
-	my %seenit;
 	foreach my $Project ( @{$projects} ) {
 
 		# Check for exclusion
 		if ( exists $exclude{ $Project->id } ) {
 			next;
 		}
-		next if exists $seenit{ $Project->id };
-		$seenit{ $Project->id } += 1;
 
 		# legacy
 		if ( $Project->id eq "$division/$division" ) {
@@ -236,6 +220,7 @@ sub process_sbg_projects {
 			# members in the project
 			# if the user account has lapsed, we won't have a full member object
 			my $Owner = $Project->created_by;
+			my @members = $Project->list_members;
 			foreach my $member (@members) {
 				if ( $member->username eq $Owner->username ) {
 					$Owner = $member;
@@ -259,18 +244,14 @@ sub process_sbg_projects {
 				$group = 'sevenbridges';
 			}
 			$bucket = make_bucket($div_pi_first, $div_pi_last, $group, 0);
-			# use the existing id as the prefix as it should be mostly safe
-			(undef, $prefix) = split m|/|, $Project->id, 2;
+			$prefix = cleanup( $Project->name );
 		}
-
-		# store in hashes
 		$bucket2count{$bucket} += 1;
 		$bucket2data{$bucket} ||= [];
 		push @{ $bucket2data{$bucket} }, [ $prefix, $Project->id, 0, $Entry ];
 		$generated_count++;
 	}
-	printf " > Generated %d project prefixes for %d buckets\n", $generated_count,
-		scalar( keys %bucket2data );
+	printf " > Generated %d project prefixes\n", $generated_count;
 }
 
 
@@ -289,7 +270,6 @@ sub process_gnomex_project {
 	}
 	my $group = $Entry->group;
 	my $name  = $Entry->name;
-
 	if ( $group =~ /^ (?: experiment s? | project s? ) \s for \s .+/xi ) {
 		$group = sprintf "%s-%s", $Entry->user_first, $Entry->user_last;
 	}
@@ -305,43 +285,30 @@ sub process_gnomex_project {
 	elsif ( $group eq 'tomato' ) {
 		$group = 'Autoaligner';
 	}
-
-	# go spelunking for autoaligner request IDs
-	if (
-		$group eq 'Autoaligner' or
-		$name =~ /^Alignment \s Analysis \s on \s \w+ day, \s (.+)$/x
-	) {
+	if ( $name =~ /^Alignment \s Analysis \s on \s \w+ day, \s (.+)$/x ) {
+		my $date = $1;
 		if ($Folder) {
 			# try to ascertain the original request project from the file names
-			# need to do a recursive list, limited to 2 levels, since sometimes
-			# they're in a subfolder
-			my $list = $Folder->recursive_list( q(), 2 );
+			my $list = $Folder->list_contents;
 			my $req_id;
 			foreach my $f ( @{ $list } ) {
-				if ( $f->name =~ /^ (\d+) X \d+ _/x ) {
-					$req_id = sprintf "%sR", $1;
+				if ( $f->name =~ /^ (\d+) X \d+/x ) {
+					$req_id = $1;
 					last;
 				}
 			}
 			if ($req_id) {
-				$name = sprintf "Alignment for %s", $req_id;
-				my $ReqEntry = $Cat->entry($req_id);
-				if ($ReqEntry) {
-					# remake group
-					$group = sprintf "%s-%s", $ReqEntry->user_first, $ReqEntry->user_last;
-				}
+				$name = sprintf "Alignment for %sR", $req_id;
 			}
 			else {
-				$name = sprintf "Alignment %s", $Entry->date;
+				$name = "Alignment $date";
 			}
 		}
 		else {
-			$name = "Alignment %s", $Entry->date;
+			$name = "Alignment $date";
 		}
 	}
-
-	# still no name?
-	if ( not $name ) {
+	elsif ( not $name ) {
 		my $user = $Entry->user_first;
 		if ($group =~ /^ $user \-/x) {
 			# user name is the group, so make up a name based on date
@@ -353,6 +320,7 @@ sub process_gnomex_project {
 			}
 		}
 		else {
+			# put user name in the name
 			$name = sprintf "%s-%s_%s", $Entry->user_first, $Entry->user_last,
 				$Entry->date;
 		}
@@ -360,12 +328,12 @@ sub process_gnomex_project {
 	
 
 	# Finish
-	my $bucket = make_bucket($Entry->lab_first, $Entry->lab_last, $group, 0);
-# 	my $bucket = make_bucket($Entry->lab_first, $Entry->lab_last, $group,
-# 		$Entry->is_request ? 1 : 2);
+	my $bucket = make_bucket($Entry->lab_first, $Entry->lab_last, $group,
+		$Entry->is_request ? 1 : 2);
 	my $prefix = make_prefix($id, $name);
 	return ($bucket, $prefix, $Entry);
 }
+
 
 sub make_prefix {
 	my ($id, $name) = @_;
@@ -488,88 +456,48 @@ sub cleanup {
 }
 
 sub consolidate_buckets {
-	my $consolidated_count = 0;
-	my $single_count = 0;
+	my $single_legacy_count = 0;
+	my $singleton_count = 0;
 	my %new_buckets;
-	my @list =  map { $_->[0] }
-				sort { $a->[1] <=> $b->[1] or $a->[0] cmp $b->[0] }
-				map { [ $_, $bucket2count{$_} ] }
-				keys %bucket2count;
-	foreach my $bucket (@list) {
-		next if $bucket =~ /^\w+ \- (?:legacy\-)? general $/x;
-		next if $bucket2count{$bucket} == 0;
-		next if $bucket2count{$bucket} > $min_project_number;
+	foreach my $bucket (keys %bucket2count) {
+		next if $bucket2count{$bucket} > 1;
 	
 		# data is [ prefix, sbg_id, legacy_boolean, Entry ]
-
-		# go through list of projects
-		for my $i ( 0 .. $#{ $bucket2data{$bucket} } ) {
-			my $data = $bucket2data{$bucket}->[$i];
-			if ( $data->[2] or $consolidate_current ) {
-
-				# consolidate all legacy and current projects if indicated
-				# make an alternate bucket
-				my $newbucket;
-				my $alt_group = $data->[2] ? 'legacy-general' : 'general';
-				my $Entry = $data->[3];
-				if ( $Entry and $Entry->user_last !~ $core_members ) {
-					# check if there exists a bucket with this user
-					my $possible = make_bucket($Entry->lab_first, $Entry->lab_last,
-						sprintf("%s-%s", $Entry->user_first, $Entry->user_last), 0);
-					if ( exists $bucket2count{$possible} and $possible ne $bucket ) {
-						# only use this possible bucket if one already exists
-						$newbucket = $possible;
-					}
-					else {
-						# otherwise we stick it in a general bucket
-						$newbucket = make_bucket($Entry->lab_first, $Entry->lab_last,
-							$alt_group, 0);
-					}
-				}
-				elsif ($Entry) {
-					$newbucket = make_bucket($Entry->lab_first, $Entry->lab_last,
-						$alt_group, 0);
-				}
-				else {
-					$newbucket = make_bucket($div_pi_first, $div_pi_last,
-						$alt_group, 0);
-				}
-				
-				# see if we can make a better name for new general projects
-				if ($newbucket =~ /general$/) {
-					# for those with a name that is simple id--first-last-date
-					if ( $data->[0] =~ /^\d+R \-\- \w+ \- \w+ 20\d\d \- \d\d \- \d\d $/x ) {
-						if ($Entry->group !~ 
-/^ (?:novoalignments | tomato | experiment s? \s for | project s? \s for | request s? \s submitted | submitted \s for )/xi
-						) {
-							my $name = sprintf "%s-%s-%s", 
-								substr($Entry->user_first, 0, 1),
-								$Entry->user_last,
-								$Entry->group;
-							$data->[0] = make_prefix($Entry->id, $name);
-						}
-					}
-				}
-				# copy into new hash key
-				$bucket2count{$newbucket} += 1;
-				$bucket2data{$newbucket} ||= [];
-				push @{ $bucket2data{$newbucket} }, $data;
-				$bucket2count{$bucket} -= 1;
-				$consolidated_count++;
-				$new_buckets{$newbucket} += 1;
+		# only consolidating legacy projects
+		# only one bucket, so we know it is in position 0
+		if ( $bucket2data{$bucket}->[0]->[2] ) {
+			# make an alternate group
+			my $alt_group;
+			my $Entry = $bucket2data{$bucket}->[0]->[3];
+			if ( $Entry->user_last !~ $core_members ) {
+				$alt_group = sprintf "%s-%s", $Entry->user_first, $Entry->user_last;
 			}
 			else {
-				# otherwise we leave it as such and hope for the best????
-				$single_count++;
+				$alt_group = 'legacy-gnomex';
 			}
+			my $newbucket = make_bucket($Entry->lab_first, $Entry->lab_last, $alt_group,
+				$Entry->is_request ? 1 : 2);
+		
+			# copy into new hash key
+			$bucket2count{$newbucket} += 1;
+			$bucket2data{$newbucket} ||= [];
+			push @{ $bucket2data{$newbucket} }, shift @{ $bucket2data{$bucket} };
+		
+			# delete old one
+			delete $bucket2count{$bucket};
+			delete $bucket2data{$bucket};
+			$single_legacy_count++;
+			$new_buckets{$newbucket} += 1;
+		}
+		else {
+			# otherwise we leave it as such and hope for the best????
+			$singleton_count++;
 		}
 	}
 	
-	printf " > consolidated %d projects into %d buckets\n", $consolidated_count,
+	printf " > consolidated %d legacy buckets into %d buckets\n", $single_legacy_count,
 		scalar(keys %new_buckets);
-	if ($single_count) {
-		printf " > %d eligible buckets skipped\n", $single_count;
-	}
+	printf " > %d remaining buckets with single projects\n", $singleton_count;
 }
 
 sub print_output {
@@ -581,17 +509,9 @@ sub print_output {
 	$outfh->printf("%s\n", join( "\t", qw( SBGID Bucket Prefix OrigGroup OrigName ) ) );
 	
 	# print the data
-	my $project_count = 0;
-	my $bucket_count  = 0;
-	my %seenit;
-	foreach my $bucket ( sort {$a cmp $b} keys %bucket2count ) {
-		next unless $bucket2count{$bucket};
+	my $count = 0;
+	foreach my $bucket ( sort {$a cmp $b} keys %bucket2data ) {
 		foreach my $data ( sort { $a->[0] cmp $b->[0] } @{ $bucket2data{$bucket} } ) {
-			
-			# crude method to avoid bugger persistent duplicates
-			# this will of course keep the first one only
-			next if exists $seenit{ $data->[1] };
-			
 			if ( defined $data->[3] ) {
 				# we have a GNomEx entry
 				$outfh->printf("%s\n", join( "\t",
@@ -613,14 +533,12 @@ sub print_output {
 				) );
 				
 			}
-			$project_count++;
-			$seenit{ $data->[1] } += 1;
+			$count++;
 		}
-		$bucket_count++;
 	}
 	$outfh->close;
-	printf " > Wrote %d projects for %d buckets to %s\n", $project_count,
-		$bucket_count, $out_file;
+	printf " > Wrote %d projects for %d buckets to %s\n", $count,
+		scalar( keys %bucket2data ), $out_file;
 }
 
 
