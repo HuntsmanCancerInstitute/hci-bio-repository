@@ -54,6 +54,9 @@ Options for file filtering:
                                    '(bam|bai|bw)',
                                    '\\.fastq\\.gz\$'
                                    '(?:b|cr)a[mi](?:\\.(?:b|cr)ai)?\$'
+    -t --task       <text>      Select files originated from analysis task id
+                                    Will recurse into child tasks, but not folders.
+                                    Specify folder if files are moved.
     -D --printdir               Print folders in the list
     --limit --depth <integer>   Limit recursive depth to specified depth
  
@@ -101,6 +104,7 @@ my $project_name;
 my $remote_dir_name;
 my $filelist_name;
 my $file_filter;
+my $task_id;
 my $print_folders;
 my $recurse_limit  = 0;
 my $aria_formatting;
@@ -132,6 +136,7 @@ if (scalar(@ARGV) > 0) {
 		'r|dir=s'           => \$remote_dir_name,
 		'F|filelist=s'      => \$filelist_name,
 		'f|filter=s'        => \$file_filter,
+		't|task=s'          => \$task_id,
 		'D|printdir!'       => \$print_folders,
 		'limit|depth=i'     => \$recurse_limit,
 		'aria!'             => \$aria_formatting,
@@ -271,6 +276,11 @@ sub check_options {
 			die " Must set a destination with copy or move functions!\n";
 		}
 	}
+	## no critic - doesn't like xx
+	if ( $task_id and $task_id !~ /^ [ \d \- a-z ]+ $/xx ) {
+		die " task id must consist of numbers, letters, and dashes only!\n";
+	}
+	## use critic
 	$vol_prefix ||= $project_name;
 }
 
@@ -311,7 +321,15 @@ sub collect_files {
 	if ($filelist_name) {
 		return load_files_from_file();
 	}
-	if ($remote_dir_name) {
+	if ($task_id) {
+		if ($remote_dir_name) {
+			$files = $Project->list_files_by_task($task_id, $remote_dir_name);
+		}
+		else {
+			$files = $Project->list_files_by_task($task_id);
+		}
+	}
+	elsif ($remote_dir_name) {
 		my $folder = $Project->get_file_by_name($remote_dir_name) or
 			die " unable to find remote folder '$remote_dir_name'!\n";
 		if ($folder and $folder->type eq 'file') {
