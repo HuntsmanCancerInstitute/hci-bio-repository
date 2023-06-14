@@ -15,14 +15,42 @@ our $VERSION = 1.2;
 
 ######## Documentation
 my $doc = <<END;
-An application to manage Seven Bridges Genomics projects.
+
+An application to manage Seven Bridges Genomics projects and their files.
+
+It can generate a recursive list of files and directories in a project, 
+including file IDs, size, location, and pathname. Importantly, recursive 
+lists can be generated starting from nested folder if the path is already
+known. File lists can filtered by providing a regular expression. Furthermore, 
+file list output may be redirected to a text file, manipulated as necessary,
+and provided as an input file to this program.
+
+File manipulation includes generating download URLs, copying files to 
+another project, moving files to a folder within the same project, exporting 
+the files to a mounted volume such as an AWS bucket (either copy-and-link or
+move), or file deletion.
 
 Version: $VERSION
 
-Example Usage:
+Usage:
     sbg_project_manager.pl [options]  -d big-shot-pi  -p experiment
     
     sbg_project_manager.pl [options] big-shot-pi/experiment[/folder1...]
+    
+Example Usage:
+
+    # generate list
+    sbg_project_manager.pl big-shot-pi/experiment > list.txt
+
+    # manually edit
+    nano list.txt
+
+    # perform file functions
+    sbg_project_manager big-shot-pi -F list.txt --copy --dest project2
+    sbg_project_manager big-shot-pi -F list.txt --url --aria > downloads.txt
+    sbg_project_manager big-shot-pi -F list.txt --delete
+    
+   
 
 
 Main function: Pick one only
@@ -30,7 +58,8 @@ Main function: Pick one only
                                     default if no options and no project given
     -l --list                   Recursively list all the files in project
                                     default if project given and no options
-    -y --summary                Print a summary file count and size summary
+                                    recursive list starts at provided folder
+    -y --summary                Print a file count and size summary only
     -u --url                    Print signed download URLs for all found files
     -V --listvolumes            List available attached volumes
     -x --export                 Export files to the attached external volume
@@ -50,10 +79,10 @@ Options for file filtering:
     -F --filelist   <file>      Existing text file of files IDs to work on
                                     best to use saved output from this app
     -f --filter     <regex>     Perl Regular Expression for selecting files
-                                May be used in with --filelist. Examples:
-                                   '(bam|bai|bw)',
-                                   '\\.fastq\\.gz\$'
-                                   '(?:b|cr)a[mi](?:\\.(?:b|cr)ai)?\$'
+                                    May be used with --filelist. Examples:
+                                     '(bam|bai|bw)',
+                                     '\\.fastq\\.gz\$'
+                                     '(?:b|cr)a[mi](?:\\.(?:b|cr)ai)?\$'
     -t --task       <text>      Select files originated from analysis task id
                                     Will recurse into child tasks, but not folders.
                                     Specify folder if files are moved.
@@ -64,11 +93,11 @@ Options for download URLs:
     --aria                      Format download URLs as an aria2c input file
                                     necessary to preserve folder structure
 
-Options for volume export:
+Options for bulk volume export:
     --volume        <text>      Name of the attached external volume
     --prefix        <text>      Prefix used for new file path on external volume
                                   default is project name
-    --volcopy                   Copy only to volume, don't move and link (default)
+    --volcopy                   Copy only to volume, do not move and link (the default)
     --overwrite                 Overwrite pre-existing files (default false)
     --wait          <int>       Wait time between status checks (30 seconds)
 
@@ -451,7 +480,7 @@ sub load_files_from_file {
 sub print_project_file_list {
 	# collect file list from the project
 	my $files = collect_files();
-	unless (@{$files}) {
+	unless ($files and scalar @{$files}) {
 		print " No files to list!\n";
 		return;
 	}
