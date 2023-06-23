@@ -15,7 +15,7 @@ use RepoCatalog;
 use RepoProject;
 use Emailer;
 
-our $VERSION = 5.6;
+our $VERSION = 5.7;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -566,6 +566,11 @@ sub callback {
 	}
 	elsif ($file =~ /\.xlsx$/) {
 		# some stray request spreadsheet file
+		print "   ! skipping $file\n";
+		return;
+	}
+	elsif ( $file =~ /\.txt$/ and $file !~ /md5/ ) {
+		# additional stray files but not md5 files!
 		print "   ! skipping $file\n";
 		return;
 	}
