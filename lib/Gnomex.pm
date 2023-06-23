@@ -8,7 +8,7 @@ use File::Spec;
 use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
 
-our $VERSION = 5.3;
+our $VERSION = 5.4;
 
 
 
@@ -232,9 +232,7 @@ sub fetch_analyses {
 							$u++;
 						}
 						elsif ($lab2info->{$lab}->[1] eq 'N' and length($E->division) > 1) {
-							printf "  > removing division '%s' from %s\n", $E->division, $row[0];
-							$E->division( q() ); # blank
-							$u++;
+							printf "  ! mismatched division '%s' for %s\n", $E->division, $row[0];
 						}
 					}
 					
@@ -403,9 +401,7 @@ sub fetch_requests {
 							$u++;
 						}
 						elsif ($lab2info->{$lab}->[1] eq 'N' and length($E->division) > 1) {
-							printf "  > removing division '%s' from %s\n", $E->division, $row[0];
-							$E->division( q() ); # blank
-							$u++;
+							printf "  ! mismatched division '%s' for %s\n", $E->division, $row[0];
 						}
 					}
 					
