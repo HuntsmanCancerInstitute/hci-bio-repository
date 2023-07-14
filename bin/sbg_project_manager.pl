@@ -5,12 +5,13 @@ use strict;
 use English qw(-no_match_vars);
 use Getopt::Long qw(:config no_ignore_case);
 use IO::File;
+use IO::Handle;
 use List::Util qw(max);
 use Net::SB;
 use Net::SB::File;
 use Net::SB::Folder;
 
-our $VERSION = 1.3;
+our $VERSION = 1.4;
 
 
 ######## Documentation
@@ -108,6 +109,7 @@ Options for file copy/move:
     --new                       Indicate that the destination should be created
 
 General:
+    -o --out        <file>      Output file, default standard output
     --cred          <file>      Path to SBG credentials file 
                                   default ~/.sevenbridges/credentials
     -v --verbose                Print all https processing commands
@@ -145,6 +147,7 @@ my $vol_connection_file;
 my $wait_time = 30;
 my $destination;
 my $new_destination;
+my $OUT_file;
 my $credentials_file;
 my $verbose;
 my $help;
@@ -177,6 +180,7 @@ if (scalar(@ARGV) > 0) {
 		'connection=s'      => \$vol_connection_file,
 		'destination=s'     => \$destination,
 		'new!'              => \$new_destination,
+		'o|out=s'           => \$OUT_file,
 		'cred=s'            => \$credentials_file,
 		'v|verbose!'        => \$verbose,
 		'h|help!'           => \$help,
@@ -222,7 +226,20 @@ else {
 	}
 }
 
+#### Output file
+my $OUT;
+if ($OUT_file) {
 
+	# open indicated output file
+	$OUT = IO::File->new( $OUT_file, 'w' )
+		or die "unable to open output file '$OUT_file'! $OS_ERROR\n";
+}
+else {
+
+	# assign STDOUT to output variable for consistency
+	$OUT = IO::Handle->new;
+	$OUT->fdopen( fileno(STDOUT), 'w' );
+}
 
 
 ######## Main functions
@@ -319,13 +336,13 @@ sub print_project_list {
 	if (@{$projects}) {
 		my $len = max( map {length} map {$_->id} @{$projects} );
 		my $formatter = '%-' . $len . 's %s' . "\n";
-		printf $formatter, 'ID', 'Name';
+		$OUT->printf( $formatter, 'ID', 'Name' );
 		foreach my $p (@{$projects}) {
-			printf $formatter, $p->id, $p->name;
+			$OUT->printf( $formatter, $p->id, $p->name );
 		}
 	}
 	else {
-		print " No projects to list!\n";
+		print STDERR " No projects to list!\n";
 	}
 }
 
@@ -334,13 +351,13 @@ sub print_volume_list {
 	if ($volumes and scalar @{$volumes}) {
 		my $len = max( map {length} map {$_->id} @{$volumes} );
 		my $formatter = '%-' . $len . 's %s' . "\n";
-		printf $formatter, 'ID', 'Name';
+		$OUT->printf( $formatter, 'ID', 'Name' );
 		foreach my $p (@{$volumes}) {
-			printf $formatter, $p->id, $p->name;
+			$OUT->printf( $formatter, $p->id, $p->name );
 		}
 	}
 	else {
-		print " No volumes to list!\n";
+		print STDERR " No volumes to list!\n";
 	}
 }
 
@@ -369,7 +386,7 @@ sub collect_files {
 			$files = $folder->recursive_list($file_filter, $recurse_limit);
 		}
 		else {
-			warn sprintf(" returned unrecognized object %s\n", ref($folder) );
+			printf STDERR " returned unrecognized object %s\n", ref($folder);
 			$files = [];
 		}
 	}
@@ -481,7 +498,7 @@ sub print_project_file_list {
 	# collect file list from the project
 	my $files = collect_files();
 	unless ($files and scalar @{$files}) {
-		print " No files to list!\n";
+		print STDERR " No files to list!\n";
 		return;
 	}
 
@@ -491,7 +508,7 @@ sub print_project_file_list {
 	# print the file names
 	# the file IDs is always 24 characters long
 	# Status and path will be variable
-	printf "%s\n", $list_header;
+	$OUT->printf( "%s\n", $list_header );
 	my @f = map {$_->[1]}
 			sort {$a->[0] cmp $b->[0]}
 			map { [ $_->type eq 'file' ? $_->pathname : $_->path, $_ ] } @{$files};
@@ -500,25 +517,25 @@ sub print_project_file_list {
 	foreach (@f) {
 		if ($_->type eq 'folder') {
 			next unless $print_folders;
-			printf "Dir  %s      0  Platform       %s\n", $_->id, $_->path;
+			$OUT->printf( "Dir  %s      0  Platform       %s\n", $_->id, $_->path );
 		}
 		else {
 			my $size = $_->size || 0;
-			printf "File %s %6s  %-13s  %s\n", $_->id, format_human_size($size),
-				substr($_->file_status,0,13), $_->pathname;
+			$OUT->printf( "File %s %6s  %-13s  %s\n", $_->id, format_human_size($size),
+				substr($_->file_status,0,13), $_->pathname );
 			$total += $size;
 			$count++;
 		}
 	}
 	# print summary
 	if ($file_filter or $recurse_limit or $remote_dir_name) {
-		printf "\nTotal size of selected files in %s is %s for %d files\n",
+		$OUT->printf( "\nTotal size of selected files in %s is %s for %d files\n",
 			join('/', $division_name, $project_name, $remote_dir_name || q()),
-			format_human_size($total), $count;
+			format_human_size($total), $count );
 	}
 	else {
-		printf "\nTotal size for %s/%s is %s for %d files\n",
-			$division_name, $project_name, format_human_size($total), $count;
+		$OUT->printf( "\nTotal size for %s/%s is %s for %d files\n",
+			$division_name, $project_name, format_human_size($total), $count );
 	}
 	return;
 }
@@ -527,7 +544,7 @@ sub print_project_file_summary {
 	# collect file list from the project
 	my $files = collect_files();
 	unless (@{$files}) {
-		print " No files to list!\n";
+		print STDERR " No files to list!\n";
 		return;
 	}
 
@@ -545,9 +562,9 @@ sub print_project_file_summary {
 	}
 
 	# print summary
-	printf "\n%s is %s for %d files\n",
+	$OUT->printf( "\n%s is %s for %d files\n",
 		join('/', $division_name, $project_name, $remote_dir_name || q()),
-		format_human_size($total), $count;
+		format_human_size($total), $count );
 	return;
 }
 
@@ -570,12 +587,12 @@ sub print_download_file_links {
 	# print the links
 	if ($aria_formatting) {
 		foreach my $l (@links) {
-			printf "%s\n  out=%s\n", $l->[1], $l->[0];
+			$OUT->printf( "%s\n  out=%s\n", $l->[1], $l->[0] );
 		}
 	}
 	else {
 		foreach my $l (@links) {
-			printf "%s\n", $l->[1];
+			$OUT->printf( "%s\n", $l->[1] );
 		}
 	}
 	# print error for those without links
@@ -619,7 +636,7 @@ sub export_files_to_volume {
 # 		else {
 # 			die " requested volume '$volume_name' is not attached!\n";
 # 		}
-		print 
+		print STDERR 
 " Requested volume '$volume_name' is not attached! Double check or attach\n";
 		exit 1;
 	}
@@ -639,7 +656,8 @@ sub export_files_to_volume {
 
 	# print results
 	# file ID is 24 characters, export ID is 32 characters
-	print "FileID                   ExportID                         Status     File\n";
+	$OUT->print(
+		"FileID                   ExportID                         Status     File\n" );
 	my @ids = map {$_->[1]}
 			  sort {$a->[0] cmp $b->[0]}
 			  map { [ $results->{$_}{source}, $_ ] }
@@ -664,12 +682,12 @@ sub export_files_to_volume {
 			else {
 				$error = sprintf "unknown error for %s", $results->{$id}{source};
 			}
-			printf "%s                                 %s %-10s %s\n", $id, $results->{$id}{transfer_id},
-				$results->{$id}{status}, $error;
+			$OUT->printf( "%s                                 %s %-10s %s\n", $id,
+				$results->{$id}{transfer_id}, $results->{$id}{status}, $error );
 		}
 		else {
-			printf "%s %s %-10s %s\n", $id, $results->{$id}{transfer_id},
-				$results->{$id}{status}, $results->{$id}{destination};
+			$OUT->printf( "%s %s %-10s %s\n", $id, $results->{$id}{transfer_id},
+				$results->{$id}{status}, $results->{$id}{destination} );
 		}
 	}
 }
@@ -697,7 +715,7 @@ END
 	if ($new_destination) {
 		$Dest = $Sb->create_project( name => $destination );
 		if ($Dest and ref $Dest eq 'Net::SB::Project') {
-			printf " Created new project $destination\n";
+			$OUT->printf( " Created new project $destination\n" );
 		}
 	}
 	else {
@@ -723,15 +741,16 @@ END
 	}
 	
 	# print results
-	printf " Copied %d files to $destination\n Updated files:\n", scalar(@copied);
+	$OUT->printf( " Copied %d files to $destination\n Updated files:\n",
+		scalar(@copied) );
 	foreach (@copied) {
-		printf " File %s %s\n", $_->id, $_->pathname;
+		$OUT->printf( " File %s %s\n", $_->id, $_->pathname );
 	}
 	if (@errors) {
-		printf "\n\n The following %d errors occurred in copying files:\n", 
-			scalar(@errors);
+		$OUT->printf( "\n\n The following %d errors occurred in copying files:\n", 
+			scalar(@errors) );
 		foreach (@errors) {
-			print "$_\n";
+			$OUT->print( "$_\n" );
 		}
 	}
 }
@@ -777,15 +796,15 @@ sub move_files_to_folder {
 	}
 	
 	# print results
-	printf " Moved %d files to $destination\n Updated files:\n", scalar(@copied);
+	$OUT->printf( " Moved %d files to $destination\n Updated files:\n", scalar(@copied) );
 	foreach (@copied) {
-		printf " File %s %s\n", $_->id, $_->pathname;
+		$OUT->printf( " File %s %s\n", $_->id, $_->pathname );
 	}
 	if (@errors) {
-		printf "\n\n The following %d errors occurred in moving files:\n", 
-			scalar(@errors);
+		$OUT->printf( "\n\n The following %d errors occurred in moving files:\n", 
+			scalar(@errors) );
 		foreach (@errors) {
-			print "$_\n";
+			$OUT->print( "$_\n" );
 		}
 	}
 }
@@ -793,10 +812,10 @@ sub move_files_to_folder {
 sub delete_platform_files {
 	# collect file list from the project
 	my $files = collect_files();
-	printf " !! Bulk deleting %d files!!\n", scalar @{$files};
+	$OUT->printf( " !! Bulk deleting %d files!!\n", scalar @{$files} );
 	my $results = $Sb->bulk_delete($files);
 	foreach my $r (@{$results}) {
-		print "$r\n";
+		$OUT->print( "$r\n" );
 	}
 }
 
