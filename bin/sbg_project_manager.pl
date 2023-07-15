@@ -403,6 +403,7 @@ sub load_files_from_file {
 	my $fail = 0;
 	while (my $line = $fh->getline) {
 		chomp $line;
+		next unless $line =~ /\w+/;
 		my $type = substr($line,0,4);
 		if ($type eq 'File'){
 			# File formatter: 'File %s %6s  %-13s  %s'
@@ -414,7 +415,7 @@ sub load_files_from_file {
 				my $path = $3;
 				
 				## no critic - don't need x
-				if ($file_filter and $path =~ /$file_filter/) {
+				if ($file_filter and $path !~ /$file_filter/) {
 					next;
 				}
 				## use critic
@@ -460,7 +461,7 @@ sub load_files_from_file {
 				my $path = $2;
 				
 				## no critic - don't need x
-				if ($file_filter and $path =~ /$file_filter/) {
+				if ($file_filter and $path !~ /$file_filter/) {
 					next;
 				}
 				## use critic
@@ -480,8 +481,11 @@ sub load_files_from_file {
 				$fail++;
 			}
 		}
+		elsif ($type eq 'Tota') {
+			next;   # total line
+		}
 		elsif ($line eq $list_header) {
-			# we are good, correct format
+			next;   # we are good, correct format
 		}
 		else {
 			$fail++;
