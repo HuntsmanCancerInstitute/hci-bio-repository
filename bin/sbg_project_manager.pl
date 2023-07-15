@@ -109,7 +109,7 @@ Options for file copy/move:
     --new                       Indicate that the destination should be created
 
 General:
-    -o --out        <file>      Output file, default standard output
+    -o --out        <file>      Output filename, default standard output
     --cred          <file>      Path to SBG credentials file 
                                   default ~/.sevenbridges/credentials
     -v --verbose                Print all https processing commands
@@ -147,7 +147,7 @@ my $vol_connection_file;
 my $wait_time = 30;
 my $destination;
 my $new_destination;
-my $OUT_file;
+my $output_file;
 my $credentials_file;
 my $verbose;
 my $help;
@@ -180,7 +180,7 @@ if (scalar(@ARGV) > 0) {
 		'connection=s'      => \$vol_connection_file,
 		'destination=s'     => \$destination,
 		'new!'              => \$new_destination,
-		'o|out=s'           => \$OUT_file,
+		'o|out=s'           => \$output_file,
 		'cred=s'            => \$credentials_file,
 		'v|verbose!'        => \$verbose,
 		'h|help!'           => \$help,
@@ -228,11 +228,11 @@ else {
 
 #### Output file
 my $OUT;
-if ($OUT_file) {
+if ($output_file) {
 
 	# open indicated output file
-	$OUT = IO::File->new( $OUT_file, 'w' )
-		or die "unable to open output file '$OUT_file'! $OS_ERROR\n";
+	$OUT = IO::File->new( $output_file, 'w' )
+		or die "unable to open output file '$output_file'! $OS_ERROR\n";
 }
 else {
 
