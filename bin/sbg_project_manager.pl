@@ -93,6 +93,8 @@ Options for file filtering:
 Options for download URLs:
     --aria                      Format download URLs as an aria2c input file
                                     necessary to preserve folder structure
+    --batch         <int>       Split into batches of indicated size (GB)
+                                    must use --out option
 
 Options for bulk volume export:
     --volume        <text>      Name of the attached external volume
@@ -139,6 +141,7 @@ my $task_id;
 my $print_folders;
 my $recurse_limit  = 0;
 my $aria_formatting;
+my $batch_size = 0;
 my $volume_name;
 my $vol_prefix;
 my $vol_copy = 0;
@@ -172,6 +175,7 @@ if (scalar(@ARGV) > 0) {
 		'D|printdir!'       => \$print_folders,
 		'limit|depth=i'     => \$recurse_limit,
 		'aria!'             => \$aria_formatting,
+		'batch=i'           => \$batch_size,
 		'volume=s'          => \$volume_name,
 		'prefix=s'          => \$vol_prefix,
 		'volcopy!'          => \$vol_copy,
@@ -328,6 +332,17 @@ sub check_options {
 	}
 	## use critic
 	$vol_prefix ||= $project_name;
+
+	if ($download_links and $batch_size) {
+		unless ($output_file) {
+			die " Must define an output file with --out when chunking!\n";
+		}
+	}
+	if ($batch_size) {
+		$batch_size *= 0.95;            # leave a 5% buffer
+		$batch_size *= 1_073_741_824;   # convert GB to base-2 bytes
+		$batch_size = int $batch_size;  # drop decimals
+	}
 }
 
 
@@ -575,6 +590,9 @@ sub print_project_file_summary {
 sub print_download_file_links {
 	# collect file list from the project
 	my $files = collect_files();
+	if ($batch_size) {
+		$Sb->bulk_get_file_details($files);
+	}
 	# generate download links
 	my @links;
 	my @nolinks;
@@ -582,22 +600,69 @@ sub print_download_file_links {
 		next if $f->type eq 'folder';
 		my $url = $f->download_link;
 		if ($url) {
-			push @links, [$f->pathname, $url];
+			push @links, [$f, $f->pathname, $url];
 		}
 		else {
 			push @nolinks, $f->pathname;
 		}
 	}
 	# print the links
-	if ($aria_formatting) {
+	if ( $aria_formatting and $batch_size ) {
+		my $running_size = 0;
+		my $number = 0;
 		foreach my $l (@links) {
-			$OUT->printf( "%s\n  out=%s\n", $l->[1], $l->[0] );
+			if ( ( $running_size + $l->[0]->size ) < $batch_size ) {
+				$OUT->printf( "%s\n  out=%s\n", $l->[2], $l->[1] );
+			}
+			else {
+				# need to write new file
+				$OUT->close;
+				undef $OUT;
+				$running_size = 0;
+				$number++;
+				my $newfile = $output_file;
+				$newfile =~ s/(\.\w+)$/$number$1/;
+				$OUT = IO::File->new($newfile, 'w')
+					or die "unable to write file '$newfile'! $OS_ERROR";
+				$OUT->printf( "%s\n  out=%s\n", $l->[2], $l->[1] );
+			}
+			$running_size += $l->[0]->size;
+		}
+	}
+	elsif ( $aria_formatting and not $batch_size ) {
+		foreach my $l (@links) {
+			$OUT->printf( "%s\n  out=%s\n", $l->[2], $l->[1] );
+		}
+	}
+	elsif ( not $aria_formatting and $batch_size ) {
+		my $running_size = 0;
+		my $number = 0;
+		foreach my $l (@links) {
+			if ( ( $running_size + $l->[0]->size ) < $batch_size ) {
+				$OUT->printf( "%s\n", $l->[2] );
+			}
+			else {
+				# need to write new file
+				$OUT->close;
+				undef $OUT;
+				$running_size = 0;
+				$number++;
+				my $newfile = $output_file;
+				$newfile =~ s/(\.\w+)$/$number$1/;
+				$OUT = IO::File->new($newfile)
+					or die "unable to write file '$newfile'! $OS_ERROR";
+				$OUT->printf( "%s\n", $l->[2] );
+			}
+			$running_size += $l->[0]->size;
+		}
+	}
+	elsif ( not $aria_formatting and not $batch_size ) {
+		foreach my $l (@links) {
+			$OUT->printf( "%s\n", $l->[2] );
 		}
 	}
 	else {
-		foreach my $l (@links) {
-			$OUT->printf( "%s\n", $l->[1] );
-		}
+		die "programming error printing download file links!";
 	}
 	# print error for those without links
 	if (@nolinks) {
