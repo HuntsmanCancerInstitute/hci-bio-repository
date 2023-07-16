@@ -569,6 +569,11 @@ sub callback {
 		print "   ! skipping $file\n";
 		return;
 	}
+	elsif ($file =~ /\.docx$/) {
+		# presumably user-provided barcodes in a word file
+		print "   ! skipping $file\n";
+		return;
+	}
 	elsif ( $file =~ /\.txt$/ and $file !~ /md5/ ) {
 		# additional stray files but not md5 files!
 		print "   ! skipping $file\n";
