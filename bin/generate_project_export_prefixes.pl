@@ -45,14 +45,14 @@ new prefix.
 
 USAGE
 
-generate_project_export_prefixes.pl <catalog> <division> <out_file.txt>
+generate_project_export_prefixes.pl -c catalog.db -d big-shot-pi -o out_file.txt
 
 OPTIONS
    -c --catalog     <file>      The catalog db file of GNomEx experiments
    -d --division    <text>      The lab division name to check
    -o --out         <file>      The output file of ID and prefix mappings
    -e --exclude     <file>      An optional list of SBG IDs to exclude/skip
-   -m --min         <int>       Minimum number projects to consolidate (0)
+   -m --min         <int>       Minimum number projects to consolidate (1)
    --current                    Consolidate current projects too
    -h --help                    This help
 
@@ -60,6 +60,7 @@ OPTIONS
 END
 
 
+# global variables
 my $division;
 my $cat_file;
 my $out_file;
@@ -68,9 +69,14 @@ my $min_project_number = 1;
 my $consolidate_current = 0;
 my $verbose;
 my $help;
+
+# regular expression for weird situations
 my $core_members = 
 	qr/^ (?: nix | boyle | atkinson | parnell | lohman | li | milash | mossbruger | ames | conley | admin | batch) $/xi;
+my $pi_exceptions = qr/^(?: hu | tristani | al | judson | t )$/xi;
 
+
+# command line options
 if (scalar(@ARGV) > 0) {
 	GetOptions(
 		'c|catalog=s'       => \$cat_file,
@@ -132,7 +138,7 @@ my ($div_pi_first, $div_pi_last) = split /\-/, $division, 2;
 $div_pi_last =~ s/\-lab$//;
 if ( $div_pi_last =~ /\-/ ) {
 	my @bits = split /\-/, $div_pi_last;
-	if ( $bits[0] !~ /^(?: hu | tristani | al | judson | t )$/xi ) {
+	if ( $bits[0] !~ $pi_exceptions ) {
 		$div_pi_last =~ s/\-//; # exceptions
 	}
 	else {
@@ -149,8 +155,10 @@ my %bucket2data;
 my $generated_count = 0;
 process_sbg_projects();
 if ($min_project_number) {
+	print " > first round consolidation\n";
 	consolidate_buckets();
 	# run it twice to cover issues
+	print " > second round consolidation\n";
 	consolidate_buckets();
 }
 print_output();
@@ -416,11 +424,11 @@ sub make_bucket {
 	# generate bucket
 	my $bucket;
 	if ($type) {
-		$bucket = sprintf "%s%s-%s-%s", lc substr($first,0,1), lc substr($last,0,11), 
+		$bucket = sprintf "cb-%s%s-%s-%s", lc substr($first,0,1), lc substr($last,0,11), 
 			$type == 1 ? 'exp' : 'ana', lc $group;
 	}
 	else {
-		$bucket = sprintf "%s%s-%s", lc substr($first,0,1), lc substr($last,0,11), 
+		$bucket = sprintf "cb-%s%s-%s", lc substr($first,0,1), lc substr($last,0,11), 
 			lc $group;
 	}
 	return $bucket;
@@ -500,10 +508,10 @@ sub consolidate_buckets {
 		next if $bucket2count{$bucket} == 0;
 		next if $bucket2count{$bucket} > $min_project_number;
 	
-		# data is [ prefix, sbg_id, legacy_boolean, Entry ]
-
 		# go through list of projects
 		for my $i ( 0 .. $#{ $bucket2data{$bucket} } ) {
+
+			# data is [ prefix, sbg_id, legacy_boolean, Entry ]
 			my $data = $bucket2data{$bucket}->[$i];
 			if ( $data->[2] or $consolidate_current ) {
 
@@ -565,10 +573,11 @@ sub consolidate_buckets {
 		}
 	}
 	
-	printf " > consolidated %d projects into %d buckets\n", $consolidated_count,
+	printf "  - consolidated %d projects into %d buckets\n", $consolidated_count,
 		scalar(keys %new_buckets);
 	if ($single_count) {
-		printf " > %d eligible buckets skipped\n", $single_count;
+		printf "  - %d current buckets with <= %d projects skipped consolidation\n",
+			$single_count, $min_project_number;
 	}
 }
 
@@ -619,7 +628,7 @@ sub print_output {
 		$bucket_count++;
 	}
 	$outfh->close;
-	printf " > Wrote %d projects for %d buckets to %s\n", $project_count,
+	printf " > Wrote %d projects for %d buckets to file '%s'\n", $project_count,
 		$bucket_count, $out_file;
 }
 
