@@ -12,7 +12,7 @@ use RepoCatalog;
 use RepoProject;
 
 
-our $VERSION = 5.4;
+our $VERSION = 5.5;
 
 
 ######## Documentation
@@ -712,7 +712,13 @@ sub generate_list {
 	# search for projects owned by a principal investigator - last name only!
 	elsif ($list_pi) {
 		die "Can't find entries if list provided!\n" if @action_list;
-		return $Catalog->list_projects_for_pi($list_pi);
+		return $Catalog->list_projects_for_pi(
+			name     => $list_pi,
+			year     => $year,
+			age      => $min_age,
+			maxage   => $max_age,
+			size     => $min_size,			
+		);
 	}
 	
 }
