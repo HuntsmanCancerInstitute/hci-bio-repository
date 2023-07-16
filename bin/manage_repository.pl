@@ -1360,6 +1360,9 @@ sub print_functions {
 		
 			# size - work with decimal instead of binary for simplicity
 			my $size = $Entry->size || 0;
+			if ( $Entry->last_size > $size ) {
+				$size = $Entry->last_size;
+			}
 			if ($size > 1000000000) {
 				$size = sprintf("%.1fG", $size / 1000000000);
 			}
