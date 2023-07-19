@@ -17,9 +17,10 @@ our $VERSION = 0.4;
 ######## Documentation
 my $doc = <<END;
 
-A quick script to generate bucket names and prefixes for purposes of
+A script to generate bulk bucket names and prefixes for purposes of
 exporting existing projects from the Seven Bridges platform to new 
-AWS buckets.
+AWS buckets. It is designed to process all the projects in a lab 
+division, not individual projects.
 
 This uses the information from the GNomEx database in preference to
 generate the path prefix for the AWS bucket in Core browser based on a
