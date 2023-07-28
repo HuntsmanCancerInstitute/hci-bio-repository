@@ -711,12 +711,13 @@ sub export_files_to_volume {
 	}
 
 	# collect file list from the project
-	my $files = collect_files();
-	printf STDERR " exporting %d files to $volume_name/$vol_prefix\n", scalar @{$files};
+	my $items = collect_files();
+	my @files = grep { $_->type eq 'file' } @{ $items };
+	printf STDERR " exporting %d files to $volume_name/$vol_prefix\n", scalar(@files);
 
 	# export files
 	my @options = (
-		files     => $files,
+		files     => \@files,
 		overwrite => $vol_overwrite,
 		copy      => $vol_copy,
 		prefix    => $vol_prefix,
