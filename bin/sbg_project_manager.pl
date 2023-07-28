@@ -733,30 +733,32 @@ sub export_files_to_volume {
 			  map { [ $results->{$_}{source}, $_ ] }
 			  keys %{$results};
 	foreach my $id (@ids) {
+		# default assumption is the copy succeeded, otherwise there would be an error 
 		if ($results->{$id}{status} eq 'FAILED') {
 			# there was an error, state why if possible
-			# I don't have all the error codes here
+			# not all the error codes here are listed here, just the most obvious
 			my $error;
-			if (exists $results->{$id}{error}) {
-				if ($results->{$id}{error} == 9107) {
+			if (exists $results->{$id}{error} ) {
+				my $e = $results->{$id}{error} || 0;
+				if ($e == 9107) {
 					$error = sprintf "%s already exists", $results->{$id}{destination};
 				}
-				elsif ($results->{$id}{error} == 9006) {
+				elsif ($e == 9006) {
 					$error = sprintf "%s cannot be exported", $results->{$id}{source};
 				}
 				else {
-					$error = sprintf "Error %d for %s", $results->{$id}{error},
-						$results->{$id}{source};
+					$error = sprintf "Error %d for %s", $e, $results->{$id}{source};
 				}
 			}
 			else {
 				$error = sprintf "unknown error for %s", $results->{$id}{source};
 			}
-			$OUT->printf( "%s                                 %s %-10s %s\n", $id,
+			$OUT->printf( "%s %s %-10s %s\n", $id,
 				$results->{$id}{transfer_id}, $results->{$id}{status}, $error );
 		}
 		else {
-			$OUT->printf( "%s %s %-10s %s\n", $id, $results->{$id}{transfer_id},
+			$OUT->printf( "%s %s %-10s %s\n", $id, 
+				$results->{$id}{transfer_id} || q(                                ),
 				$results->{$id}{status}, $results->{$id}{destination} );
 		}
 	}
