@@ -205,7 +205,7 @@ if ($help) {
 	exit 0;
 }
 check_options();
-my $list_header = 'Type ID                         Size  Status         FilePath';
+my $list_header = 'Type ID                         Size  Location       FilePath';
 
 
 ######## Initialize SBG object
@@ -540,8 +540,12 @@ sub print_project_file_list {
 		}
 		else {
 			my $size = $_->size || 0;
+			my $status = $_->file_status;
+			if ($status =~ m|/(\w+)$|) {
+				$status = $1;
+			}
 			$OUT->printf( "File %s %6s  %-13s  %s\n", $_->id, format_human_size($size),
-				substr($_->file_status,0,13), $_->pathname );
+				substr($status,0,13), $_->pathname );
 			$total += $size;
 			$count++;
 		}
