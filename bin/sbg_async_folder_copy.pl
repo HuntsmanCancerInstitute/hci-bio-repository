@@ -7,7 +7,7 @@ use Getopt::Long qw(:config no_ignore_case);
 use IO::File;
 use Net::SB;
 
-our $VERSION = 1;
+our $VERSION = 1.1;
 
 my $doc = <<END;
 
@@ -34,15 +34,15 @@ Version: $VERSION
 
 Example Usage:
     
-  sbg_async_folder_copy.pl -d big-shot-pi/project2  big-shot-pi/project1/dir
+  sbg_async_folder_copy.pl -s big-shot-pi/project1  -d big-shot-pi/project2  file...
 
 Required:
+    -s --source       <text>    Name of the source SBG division/project
     -d --destination  <text>    Name of the destination SBG division/project[/folder]
                                    If a folder or path is specified, it will be
                                    created as necessary.
 
 Sources:
-    -s --source       <text>    Name of the source SBG division/project
     -f --file         <text>    Source folder/file to copy in the source project
                                 Folders are recursed. Repeat as necessary.
     -l --list         <file>    Local file with list of selected files to copy
@@ -167,10 +167,6 @@ sub check_options {
 		print " SBG destination project name is required!\n";
 		exit 1;
 	}
-	unless ($destination_name) {
-		print " A target project is required!\n";
-		exit 1;
-	}
 	if (not $result_id) {
 		unless ($source_name) {
 			print " A source project name is required!\n";
@@ -218,19 +214,21 @@ sub initialize_projects {
 	}
 
 	# Destination project
-	if ($new_project) {
-		$Destination_project = $Sb->create_project(
-			name    => $destination_project_name,
-		) or die " Can't initialize new destination project $destination_project_name!\n";
-		if ($long_name) {
-			$Destination_project->update(
-				'name'  => $long_name,
-			);
+	$Destination_project = $Sb->get_project($destination_project_name);
+	unless ($Destination_project) {
+		if ($new_project) {
+			$Destination_project = $Sb->create_project(
+				name    => $destination_project_name,
+			) or die " Can't initialize new destination project $destination_project_name!\n";
+			if ($long_name) {
+				$Destination_project->update(
+					'name'  => $long_name,
+				);
+			}
 		}
-	}
-	else {
-		$Destination_project = $Sb->get_project($destination_project_name)
-			or die "Can't initialize destination project $destination_project_name!\n";
+		else {
+			die " Can't initialize destination project $destination_project_name!\n"
+		}
 	}
 	
 	# Actual Destination object
@@ -301,6 +299,7 @@ sub collect_sources_from_file {
 	my $fail = 0;
 	while (my $line = $fh->getline) {
 		chomp $line;
+		next unless length $line;
 		my $type = substr($line,0,4);
 		if ($type eq 'File'){
 			# File formatter: 'File %s %6s  %-13s  %s'
@@ -365,8 +364,11 @@ sub collect_sources_from_file {
 				$fail++;
 			}
 		}
-		elsif ($line =~ /^Type \s+ ID \s+Size \s+ Status \s+ FilePath$/x) {
+		elsif ($line =~ /^Type \s+ ID \s+Size \s+ Location \s+ FilePath$/x) {
 			# expected header
+		}
+		elsif ($line =~ /^Total \s size/x) {
+			# summary footer
 		}
 		else {
 			$fail++;
@@ -401,6 +403,13 @@ sub submit_job {
 	else {
 		$submit = $Sb->submit_multiple_file_copy(\@list);
 	}
+	if ($submit and ref($submit) eq 'HASH') {
+		printf "\n Submitted async %s job %s\n", $submit->{type}, $submit->{id};
+	}
+	else {
+		die " Something went wrong with submission\n";
+	}
+	
 	
 	# wait and watch or finish
 	if ($wait_time) {
