@@ -431,7 +431,7 @@ sub load_files_from_file {
 		if ($type eq 'File'){
 			# File formatter: 'File %s %6s  %-13s  %s'
 			if ($line =~ 
-				/File\ ([a-z0-9]{24}) \s+ ([\d\.KMG]+) \s+ [\w\-\.:]+ \ \ (.+) $/x
+				/File\ ([a-z0-9]{24}) \s+ ([\d\.KMG]+) \s+ [\w\-\.:]+ \s+ (.+) $/x
 			) {
 				my $id   = $1;
 				my $size = $2;
