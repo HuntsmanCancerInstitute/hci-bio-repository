@@ -68,6 +68,7 @@ Main function: Pick one only
     -m --move                   Move the files to the indicated folder
                                     (Copy/Move does not currently preserve folders!)
     --delete                    DELETE all (selected) files from the project!!!
+    --deleteproject             DELETE the project!!!!
                                    
 
 Required:
@@ -132,6 +133,7 @@ my $export_files   = 0;
 my $copy_files     = 0;
 my $move_files     = 0;
 my $delete_files   = 0;
+my $delete_project = 0;
 my $division_name;
 my $project_name;
 my $remote_dir_name;
@@ -166,6 +168,7 @@ if (scalar(@ARGV) > 0) {
 		'c|copy!'           => \$copy_files,
 		'm|move!'           => \$move_files,
 		'delete!'           => \$delete_files,
+		'deleteproject!'    => \$delete_project,
 		'd|division=s'      => \$division_name,
 		'p|project=s'       => \$project_name,
 		'r|dir=s'           => \$remote_dir_name,
@@ -284,6 +287,10 @@ elsif ($delete_files) {
 	delete_platform_files();
 	exit 0;
 }
+elsif ($delete_project) {
+	delete_the_project();
+	exit 0;
+}
 else {
 	die "no function requested!?";
 }
@@ -303,7 +310,8 @@ sub check_options {
 		die " SBG division name is required!\n";
 	}
 	my $check = $list_files + $download_links + $export_files + $delete_files
-		+ $list_projects + $list_volumes + $sum_files + $copy_files + $move_files;
+		+ $list_projects + $list_volumes + $sum_files + $copy_files + $move_files
+		+ $delete_project;
 	if ($project_name and $check == 0) {
 		$list_files = 1;
 		$check = 1;
@@ -892,6 +900,19 @@ sub delete_platform_files {
 	my $results = $Sb->bulk_delete($files);
 	foreach my $r (@{$results}) {
 		$OUT->print( "$r\n" );
+	}
+}
+
+sub delete_the_project {
+	$OUT->printf( "\n !! DELETING project %s !!\n\n", $Project->id );
+	$OUT->print( " You have 10 seconds to cancel this...\n\n");
+	sleep 10;
+	my $s = $Project->delete;
+	if ($s) {
+		$OUT->printf( " Deleted project %s!\n", $Project->id);
+	}
+	else {
+		$OUT->printf( " Could not delete project %s!\n", $remote_dir_name );
 	}
 }
 
