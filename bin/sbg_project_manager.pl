@@ -903,7 +903,17 @@ sub delete_platform_files {
 	$OUT->printf( " !! Bulk deleting %d files!!\n", scalar @{$files} );
 	my $results = $Sb->bulk_delete($files);
 	foreach my $r (@{$results}) {
-		$OUT->print( "$r\n" );
+		$OUT->print( " $r\n" );
+	}
+	if ( $remote_dir_name and not $file_filter and not $filelist_name ) {
+		my $folder = $Project->get_file_by_name($remote_dir_name); 
+		my $s = $folder->delete;
+		if ($s) {
+			$OUT->printf( " Deleted parent folder %s\n", $remote_dir_name );
+		}
+		else {
+			$OUT->printf( " Could not delete parent folder %s\n", $remote_dir_name );
+		}
 	}
 }
 
