@@ -580,7 +580,11 @@ sub print_project_file_summary {
 	}
 
 	# bulk collect details for file status and size
-	$Sb->bulk_get_file_details($files);
+	unless ($filelist_name) {
+		# we only need the size here, we should have obtained that from an input file
+		# if it was provided
+		$Sb->bulk_get_file_details($files);
+	}
 
 	# summarize
 	my $count = 0;
