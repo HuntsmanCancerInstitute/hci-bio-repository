@@ -11,7 +11,7 @@ use lib "$Bin/../lib";
 use RepoCatalog;
 use Net::SB;
 
-our $VERSION = 0.4;
+our $VERSION = 0.5;
 
 
 ######## Documentation
@@ -42,7 +42,8 @@ Project names are truncated to between 20-30 characters, preferrably
 at word boundaries, when generating prefixes. 
 
 The output file is a tab-delimited file of SBG division ID bucket, and 
-new prefix.
+new prefix. Additional GNomEx information is also appended for manual 
+inspection purposes.
 
 USAGE
 
@@ -53,6 +54,7 @@ OPTIONS
    -d --division    <text>      The lab division name to check
    -o --out         <file>      The output file of ID and prefix mappings
    -e --exclude     <file>      An optional list of SBG IDs to exclude/skip
+   -a --archive     <file>      An optional list of SBG IDs that contain archived files
    -m --min         <int>       Minimum number projects to consolidate (1)
    --current                    Consolidate current projects too
    -h --help                    This help
@@ -66,6 +68,7 @@ my $division;
 my $cat_file;
 my $out_file;
 my $exclude_file;
+my $archive_file;
 my $min_project_number = 1;
 my $consolidate_current = 0;
 my $verbose;
@@ -84,6 +87,7 @@ if (scalar(@ARGV) > 0) {
 		'd|division=s'      => \$division,
 		'o|out=s'           => \$out_file,
 		'e|exclude=s'       => \$exclude_file,
+		'a|archive=s'       => \$archive_file,
 		'm|min=i'           => \$min_project_number,
 		'current!'          => \$consolidate_current,
 		'v|verbose!'        => \$verbose,
@@ -114,10 +118,27 @@ if ($exclude_file) {
 		die "Unable to open '$exclude_file' $OS_ERROR";
 	while (my $line = $fh->getline) {
 		chomp $line;
-		$exclude{$line} = 1;
+		next unless $line =~ /\w+/;
+		my (@bits) = split /\s+/, $line;
+		$exclude{ $bits[0] } = 1;
 	}
 	$fh->close;
 	printf " > collected %d exclusions\n", scalar keys %exclude;
+}
+
+# Archived projects
+my %archived;
+if ($archive_file) {
+	my $fh = IO::File->new($archive_file) or
+		die "Unable to open '$exclude_file' $OS_ERROR";
+	while (my $line = $fh->getline) {
+		chomp $line;
+		next unless $line =~ /\w+/;
+		my (@bits) = split /\s+/, $line;
+		$archived{ $bits[0] } = 1;
+	}
+	$fh->close;
+	printf " > collected %d archived projects\n", scalar keys %archived;
 }
 
 # Open SBG Division
@@ -588,7 +609,8 @@ sub print_output {
 		die " Cannot open output fiile '$out_file' $OS_ERROR";
 
 	# print the header
-	$outfh->printf("%s\n", join( "\t", qw( SBGID Bucket Prefix OrigGroup OrigName ) ) );
+	$outfh->printf("%s\n", join( "\t", qw( SBGID Archived Bucket Prefix OriginalGroup
+		OriginalName OriginalUser Organism Genome) ) );
 	
 	# print the data
 	my $project_count = 0;
@@ -600,24 +622,47 @@ sub print_output {
 			
 			# crude method to avoid bugger persistent duplicates
 			# this will of course keep the first one only
+			# not sure how much I need this, but I've had some persistent buggy dupes
 			next if exists $seenit{ $data->[1] };
+			
+			my $archive_status;
+			my @id_bits = split m|/|, $data->[1];
+			if ($archive_file) {
+				my $id = sprintf "%s/%s", $id_bits[0], $id_bits[1];
+				$archive_status = exists $archived{ $id } ? 'y' : 'n';
+			}
+			elsif ( scalar @id_bits == 3 ) {
+				# three pieces means we spelunk'ed into a Legacy archive
+				$archive_status = 'y';
+			}
+			else {
+				$archive_status = '?';
+			}
 			
 			if ( defined $data->[3] ) {
 				# we have a GNomEx entry
 				$outfh->printf("%s\n", join( "\t",
-					$data->[1],
+					$data->[1],             # sbg id
+					$archive_status,
 					$bucket,
-					$data->[0],
+					$data->[0],             # prefix
 					$data->[3]->group,
-					$data->[3]->name
+					$data->[3]->name,
+					sprintf("%s %s", $data->[3]->user_first, $data->[3]->user_last),
+					$data->[3]->organism,
+					$data->[3]->genome
 				) );
 			}
 			else {
 				# no GNomEx entry
 				$outfh->printf("%s\n", join( "\t",
 					$data->[1],
+					$archive_status,
 					$bucket,
 					$data->[0],
+					q(),
+					q(),
+					q(),
 					q(),
 					q()
 				) );
