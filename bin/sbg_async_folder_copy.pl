@@ -217,9 +217,11 @@ sub initialize_projects {
 	$Destination_project = $Sb->get_project($destination_project_name);
 	unless ($Destination_project) {
 		if ($new_project) {
+			my $alt_name = $destination_project_name;
+			$alt_name =~ s/\-/ /;  # replace dashes with spaces per API
 			$Destination_project = $Sb->create_project(
-				name    => $destination_project_name,
-			) or die " Can't initialize new destination project $destination_project_name!\n";
+				name    => $alt_name,
+			) or die " Cannot create new destination project '$alt_name'!\n";
 			if ($long_name) {
 				$Destination_project->update(
 					'name'  => $long_name,
@@ -227,7 +229,8 @@ sub initialize_projects {
 			}
 		}
 		else {
-			die " Can't initialize destination project $destination_project_name!\n"
+			die 
+" Destination project '$destination_project_name' does not exist! use --new option\n";
 		}
 	}
 	
