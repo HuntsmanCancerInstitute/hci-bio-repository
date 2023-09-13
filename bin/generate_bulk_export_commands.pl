@@ -112,6 +112,7 @@ create_restoration_project_cmd();
 mount_bucket_cmd();
 sbg_export_cmd();
 aws_export_cmd();
+verify_cmd();
 cleanup_cmd();
 
 print " > Finished with $division\n";
@@ -671,7 +672,67 @@ END
 	$outfh->printf("\necho\necho '======= Done ======'\ndate\n\n");
 	$outfh->close;
 	printf " > wrote script file '$outfile'\n";	
+}
 
+sub verify_cmd {
+
+	# prepare script
+	my $outfile = sprintf "%s/verify_project_transfers.sh", $outdir;
+	my $outfh   = IO::File->new($outfile, '>')
+		or die " unable to write to '$outfile'! $OS_ERROR";
+	my $header = <<END;
+#!/bin/bash
+
+# a script to verify that files have transferred properly
+
+export PATH=\$PWD:\$PATH
+
+END
+	$outfh->print($header);
+	my $command = sprintf "verify_transfers --division %s --profile %s \\\n",
+		$division, $profile;
+	$command .= "--sbgcred sbgcred.txt --awscred awscred.txt \\";
+
+	# exported projects
+	if (%buck2proj) {
+		$outfh->print( <<END
+echo '===== verifying exported projects in $division ====='
+date
+$command
+END
+		);
+
+		# iterate through buckets and projects
+		foreach my $bucket ( sort {$a cmp $b} keys %buck2proj ) {
+			foreach my $item ( @{ $buck2proj{ $bucket } } ) {
+				my $project = $item->[0];
+				$project =~ s/^ $division \/ //x;
+				$outfh->printf( "-s %s -t %s/%s \\\n", $project, $bucket, $item->[1] );
+			}
+		}
+		$outfh->print("\necho\n");
+	}
+
+	# restored projects
+	if (@rest_projects) {
+		$outfh->print( <<END
+echo '===== verifying copied projects in $division ====='
+date
+$command
+END
+		);
+
+		# iterate through projects
+		foreach my $item (@rest_projects) {
+			$outfh->printf("-s %s -t %s/%s \\\n", $item->[1], $item->[3], $item->[4] );
+		}
+		$outfh->print("\necho\n");
+	}
+
+	# finish
+	$outfh->printf("\necho\necho '======= Done ======'\ndate\n\n");
+	$outfh->close;
+	printf " > wrote script file '$outfile'\n";	
 }
 
 sub cleanup_cmd {
