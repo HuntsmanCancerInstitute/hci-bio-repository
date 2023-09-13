@@ -8,7 +8,7 @@ use IO::File;
 use JSON::PP;
 use Net::SB;
 
-our $VERSION = 0.1;
+our $VERSION = 0.2;
 
 my $doc = <<END;
 
@@ -31,6 +31,7 @@ following script and files:
     - Script to mount the AWS buckets in the SB lab division
     - Script to bulk export active SB projcts to mounted bucket volumes
     - Script to batch download and copy restored project files on EC2 node
+    - Script to verify all file transfers 
     - Script to remove the created projects of consolidated legacy GNomEx projects
 
 
