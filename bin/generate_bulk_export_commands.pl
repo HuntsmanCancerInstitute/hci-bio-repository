@@ -563,10 +563,10 @@ sub aws_export_cmd {
 
 # a script to batch download restored SB projects and copy to AWS buckets
 # this is intended to run on an EC2 node in $region
-# recommend a t3.nano instance with AmazonLinux
+# recommend a t3.medium instance with AmazonLinux2023 and 200 GB EB2 volume
 
-# set the size of the EB2 volume in GB when generating 
-VOLSIZE=25
+# set the useable size of the EB2 volume in GB 
+VOLSIZE=150
 
 rm -f FAILED.download_copy
 trap 'touch FAILED.download_copy' ERR TERM
@@ -635,9 +635,14 @@ function transfer()
 			aria2c --input-file \$listfile \\
 			--max-concurrent-downloads=6 --max-connection-per-server=6 --split=6 \\
 			--file-allocation=falloc --summary-interval=0 --show-console-readout=false \\
-			&& aws s3 cp --profile \$PROFILE --recursive --storage-class GLACIER \\
+			&& aws s3 sync --profile \$PROFILE --no-progress \\
 			\$PROJECT s3://\$BUCKET/\$PREFIX/ \\
 			&& rm -r \$PROJECT \$listfile
+			if [ -e \$listfile ]
+			then
+				touch \$PROJECT.failed
+				exit 1
+			fi
 		done
 
 		# completed with project
