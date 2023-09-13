@@ -263,7 +263,7 @@ region = $region
 CRED
 	$outfh->print($cred);
 	$outfh->close;
-	printf " > wrote empty AWS credential file '%s'\n", $outfile;
+	printf " > wrote AWS credential file '%s'\n", $outfile;
 }
 
 sub create_bucket_cmd {
@@ -428,13 +428,11 @@ END
 		# base command
 		my $new_project = $bucket;
 		$new_project =~ s/cb\-[a-z]+/export/; 
-		my $new_project2 = $new_project;
-		$new_project2 =~ s/\-/_/g;
 		$outfh->printf( qq(echo '==== copying %d Legacy projects to project %s ===='\n\n), 
 			scalar @{ $leg2proj{$bucket} }, $new_project );
 		my $command = sprintf 
 "sbg_async_folder_copy --cred sbgcred.txt --wait 10 --source %s/%s --destination %s/%s --new ",
-			$division, $division, $division, $new_project2;
+			$division, $division, $division, $new_project;
 		
 		# add each project
 		foreach my $item ( @{ $leg2proj{$bucket} } ) {
