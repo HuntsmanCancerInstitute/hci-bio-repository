@@ -11,7 +11,7 @@ use Net::SB;
 use Net::SB::File;
 use Net::SB::Folder;
 
-our $VERSION = 1.4;
+our $VERSION = 1.5;
 
 
 ######## Documentation
@@ -627,7 +627,12 @@ sub print_download_file_links {
 		my $running_size = 0;
 		my $number = 0;
 		foreach my $l (@links) {
-			if ( ( $running_size + $l->[0]->size ) < $batch_size ) {
+			if ( $l->[0]->size > $batch_size ) {
+				printf STDERR " !!! %s is %s, bigger than batch size - skipping\n",
+					$l->[1], format_human_size( $l->[0]->size );
+				next;
+			}
+			elsif ( ( $running_size + $l->[0]->size ) < $batch_size ) {
 				$OUT->printf( "%s\n  out=%s\n", $l->[2], $l->[1] );
 			}
 			else {
@@ -637,7 +642,7 @@ sub print_download_file_links {
 				$running_size = 0;
 				$number++;
 				my $newfile = $output_file;
-				$newfile =~ s/(\.\w+)$/$number$1/;
+				$newfile =~ s/(\.\w+)$/.$number$1/;
 				$OUT = IO::File->new($newfile, 'w')
 					or die "unable to write file '$newfile'! $OS_ERROR";
 				$OUT->printf( "%s\n  out=%s\n", $l->[2], $l->[1] );
@@ -654,7 +659,12 @@ sub print_download_file_links {
 		my $running_size = 0;
 		my $number = 0;
 		foreach my $l (@links) {
-			if ( ( $running_size + $l->[0]->size ) < $batch_size ) {
+			if ( $l->[0]->size > $batch_size ) {
+				printf STDERR " !!! %s is %s, bigger than batch size - skipping\n",
+					$l->[1], format_human_size( $l->[0]->size );
+				next;
+			}
+			elsif ( ( $running_size + $l->[0]->size ) < $batch_size ) {
 				$OUT->printf( "%s\n", $l->[2] );
 			}
 			else {
@@ -664,7 +674,7 @@ sub print_download_file_links {
 				$running_size = 0;
 				$number++;
 				my $newfile = $output_file;
-				$newfile =~ s/(\.\w+)$/$number$1/;
+				$newfile =~ s/(\.\w+)$/.$number$1/;
 				$OUT = IO::File->new($newfile)
 					or die "unable to write file '$newfile'! $OS_ERROR";
 				$OUT->printf( "%s\n", $l->[2] );
