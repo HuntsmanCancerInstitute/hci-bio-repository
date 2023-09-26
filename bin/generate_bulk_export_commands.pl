@@ -298,7 +298,7 @@ sub create_bucket_cmd {
 	printf " > wrote parameter file '%s'\n", $paramfile;
 
 	# script file
-	my $outfile = sprintf "%s/create_buckets.sh", $outdir;
+	my $outfile = sprintf "%s/1_create_buckets.sh", $outdir;
 	my $outfh   = IO::File->new($outfile, '>')
 		or die " unable to write to '$outfile'! $OS_ERROR";
 	my $script = <<END;
@@ -408,7 +408,7 @@ sub create_restoration_project_cmd {
 	return unless keys %leg2proj;
 
 	# prepare script
-	my $outfile = sprintf "%s/create_restoration_projects.sh", $outdir;
+	my $outfile = sprintf "%s/2_create_restoration_projects.sh", $outdir;
 	my $outfh   = IO::File->new($outfile, '>')
 		or die " unable to write to '$outfile'! $OS_ERROR";
 	my $header = <<END;
@@ -474,7 +474,7 @@ sub mount_bucket_cmd {
 	return unless keys %buck2proj;
 	
 	# prepare script
-	my $outfile = sprintf "%s/mount_buckets.sh", $outdir;
+	my $outfile = sprintf "%s/3_mount_buckets.sh", $outdir;
 	my $outfh   = IO::File->new($outfile, '>')
 		or die " unable to write to '$outfile'! $OS_ERROR";
 	my $header = <<END;
@@ -497,7 +497,7 @@ END
 	my @items;
 	foreach my $bucket ( sort {$a cmp $b} keys %buck2proj ) {
 		my $mount = $bucket;
-		$mount =~ s/\-/_/;
+		$mount =~ s/\-/_/g;
 		if (length $bucket > 32) {
 			$mount = substr $bucket, 0, 32;
 		}
@@ -520,7 +520,7 @@ sub sbg_export_cmd {
 	return unless keys %buck2proj;
 
 	# prepare script
-	my $outfile = sprintf "%s/export_projects.sh", $outdir;
+	my $outfile = sprintf "%s/4_export_projects.sh", $outdir;
 	my $outfh   = IO::File->new($outfile, '>')
 		or die " unable to write to '$outfile'! $OS_ERROR";
 	my $header = <<END;
@@ -562,7 +562,7 @@ sub aws_export_cmd {
 	return unless @rest_projects;
 
 	# prepare script
-	my $outfile = sprintf "%s/download_and_copy.sh", $outdir;
+	my $outfile = sprintf "%s/5_download_and_copy.sh", $outdir;
 	my $outfh   = IO::File->new($outfile, '>')
 		or die " unable to write to '$outfile'! $OS_ERROR";
 	my $header = <<END;
@@ -570,7 +570,7 @@ sub aws_export_cmd {
 
 # a script to batch download restored SB projects and copy to AWS buckets
 # this is intended to run on an EC2 node in $region
-# recommend a t3.medium instance with AmazonLinux2023 and 200 GB EB2 volume
+# recommend a t3.medium instance with AmazonLinux2023 and 500 GB EB2 volume
 
 # set the useable size of the EB2 volume in GB 
 VOLSIZE=150
@@ -683,7 +683,7 @@ END
 sub verify_cmd {
 
 	# prepare script
-	my $outfile = sprintf "%s/verify_project_transfers.sh", $outdir;
+	my $outfile = sprintf "%s/6_verify_project_transfers.sh", $outdir;
 	my $outfh   = IO::File->new($outfile, '>')
 		or die " unable to write to '$outfile'! $OS_ERROR";
 	my $header = <<END;
@@ -746,7 +746,7 @@ sub cleanup_cmd {
 	return unless @rest_projects;
 
 	# prepare script
-	my $outfile = sprintf "%s/remove_restoration_projects.sh", $outdir;
+	my $outfile = sprintf "%s/7_remove_restoration_projects.sh", $outdir;
 	my $outfh   = IO::File->new($outfile, '>')
 		or die " unable to write to '$outfile'! $OS_ERROR";
 	my $header = <<END;
