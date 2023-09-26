@@ -352,9 +352,9 @@ sub create_sbg_policy {
 			{
 				'Sid' => 'GrantReadOnBuckets',
 				'Action' => [
-					's3 =ListBucket',
-					's3 =GetBucketCORS',
-					's3 =GetBucketLocation'
+					's3:ListBucket',
+					's3:GetBucketCORS',
+					's3:GetBucketLocation'
 				],
 				'Effect' => 'Allow',
 				'Resource' => \@resource,
@@ -362,7 +362,7 @@ sub create_sbg_policy {
 			{
 				'Sid' => 'GrantReadOnObjects',
 				'Action' => [
-					's3 =GetObject'
+					's3:GetObject'
 				],
 				'Effect' => 'Allow',
 				'Resource' => \@resource_root,
@@ -370,11 +370,11 @@ sub create_sbg_policy {
 			{
 				'Sid' => 'GrantWriteOnObjects',
 				'Action' => [
-					's3 =PutObject',
-					's3 =GetObjectAcl',
-					's3 =PutObjectAcl',
-					's3 =AbortMultipartUpload',
-					's3 =ListMultipartUploadParts'
+					's3:PutObject',
+					's3:GetObjectAcl',
+					's3:PutObjectAcl',
+					's3:AbortMultipartUpload',
+					's3:ListMultipartUploadParts'
 				],
 				'Effect' => 'Allow',
 				'Resource' => \@resource_root,
@@ -382,12 +382,12 @@ sub create_sbg_policy {
 			{
 				'Sid' => 'RequestReadOnCopySourceObjects',
 				'Action' => [
-					's3 =GetObject'
+					's3:GetObject'
 				],
 				'Effect' => 'Allow',
 				'Resource' => [
-					'arn =aws =s3 = = =sbg-main/*',
-					'arn =aws =s3 = = =sbg-main-us-west-2/*'
+					'arn:aws:s3:::sbg-main/*',
+					'arn:aws:s3:::sbg-main-us-west-2/*'
 				]
 			}
 		]
