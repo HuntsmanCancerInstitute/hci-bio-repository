@@ -8,7 +8,7 @@ use IO::File;
 use JSON::PP;
 use Net::SB;
 
-our $VERSION = 0.2;
+our $VERSION = 0.3;
 
 my $doc = <<END;
 
