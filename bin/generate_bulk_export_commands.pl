@@ -248,10 +248,11 @@ sub write_credential {
 		}
 	}
 	$infh->close;
-	$outfile = sprintf "%s/awscred.txt", $outdir;
-	$outfh   = IO::File->new($outfile, '>')
-		or die " unable to write to '$outfile'! $OS_ERROR";
-	my $cred = <<CRED;
+	if ( exists $options{$profile} ) {
+		$outfile = sprintf "%s/awscred.txt", $outdir;
+		$outfh   = IO::File->new($outfile, '>')
+			or die " unable to write to '$outfile'! $OS_ERROR";
+		my $cred = <<CRED;
 [$profile]
 aws_access_key_id = $options{$profile}{aws_access_key_id}
 aws_secret_access_key = $options{$profile}{aws_secret_access_key}
@@ -263,9 +264,13 @@ aws_secret_access_key = $options{$private}{aws_secret_access_key}
 region = $region
 
 CRED
-	$outfh->print($cred);
-	$outfh->close;
-	printf " > wrote AWS credential file '%s'\n", $outfile;
+		$outfh->print($cred);
+		$outfh->close;
+		printf " > wrote AWS credential file '%s'\n", $outfile;
+	}
+	else {
+		printf " ! No AWS tokens for %s found\n", $profile;
+	}
 }
 
 sub create_bucket_cmd {
