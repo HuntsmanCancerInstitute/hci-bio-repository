@@ -80,7 +80,7 @@ foreach my $id (@list) {
 	else {
 		# no upload stamp
 		if ($Entry->division) {
-			printf " ! $id has no upload date but has division %s!\n", $Entry->divison;
+			printf " ! $id has no upload date but has division %s!\n", $Entry->division;
 		}
 		else {
 			print " > $id has no division and was not uploaded\n";
