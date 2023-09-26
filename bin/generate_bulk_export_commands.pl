@@ -573,7 +573,7 @@ sub aws_export_cmd {
 # recommend a t3.medium instance with AmazonLinux2023 and 500 GB EB2 volume
 
 # set the useable size of the EB2 volume in GB 
-VOLSIZE=150
+VOLSIZE=450
 
 rm -f FAILED.download_copy
 trap 'touch FAILED.download_copy' ERR TERM
@@ -639,12 +639,17 @@ function transfer()
 			echo
 			echo "=================================================================="
 			echo "==== Transferring \$listfile ===="
-			aria2c --input-file \$listfile \\
-			--max-concurrent-downloads=6 --max-connection-per-server=6 --split=6 \\
-			--file-allocation=falloc --summary-interval=0 --show-console-readout=false \\
-			&& aws s3 sync --profile \$PROFILE --no-progress \\
-			\$PROJECT s3://\$BUCKET/\$PREFIX/ \\
-			&& rm -r \$PROJECT \$listfile
+			if [ -s \$listfile ]
+			then
+				aria2c --input-file \$listfile \\
+				--max-concurrent-downloads=6 --max-connection-per-server=6 --split=6 \\
+				--file-allocation=falloc --summary-interval=0 --show-console-readout=false \\
+				&& aws s3 sync --profile \$PROFILE --no-progress \\
+				\$PROJECT s3://\$BUCKET/\$PREFIX/ \\
+				&& rm -r \$PROJECT \$listfile
+			else
+				rm \$listfile
+			fi
 			if [ -e \$listfile ]
 			then
 				touch \$PROJECT.failed
@@ -675,7 +680,27 @@ END
 	}
 	
 	# finish
-	$outfh->printf("\necho\necho '======= Done ======'\ndate\n\n");
+	$outfh->printf( <<END
+echo
+echo '======= Done ======'
+date
+
+# cleanup
+mkdir -p $division
+mv *.finished 5_download_and_copy.sh $division/
+if [ -e screenlog.* ]
+then
+	sleep 30
+	aws s3 cp --profile tjparnell screenlog.* \\
+	s3://hcibioinfo-timp-test/${division}_log.txt
+	cp screenlog.* $division/
+fi
+
+# shutdown this node
+sudo shutdown -h now
+
+END
+	);
 	$outfh->close;
 	printf " > wrote script file '$outfile'\n";	
 }
@@ -697,7 +722,7 @@ END
 	$outfh->print($header);
 	my $command = sprintf "verify_transfers --division %s --profile %s \\\n",
 		$division, $profile;
-	$command .= "--sbgcred sbgcred.txt --awscred awscred.txt \\";
+	$command .= "--sbcred sbgcred.txt --awscred awscred.txt \\";
 
 	# exported projects
 	if (%buck2proj) {
