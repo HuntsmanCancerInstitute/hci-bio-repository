@@ -116,7 +116,8 @@ Files will be removed in one week.
 
 A manifest of the files will remain on GNomEx, as well as the record of your sequencing request and samples. 
 
-For more information, including long-term cloud storage options, see our storage policy at https://uofuhealth.utah.edu/huntsman/shared-resources/gba/bioinformatics/cloud-storage/.
+For more information, including long-term cloud storage options, please contact the 
+Cancer Bioinformatics Core at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi. 
 
 DOC
 		
@@ -143,7 +144,8 @@ Files will be removed in one week.
 
 A manifest of the files will always remain on GNomEx, as well as the database entry for the project. Certain analysis files may remain as a courtesy for serving to genome browsers.
 
-For more information, including long-term cloud storage options, see our storage policy at https://uofuhealth.utah.edu/huntsman/shared-resources/gba/bioinformatics/cloud-storage/. 
+For more information, including long-term cloud storage options, please contact the 
+Cancer Bioinformatics Core at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi. 
 
 DOC
 		
