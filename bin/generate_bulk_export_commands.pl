@@ -224,7 +224,7 @@ sub write_credential {
 					$line = $line2;
 					last;
 				}
-				elsif ($line2 =~ /^ (\w+) \s? = \s? ( [\/\-\w]+ )$/x ) {
+				elsif ($line2 =~ /^ (\w+) \s? = \s? (\S+) $/x ) {
 					$options{$profile}{$1} = $2;
 				}		
 			}
@@ -237,7 +237,7 @@ sub write_credential {
 					$line = $line2;
 					last;
 				}
-				elsif ($line2 =~ /^ (\w+) \s? = \s? ( [\/\-\w]+ )$/x ) {
+				elsif ($line2 =~ /^ (\w+) \s? = \s? (\S+) $/x ) {
 					$options{$private}{$1} = $2;
 				}		
 			}

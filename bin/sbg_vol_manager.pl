@@ -204,7 +204,7 @@ sub go_add_new_volumes {
 			undef $line;
 			while (my $line2 = $fh->getline) {
 				last if (substr($line2, 0, 1) eq '[');
-				if ($line2 =~ /^ (\w+) \s? = \s? ( [\/\-\w]+ )$/x ) {
+				if ($line2 =~ /^ (\w+) \s? = \s? (\S+) $/x ) {
 					$options{$1} = $2;
 				}		
 			}
