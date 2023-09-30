@@ -507,8 +507,8 @@ END
 
 	# write command
 	$outfh->printf(
-"sbg_vol_manager --cred sbgcred.txt --connection awscred.txt --division %s --add --mode RW %s\n",
-		$division, join( q(), @items )
+"sbg_vol_manager --cred sbgcred.txt --connection awscred.txt --profile %s --division %s --add --mode RW %s\n",
+		$profile, $division, join( q(), @items )
 	);
 	$outfh->printf("echo\necho '======= Done ======'\n\n");
 	$outfh->close;
