@@ -724,8 +724,10 @@ sub callback {
 		push @removelist, $clean_name;
 		return; # do not continue
 	}
-	# multiple checksum file
-	elsif ($file =~ m/^ md5.* \. (?: txt | out ) $/x) {
+	# multiple checksum file - with or without datetime stamp in front - ugh
+	elsif ($file =~ 
+m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 [\._] .* \. (?: txt | out ) $/x
+	) {
 		my $fh = IO::File->new($file);
 		while (my $line = $fh->getline) {
 			my ($md5, $fastqpath) = split(/\s+/, $line);
