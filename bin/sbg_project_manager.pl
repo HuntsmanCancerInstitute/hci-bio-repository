@@ -11,7 +11,7 @@ use Net::SB;
 use Net::SB::File;
 use Net::SB::Folder;
 
-our $VERSION = 1.5;
+our $VERSION = 1.6;
 
 
 ######## Documentation
@@ -80,7 +80,7 @@ Options for file filtering:
     -r --dir        <text>      Name of the starting parent folder (optional)
     -F --filelist   <file>      Existing text file of files IDs to work on
                                     best to use saved output from this app
-    -f --filter     <regex>     Perl Regular Expression for selecting files
+    -f --filter     <regex>     Perl Regular Expression for selecting file names
                                     May be used with --filelist. Examples:
                                      '(bam|bai|bw)',
                                      '\\.fastq\\.gz\$'
@@ -88,6 +88,11 @@ Options for file filtering:
     -t --task       <text>      Select files originated from analysis task id
                                     Will recurse into child tasks, but not folders.
                                     Specify folder if files are moved.
+    --location      <regex>     Perl Regular Expression for selecting for location
+                                    Examples include:
+                                    'platform'
+                                    'us\\-east\\-\\d'
+                                    'cb\\-big\\-shot\\-.+'
     -D --printdir               Print folders in the list
     --limit --depth <integer>   Limit recursive depth to specified depth
  
@@ -140,6 +145,7 @@ my $remote_dir_name;
 my $filelist_name;
 my $file_filter;
 my $task_id;
+my $location_filter;
 my $print_folders;
 my $recurse_limit  = 0;
 my $aria_formatting;
@@ -175,6 +181,7 @@ if (scalar(@ARGV) > 0) {
 		'F|filelist=s'      => \$filelist_name,
 		'f|filter=s'        => \$file_filter,
 		't|task=s'          => \$task_id,
+		'location=s'        => \$location_filter,
 		'D|printdir!'       => \$print_folders,
 		'limit|depth=i'     => \$recurse_limit,
 		'aria!'             => \$aria_formatting,
@@ -250,7 +257,7 @@ else {
 
 
 ######## Main functions
-
+my $got_bulk_details = 0;   # so we don't do this more than once
 if ($list_projects) {
 	print_project_list();
 	exit 0;
@@ -416,6 +423,33 @@ sub collect_files {
 	else {
 		$files = $Project->recursive_list($file_filter, $recurse_limit);
 	}
+
+	# filter on location if requested
+	if ($location_filter) {
+		
+		# location only available via advanced details
+		# imported file lists have location truncated, so not reliable
+		unless ($got_bulk_details) {
+			$Sb->bulk_get_file_details($files);
+			$got_bulk_details = 1;
+		}
+
+		# filter
+		my @keep;
+		foreach my $f ( @{ $files} ) {
+			my $location;
+			if ( $f->type eq 'folder' ) {
+				$location = 'platform';
+			}
+			else {
+				$location = $f->file_status;
+			}
+			if ($location =~ /$location_filter/x) {
+				push @keep, $f;
+			}
+		}
+		$files = \@keep;
+	}
 	return $files;
 }
 
@@ -530,7 +564,10 @@ sub print_project_file_list {
 	}
 
 	# bulk collect details for file status and size
-	$Sb->bulk_get_file_details($files);
+	unless ($got_bulk_details) {
+		$Sb->bulk_get_file_details($files);
+		$got_bulk_details = 1;
+	}
 
 	# print the file names
 	# the file IDs is always 24 characters long
@@ -583,7 +620,10 @@ sub print_project_file_summary {
 	unless ($filelist_name) {
 		# we only need the size here, we should have obtained that from an input file
 		# if it was provided
-		$Sb->bulk_get_file_details($files);
+		unless ($got_bulk_details) {
+			$Sb->bulk_get_file_details($files);
+			$got_bulk_details = 1;
+		}
 	}
 
 	# summarize
@@ -607,7 +647,10 @@ sub print_download_file_links {
 	# collect file list from the project
 	my $files = collect_files();
 	if ($batch_size) {
-		$Sb->bulk_get_file_details($files);
+		unless ($got_bulk_details) {
+			$Sb->bulk_get_file_details($files);
+			$got_bulk_details = 1;
+		}
 	}
 	# generate download links
 	my @links;
