@@ -447,7 +447,7 @@ sub collect_files {
 			else {
 				$location = $f->file_status;
 			}
-			if ($location =~ /$location_filter/x) {
+			if ( $location =~ /$location_filter/xi ) {
 				push @keep, $f;
 			}
 		}
