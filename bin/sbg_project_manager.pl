@@ -309,6 +309,9 @@ else {
 ######## Functions
 
 sub check_options {
+	if (scalar @ARGV > 1) {
+		die " Only one SB division/project parameter allowed!\n";
+	}
 	if (scalar @ARGV == 1 and not $division_name and not $project_name) {
 		my $a = shift @ARGV;
 		($division_name, $project_name, $remote_dir_name) = split m{/}, $a, 3;
