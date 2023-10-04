@@ -782,6 +782,7 @@ END
 	$command .= "--sbcred sbgcred.txt --awscred awscred.txt \\";
 
 	# exported projects
+	my %seenit;
 	if (%buck2proj) {
 		$outfh->print( <<END
 echo '===== verifying exported projects in $division ====='
@@ -796,6 +797,7 @@ END
 				my $project = $item->[0];
 				$project =~ s/^ $division \/ //x;
 				$outfh->printf( "-s %s -t %s/%s \\\n", $project, $bucket, $item->[1] );
+				$seenit{$project} = 1;
 			}
 		}
 		$outfh->print("\necho\n");
@@ -803,18 +805,26 @@ END
 
 	# restored projects
 	if (@rest_projects) {
-		$outfh->print( <<END
-echo '===== verifying copied projects in $division ====='
-date
-$command
-END
-		);
+
+		my $command2 = $command;
+		my $check = length $command2;
 
 		# iterate through projects
 		foreach my $item (@rest_projects) {
-			$outfh->printf("-s %s -t %s/%s \\\n", $item->[1], $item->[3], $item->[4] );
+			next if exists $seenit{ $item->[3] };
+			$command2 .= sprintf("-s %s -t %s/%s \\\n", $item->[1], $item->[3],
+				$item->[4] );
 		}
-		$outfh->print("\necho\n");
+
+		if ( length($command2) > $check ) {
+			$outfh->print( <<END
+echo '===== verifying copied projects via aws in $division ====='
+date
+$command2
+echo
+END
+			);
+		}
 	}
 
 	# finish
