@@ -174,7 +174,7 @@ sub load_table {
 			# this gets both direct export and aws download/copy
 			# extract the short project name from the project id
 			my ($shortname) = ( $project =~ m|^$division / (.+) $|x );
-			push @rest_projects, [$division, $project, $shortname, $bucket, $prefix];
+			push @rest_projects, [$division, $shortname, $shortname, $bucket, $prefix];
 			$buck2proj{ $bucket } ||= [];
 			push @{ $buck2proj{$bucket} }, [$project, $prefix];
 		}
@@ -570,10 +570,13 @@ sub aws_export_cmd {
 
 # a script to batch download restored SB projects and copy to AWS buckets
 # this is intended to run on an EC2 node in $region
-# recommend a t3.medium instance with AmazonLinux2023 and 500 GB EB2 volume
+# recommend a c6in.xlarge instance with AmazonLinux2023 and 500 GB EB2 volume
 
 # set the useable size of the EB2 volume in GB 
 VOLSIZE=450
+
+# set parallel transfers
+CPU=6
 
 rm -f FAILED.download_copy
 trap 'touch FAILED.download_copy' ERR TERM
@@ -589,14 +592,24 @@ fi
 # get executables
 if [ -e aria2c ]
 then
-	echo "executables found"
+	echo "aria2 found"
 else
-	echo "retrieving executables"
-	aws s3 cp --profile $private $private_bucket/aria2c ./ \\
+	echo "retrieving aria2"
+	aws s3 cp --profile $private --no-progress $private_bucket/aria2c ./ \\
 	&& chmod +x aria2c
-	aws s3 cp --profile $private $private_bucket/sbg_project_manager ./ \\
-	&& chmod +x sbg_project_manager
 fi
+if [ -e /usr/bin/parallel ]
+then
+	echo "parallel installed"
+else
+	sudo yum install -y -q parallel
+	mkdir .parallel
+	touch .parallel/will-cite
+fi
+rm -f sbg_project_manager
+aws s3 cp --profile $private --no-progress $private_bucket/sbg_project_manager ./ \\
+&& chmod +x sbg_project_manager
+
 
 
 # reusable global parameters
@@ -606,9 +619,44 @@ SBGPROJECT=""
 PROJECT=""
 BUCKET=""
 PREFIX=""
+DLDIR=""
+
+function upload
+{
+	echo
+	echo "==== uploading with s3 to \$BUCKET/\$PREFIX in parallel"
+	if [[ -n `find \$PROJECT -name \\*.aria2` ]]
+	then
+		echo "FAILED: aria2 control files are present, download failed"
+		touch \$PROJECT.failed
+		exit 1
+	fi
+	find \$PROJECT -type f > upload.txt
+	if [ -s upload.txt ]
+	then
+		parallel -j \$CPU --delay 1 -a upload.txt \\
+		aws s3 cp --profile \$PROFILE --no-progress \\
+		{} s3://\$BUCKET/\$PREFIX/{=s%^\$PROJECT/%%=} \\
+		'&&' rm {}
+		
+		if [[ -n `find \$PROJECT -type f` ]]
+		then
+			echo
+			echo "==== upload complete"
+			rm -r \$PROJECT \$listfile upload.txt
+		fi
+	else
+		echo
+		echo "FAILED: no files found to upload!!?"
+		rm upload.txt
+		touch \$PROJECT.failed
+		exit 1
+	fi
+}
+
 
 # main transfer function
-function transfer()
+function transfer
 {
 	echo
 	echo "=================================================================="
@@ -617,7 +665,7 @@ function transfer()
 	echo
 	if [ -e \$PROJECT.finished ]
 	then
-		echo "==== \$PROJECT completed ===="
+		echo "==== Project \$PROJECT completed ===="
 	else
 
 		# generate batched download lists
@@ -628,6 +676,7 @@ function transfer()
 			echo "==== Generating \$PROJECT download list ===="
 			date
 			sbg_project_manager --url --aria --batch \$VOLSIZE \\
+			--location 'platform|us\\-east' \\
 			--cred sbgcred.txt \\
 			--out \$PROJECT.list.txt \\
 			\$DIVISION/\$SBGPROJECT
@@ -638,20 +687,22 @@ function transfer()
 		do
 			echo
 			echo "=================================================================="
-			echo "==== Transferring \$listfile ===="
+			echo "==== Transferring file \$listfile ===="
 			if [ -s \$listfile ]
 			then
-				aria2c --input-file \$listfile \\
-				--max-concurrent-downloads=6 --max-connection-per-server=6 --split=6 \\
-				--file-allocation=falloc --summary-interval=0 --show-console-readout=false \\
-				&& aws s3 sync --profile \$PROFILE --no-progress \\
-				\$PROJECT s3://\$BUCKET/\$PREFIX/ \\
-				&& rm -r \$PROJECT \$listfile
+				echo "=== downloading with aria2c"
+				aria2c --input-file \$listfile --dir \$DLDIR \\
+				--max-concurrent-downloads=\$CPU --max-connection-per-server=\$CPU \\
+				--split=\$CPU --file-allocation=falloc --summary-interval=0 --quiet \\
+				--auto-file-renaming=false --conditional-get=true \\
+				&& upload
 			else
+				echo "list file empty, skipping"
 				rm \$listfile
 			fi
 			if [ -e \$listfile ]
 			then
+				echo "FAILED: list file \$listfile still present after parallel s3 copy"
 				touch \$PROJECT.failed
 				exit 1
 			fi
@@ -667,12 +718,18 @@ END
 
 	# walk through the restored items 
 	foreach my $item ( @rest_projects ) {
+		my $download_dir = './';
+		if ( $item->[1] eq $item->[2] ) {
+			# downloading an entire SB project, not a legacy restored project
+			$download_dir = $item->[1];
+		}
 		my $stanza = <<END;
 DIVISION=$item->[0]
 SBGPROJECT=$item->[1]
 PROJECT=$item->[2]
 BUCKET=$item->[3]
 PREFIX=$item->[4]
+DLDIR=$download_dir
 transfer
 
 END
