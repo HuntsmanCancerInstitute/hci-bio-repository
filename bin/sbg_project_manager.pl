@@ -956,7 +956,9 @@ sub move_files_to_folder {
 sub delete_platform_files {
 	# collect file list from the project
 	my $files = collect_files();
-	$OUT->printf( " !! Bulk deleting %d files!!\n", scalar @{$files} );
+	$OUT->printf( " !! Bulk DELETING %d files!!\n", scalar @{$files} );
+	$OUT->print( " You have 10 seconds to cancel this...\n\n");
+	sleep 10;
 	my $results = $Sb->bulk_delete($files);
 	foreach my $r (@{$results}) {
 		$OUT->print( " $r\n" );
