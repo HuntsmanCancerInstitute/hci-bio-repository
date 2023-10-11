@@ -139,7 +139,7 @@ sub open_aws_client {
 					$line = $line2;
 					last;
 				}
-				elsif ($line2 =~ /^ (\w+) \s? = \s? ( [\/\-\w]+ )$/x ) {
+				elsif ($line2 =~ /^ (\w+) \s? = \s? (\S+) $/x ) {
 					$options{$1} = $2;
 				}		
 			}
@@ -176,6 +176,7 @@ sub compare {
 	my ($bucket_name, $prefix);
 	if ($target =~ m|/|) {
 		($bucket_name, $prefix) = split m|/|, $target, 2;
+		$prefix .= '/';
 	}
 	else {
 		$bucket_name = $target;
@@ -218,7 +219,7 @@ sub compare {
 			my $k = $object->key;
 			next if $k =~ m|/$|;  # skip folder
 			if ($prefix) {
-				$k =~ s/^ $prefix \/ //x;
+				$k =~ s/^ $prefix //x;
 			}
 			my $v = $object->size;
 			$aws{$k} = $v;
