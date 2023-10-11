@@ -8,7 +8,7 @@ use IO::File;
 use JSON::PP;
 use Net::SB;
 
-our $VERSION = 0.3;
+our $VERSION = 0.4;
 
 my $doc = <<END;
 
@@ -20,12 +20,17 @@ This takes as input the list of projects generated from the script
 account lookup file, which is a TSV file containing the SB division ID, 
 CORE Browser lab name, and AWS account number.
 
+Lab-specific credentials are looked for in user's credential files, 
+~/.sevenbridges/credentials and ~/.aws/credentials. 
+
 It will generate several custom, lab-specific, bash scripts with the 
-commands necessary for exporting the projects and files. These include the
-following script and files:
+commands necessary for exporting the projects and files. The scripts 
+are numerated in the general order in which they should be executed. 
+These include the following script and files:
 
     - Script to create AWS buckets
-    - Write the custom AWS IAM JSON policy for mounting SB buckets
+    - Write the custom AWS IAM JSON security policy for mounting SB buckets
+    - Write out lab-specific credential files
     - Script to copy Legacy GNomEx SB projects into a new, consolidated SB project
       for purposes of manual file archive restoration ease
     - Script to mount the AWS buckets in the SB lab division
@@ -40,6 +45,7 @@ Options
 -i --input   <file>    The input list of project identifiers and prefixes
 -o --out     <file>    The output directory to write the files
 -a --account <file>    The AWS account lookup file
+-p --profile <text>    Optionally provide an alternate AWS profile name
 -h --help              Show this help
 
 END
@@ -51,6 +57,7 @@ my $infile;
 my $outdir;
 my $account_file;
 my $vol_connection_file = sprintf "%s/.aws/credentials", $ENV{HOME};
+my $profile;
 my $help;
 
 if (@ARGV) {
@@ -58,6 +65,7 @@ if (@ARGV) {
 		'i|input=s'         => \$infile,
 		'o|out=s'           => \$outdir,
 		'a|account=s'       => \$account_file,
+		'p|profile=s'       => \$profile,
 		'h|help!'           => \$help,
 	) or die " bad options! Please check\n $doc\n";
 }
@@ -94,9 +102,9 @@ my @buckets;       # array list of AWS buckets
 my %leg2proj;      # hash of bucket to array of legacy SBG projects [project, prefix]
 my %buck2proj;     # hash bucket to array of active SBG projects [project, prefix]
 my %buck2vol;      # hash of bucket to mounted volume name    
-my @rest_projects; # list of the SBG restoration projects [project, bucket, prefix]
+my @rest_projects; # list of the SBG restoration projects 
+                   # [division, sbg_project, project_name, bucket, prefix]
 my $division;
-my $profile;
 
 # custom private variables
 my $region = 'us-east-1';
@@ -498,8 +506,8 @@ END
 	foreach my $bucket ( sort {$a cmp $b} keys %buck2proj ) {
 		my $mount = $bucket;
 		$mount =~ s/\-/_/g;
-		if (length $bucket > 32) {
-			$mount = substr $bucket, 0, 32;
+		if (length $mount > 32) {
+			$mount = substr $mount, 0, 32;
 		}
 		push @items, sprintf "-v %s -n %s ", $bucket, $mount;
 		$buck2vol{$bucket} = $mount;
@@ -779,7 +787,7 @@ END
 	$outfh->print($header);
 	my $command = sprintf "verify_transfers --division %s --profile %s \\\n",
 		$division, $profile;
-	$command .= "--sbcred sbgcred.txt --awscred awscred.txt \\";
+	$command .= "--sbcred sbgcred.txt --awscred awscred.txt";
 
 	# exported projects
 	my %seenit;
@@ -787,7 +795,7 @@ END
 		$outfh->print( <<END
 echo '===== verifying exported projects in $division ====='
 date
-$command
+$command \\
 END
 		);
 
@@ -811,8 +819,9 @@ END
 
 		# iterate through projects
 		foreach my $item (@rest_projects) {
-			next if exists $seenit{ $item->[3] };
-			$command2 .= sprintf("-s %s -t %s/%s \\\n", $item->[1], $item->[3],
+			my $project = $item->[1];
+			next if exists $seenit{ $project };
+			$command2 .= sprintf("-s %s -t %s/%s \\\n", $project, $item->[3],
 				$item->[4] );
 		}
 
@@ -835,7 +844,7 @@ END
 
 sub cleanup_cmd {
 
-	return unless @rest_projects;
+	return unless %leg2proj;
 
 	# prepare script
 	my $outfile = sprintf "%s/7_remove_restoration_projects.sh", $outdir;
