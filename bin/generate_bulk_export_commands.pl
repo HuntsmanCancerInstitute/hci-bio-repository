@@ -647,11 +647,16 @@ function upload
 		{} s3://\$BUCKET/\$PREFIX/{=s%^\$PROJECT/%%=} \\
 		'&&' rm {}
 		
-		if [[ -n `find \$PROJECT -type f` ]]
+		if [[ -z `find \$PROJECT -type f` ]]
 		then
 			echo
 			echo "==== upload complete"
 			rm -r \$PROJECT \$listfile upload.txt
+		else
+			echo
+			echo "==== an s3 upload failed!"
+			touch \$PROJECT.failed
+			exit 1
 		fi
 	else
 		echo
