@@ -108,8 +108,8 @@ my $division;
 
 # custom private variables
 my $region = 'us-east-1';
-my $private = 'tjparnell'; # private aws profile
-my $private_bucket = 's3://hcibioinfo-timp-test/AmazonLinuxExecutables';
+my $private = 'hci-bio-info'; # private aws profile
+my $private_bucket = 's3://hcibioinfo-timp-test';
 
 # Main Functions
 load_accounts();
@@ -603,7 +603,8 @@ then
 	echo "aria2 found"
 else
 	echo "retrieving aria2"
-	aws s3 cp --profile $private --no-progress $private_bucket/aria2c ./ \\
+	aws s3 cp --profile $private --no-progress \\
+	$private_bucket/AmazonLinuxExecutables/aria2c ./ \\
 	&& chmod +x aria2c
 fi
 if [ -e /usr/bin/parallel ]
@@ -615,7 +616,8 @@ else
 	touch .parallel/will-cite
 fi
 rm -f sbg_project_manager
-aws s3 cp --profile $private --no-progress $private_bucket/sbg_project_manager ./ \\
+aws s3 cp --profile $private --no-progress \\
+$private_bucket/AmazonLinuxExecutables/sbg_project_manager ./ \\
 && chmod +x sbg_project_manager
 
 
@@ -632,6 +634,7 @@ DLDIR=""
 function upload
 {
 	echo
+	echo "=================================================================="
 	echo "==== uploading with s3 to \$BUCKET/\$PREFIX in parallel"
 	if [[ -n `find \$PROJECT -name \\*.aria2` ]]
 	then
@@ -761,8 +764,8 @@ mv *.finished 5_download_and_copy.sh $division/
 if [ -e screenlog.* ]
 then
 	sleep 30
-	aws s3 cp --profile tjparnell screenlog.* \\
-	s3://hcibioinfo-timp-test/${division}_log.txt
+	aws s3 cp --profile $private screenlog.* \\
+	$private_bucket/${division}_log.txt
 	cp screenlog.* $division/
 fi
 
