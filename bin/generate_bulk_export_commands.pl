@@ -108,7 +108,7 @@ my $division;
 
 # custom private variables
 my $region = 'us-east-1';
-my $private = 'hci-bio-info'; # private aws profile
+my $private = 'hci-bio-repo'; # private aws profile
 my $private_bucket = 's3://hcibioinfo-timp-test';
 
 # Main Functions
