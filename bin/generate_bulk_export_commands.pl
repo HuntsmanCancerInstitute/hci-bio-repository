@@ -793,30 +793,35 @@ export PATH=\$PWD:\$PATH
 
 END
 	$outfh->print($header);
+
+	# base command
 	my $command = sprintf "verify_transfers --division %s --profile %s \\\n",
 		$division, $profile;
-	$command .= "--sbcred sbgcred.txt --awscred awscred.txt";
+	$command .= "--sbcred sbgcred.txt --awscred awscred.txt \\\n";
 
 	# exported projects
 	my %seenit;
 	if (%buck2proj) {
-		$outfh->print( <<END
-echo '===== verifying exported projects in $division ====='
-date
-$command \\
-END
-		);
 
+		my $command2 = $command;
 		# iterate through buckets and projects
 		foreach my $bucket ( sort {$a cmp $b} keys %buck2proj ) {
 			foreach my $item ( @{ $buck2proj{ $bucket } } ) {
 				my $project = $item->[0];
 				$project =~ s/^ $division \/ //x;
-				$outfh->printf( "-s %s -t %s/%s \\\n", $project, $bucket, $item->[1] );
+				$command2 .= sprintf( "-s %s -t %s/%s \\\n", $project, $bucket,
+					$item->[1] );
 				$seenit{$project} = 1;
 			}
 		}
-		$outfh->print("\necho\n");
+
+		$outfh->print( <<END
+echo '===== verifying exported projects in $division ====='
+date
+$command2
+
+END
+		);
 	}
 
 	# restored projects
@@ -835,10 +840,11 @@ END
 
 		if ( length($command2) > $check ) {
 			$outfh->print( <<END
+echo
 echo '===== verifying copied projects via aws in $division ====='
 date
 $command2
-echo
+
 END
 			);
 		}
