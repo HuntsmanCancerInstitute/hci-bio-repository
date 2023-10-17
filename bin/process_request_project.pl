@@ -15,7 +15,7 @@ use RepoCatalog;
 use RepoProject;
 use Emailer;
 
-our $VERSION = 5.8;
+our $VERSION = 5.9;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -444,7 +444,7 @@ sub scan_directory {
 			sprintf("\"%s\"", $filedata{$f}{clean}),
 			$filedata{$f}{sample},
 			$Project->id,
-			$filedata{$f}{sample},
+			$filedata{$f}{library},
 			sprintf("\"%s\"", $machinelookup{$filedata{$f}{machineID}} || q() ),
 			$filedata{$f}{laneID},
 			$is_paired ? $filedata{$f}{pairedID} : '-',
@@ -585,6 +585,11 @@ sub callback {
 		print "   ! skipping $file\n";
 		return;
 	}
+	elsif ($file =~ /\.zip$/) {
+		# some Zip file - caution
+		print "   ! skipping $file\n";
+		return;
+	}
 	
 	
 	### Possible Fastq file types
@@ -592,7 +597,7 @@ sub callback {
 	# 15945X8_190320_M05774_0049_MS7833695-50V2_S1_L001_R2_001.fastq.gz
 	# new style: 16013X1_190529_D00550_0563_BCDLULANXX_S12_L001_R1_001.fastq.gz
 	# NovoaSeqX: 21185X1_20230810_LH00227_0005_A227HG7LT3_S42_L004_R1_001.fastq.gz
-	if ($file =~ m/^ (\d{4,5} [xX] \d+ ) _\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _R(\d) _001 \. fastq \.gz$/x) {
+	if ($file =~ m/^ (\d{4,5} [xXP] \d+ ) _\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _R(\d) _001 \. fastq \.gz$/x) {
 		$sample = $1;
 		$machineID = $2;
 		$laneID = $3;
@@ -765,9 +770,14 @@ m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 [\._] .* \. (?: t
 	# stats on the file
 	my @st = stat($file);
 	
+	# set library and clean up sample identifier as necessary
+	my $library = $sample;
+	$sample =~ s/P/X/;
+	
 	### Record the collected file information
 	$filedata{$fname}{clean} = $clean_name;
 	$filedata{$fname}{sample} = $sample;
+	$filedata{$fname}{library} = $library;
 	$filedata{$fname}{machineID} = $machineID;
 	$filedata{$fname}{laneID} = $laneID;
 	$filedata{$fname}{pairedID} = $pairedID;
