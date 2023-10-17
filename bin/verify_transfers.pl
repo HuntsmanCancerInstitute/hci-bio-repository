@@ -173,13 +173,15 @@ sub compare {
 	print "\n > Checking $source with $target\n";
 	
 	# Open AWS bucket
+	$target =~ s|^s3://||;  # strip URI prefix
+	$target =~ s|/$||;      # strip trailing slash for now
 	my ($bucket_name, $prefix);
 	if ($target =~ m|/|) {
 		($bucket_name, $prefix) = split m|/|, $target, 2;
 		$prefix .= '/';
 	}
 	else {
-		$bucket_name = $target;
+		$bucket_name = $target . '/';
 	}
 	my $bucket = $Client->bucket( name => $bucket_name );
 	unless ($bucket) {
@@ -255,9 +257,7 @@ sub compare {
 	}
 
 	# compare
-	my $sb_count  = scalar @{ $sb_list };
-	my $aws_count = scalar keys %aws;
-	my $match     = 0;
+	my $match = 0;
 	my @incomplete;
 	my @missing;
 	foreach my $f ( @{ $sb_list } ) {
