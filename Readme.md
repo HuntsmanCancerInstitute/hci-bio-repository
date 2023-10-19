@@ -53,18 +53,29 @@ Bridges platform. Unlike their simple `sb` command line tool, this will exhausti
 recurse through a project when performing file tasks. Tasks include listing, filtering, 
 generating download URLs, deleting, and exporting files. 
 
+- `sbg_vol_manager.pl`
+
+A script to manage mounting AWS buckets within a Seven Bridges division.
+
+- `sbg_async_folder_copy.pl`
+
+A script to bulk copy multiple files, including entire folder hierarchies, in an 
+efficient, asynchronous manner, rather than file by file.
+
 - `add_user_sb_project.pl`
 
 A simple script for quickly adding a Seven Bridges division member to an existing project. 
 
 - `check_divisions.pl`
 
-A simple script to check one or all divisions and print the number of members and 
-projects.
+A simple script to check one or all Seven Bridges divisions and print various details, 
+such as members and projects.
 
 - other
 
-There are a few other sundry scripts for various one-off purposes and such.
+There are a few other sundry scripts for data migration, various one-off purposes,
+and such.
+
 
 
 ## Modules
@@ -88,9 +99,9 @@ as [CPANminus](https://metacpan.org/pod/App::cpanminus) or CPAN.
 
 The [Net::SB](https://github.com/tjparnell/Net-SB) library module is the Perl wrapper 
 around the Seven Bridges API. The code was originally part of this package but split 
-off to make it more generally accessible.
+off to make it more generally accessible. It will need to be installed.
 
-Likely need to be installed:
+Modules that may need to be installed:
 
 - [DBD::ODBC](https://metacpan.org/pod/DBD::ODBC)
 
@@ -100,15 +111,9 @@ Likely need to be installed:
 
 - [Email::Simple](https://metacpan.org/pod/Email::Simple)
 
-- [IO::Socket::SSL](https://metacpan.org/pod/IO::Socket::SSL)
-
-Likely standard with your Perl installation:
-
 - [Digest::MD5](https://metacpan.org/pod/Digest::MD5)
 
-- [HTTP::Tiny](https://metacpan.org/pod/HTTP::Tiny)
-
-- [JSON::PP](https://metacpan.org/pod/JSON::PP)
+- [Net::SB](https://github.com/tjparnell/Net-SB)
 
 
 In addition, you will need to generate your 
@@ -116,10 +121,18 @@ In addition, you will need to generate your
 with developer tokens for each of your divisions. The scripts make an assumption that 
 the profile and division name are the same.
 
-On a CentOS system, you can install dependencies as 
+## Compiling single executables
 
-    yum install perl-JSON perl-JSON-PP perl-Email-Simple perl-Email-Sender perl-IO-Socket-SSL perl-HTTP-Tiny perl-DBM-Deep perl-DBD-ODBC
+To ease distribution to other servers, single file executables can be generated using
+[PAR-Packer](https://metacpan.org/pod/pp). Note that this is not perfect, and may not 
+work across different systems, e.g. Linux distributions.
 
+    pp -c -o executables/script bin/script.pl
+
+For some scripts that use runtime loader modules, you will have to actually execute 
+the script with real arguments (no, simple `--help` doesn’t cut it).
+
+    pp -x --xargs " " -o executables/script bin/script.pl
 
 
 # License
