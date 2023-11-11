@@ -586,8 +586,21 @@ VOLSIZE=450
 # set parallel transfers
 CPU=6
 
+# Handle errors
+function quit
+{
+	if [ -e screenlog.* ]
+	then
+		sleep 30
+		aws s3 cp --profile $private screenlog.* \\
+		$private_bucket/${division}_log.txt
+	fi
+
+	# shutdown this node
+	sudo shutdown -h now
+}
 rm -f FAILED.download_copy
-trap 'touch FAILED.download_copy' ERR TERM
+trap 'touch FAILED.download_copy; quit' ERR TERM
 export PATH=\$PWD:\$PATH
 
 # copy AWS credentials
@@ -640,7 +653,7 @@ function upload
 	then
 		echo "FAILED: aria2 control files are present, download failed"
 		touch \$PROJECT.failed
-		exit 1
+		quit
 	fi
 	find \$PROJECT -type f > upload.txt
 	if [ -s upload.txt ]
@@ -659,14 +672,14 @@ function upload
 			echo
 			echo "==== an s3 upload failed!"
 			touch \$PROJECT.failed
-			exit 1
+			quit
 		fi
 	else
 		echo
 		echo "FAILED: no files found to upload!!?"
 		rm upload.txt
 		touch \$PROJECT.failed
-		exit 1
+		quit
 	fi
 }
 
@@ -720,7 +733,7 @@ function transfer
 			then
 				echo "FAILED: list file \$listfile still present after parallel s3 copy"
 				touch \$PROJECT.failed
-				exit 1
+				quit
 			fi
 		done
 
@@ -760,17 +773,9 @@ date
 
 # cleanup
 mkdir -p $division
-mv *.finished 5_download_and_copy.sh $division/
-if [ -e screenlog.* ]
-then
-	sleep 30
-	aws s3 cp --profile $private screenlog.* \\
-	$private_bucket/${division}_log.txt
-	cp screenlog.* $division/
-fi
-
-# shutdown this node
-sudo shutdown -h now
+mv *.finished 5*_download_and_copy*.sh $division/
+cp screenlog.* $division/
+quit
 
 END
 	);
