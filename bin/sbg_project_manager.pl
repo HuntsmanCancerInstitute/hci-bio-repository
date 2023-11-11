@@ -108,7 +108,7 @@ Options for bulk volume export:
                                   default is project name
     --volcopy                   Copy only to volume, do not move and link (the default)
     --overwrite                 Overwrite pre-existing files (default false)
-    --wait          <int>       Wait time between status checks (30 seconds)
+    --wait          <int>       Wait time between status checks (20 seconds)
 
 Options for file copy/move:
     --destination   <text>      The [project]/[folder] destination.
@@ -155,7 +155,7 @@ my $vol_prefix;
 my $vol_copy = 0;
 my $vol_overwrite = 0;
 my $vol_connection_file;
-my $wait_time = 30;
+my $wait_time = 20;
 my $destination;
 my $new_destination;
 my $output_file;
