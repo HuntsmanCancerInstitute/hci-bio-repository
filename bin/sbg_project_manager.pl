@@ -11,7 +11,7 @@ use Net::SB;
 use Net::SB::File;
 use Net::SB::Folder;
 
-our $VERSION = 1.6;
+our $VERSION = 1.7;
 
 
 ######## Documentation
@@ -26,10 +26,18 @@ known. File lists can filtered by providing a regular expression. Furthermore,
 file list output may be redirected to a text file, manipulated as necessary,
 and provided as an input file to this program.
 
+NOTE: Recursive listing is default behavior. Use --limit option to restrict
+recursive depth.
+
 File manipulation includes generating download URLs, copying files to 
 another project, moving files to a folder within the same project, exporting 
 the files to a mounted volume such as an AWS bucket (either copy-and-link or
 move), or file deletion.
+
+This requires a Seven Bridges Developer token, usually stored in the file
+~/.sevenbridges/credentials. It assumes the profile name is the same as the
+lab division name (Enterprise account) or user account (personal), but will
+use "default" if it is not found.
 
 Version: $VERSION
 
@@ -41,14 +49,14 @@ Usage:
 Example Usage:
 
     # generate list
-    sbg_project_manager.pl big-shot-pi/experiment > list.txt
+    sbg_project_manager.pl big-shot-pi/experiment -o list.txt
 
     # manually edit
     nano list.txt
 
     # perform file functions
     sbg_project_manager big-shot-pi -F list.txt --copy --dest project2
-    sbg_project_manager big-shot-pi -F list.txt --url --aria > downloads.txt
+    sbg_project_manager big-shot-pi -F list.txt --url --aria -o downloads.txt
     sbg_project_manager big-shot-pi -F list.txt --delete
     
    
@@ -105,7 +113,8 @@ Options for download URLs:
 Options for bulk volume export:
     --volume        <text>      Name of the attached external volume
     --prefix        <text>      Prefix used for new file path on external volume
-                                  default is project name
+                                  Default is project name. The entire file path and 
+                                  folder structure is preserved.
     --volcopy                   Copy only to volume, do not move and link (the default)
     --overwrite                 Overwrite pre-existing files (default false)
     --wait          <int>       Wait time between status checks (20 seconds)
