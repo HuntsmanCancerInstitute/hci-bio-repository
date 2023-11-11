@@ -8,7 +8,7 @@ use IO::File;
 use JSON::PP;
 use Net::SB;
 
-our $VERSION = 0.4;
+our $VERSION = 0.5;
 
 my $doc = <<END;
 
@@ -43,7 +43,7 @@ These include the following script and files:
 Options
 
 -i --input   <file>    The input list of project identifiers and prefixes
--o --out     <file>    The output directory to write the files
+-o --out     <dir>     The output directory to write the files
 -a --account <file>    The AWS account lookup file
 -p --profile <text>    Optionally provide an alternate AWS profile name
 -h --help              Show this help
@@ -168,7 +168,9 @@ sub load_table {
 			$division = $bits[0];
 		}
 		unless ($profile) {
-			($profile) = ($bucket =~ /^(cb \- [a-z]+ )/x);
+			if ( $bucket =~ /^cb \- ( [a-z]+ )/x ) {
+				$profile = sprintf "sb-%s", $1;
+			}
 		}
 
 		# check the project
@@ -218,54 +220,79 @@ sub write_credential {
 	undef $outfh;
 
 	# AWS credentials
-	my $infh = IO::File->new($vol_connection_file) or
-		die "unable to open file '$vol_connection_file'! $OS_ERROR\n";
 	my %options;
-	my $line = $infh->getline;
-	while ($line) {
-		chomp $line;
-		if ($line eq "[$profile]") {
-			# found the profile header
-			undef $line;
-			while (my $line2 = $infh->getline) {
-				if (substr($line2, 0, 1) eq '[') {
-					$line = $line2;
-					last;
-				}
-				elsif ($line2 =~ /^ (\w+) \s? = \s? (\S+) $/x ) {
-					$options{$profile}{$1} = $2;
-				}		
-			}
-			$line ||= $infh->getline || undef;
-		}
-		elsif ($line eq "[$private]") {
-			undef $line;
-			while (my $line2 = $infh->getline) {
-				if (substr($line2, 0, 1) eq '[') {
-					$line = $line2;
-					last;
-				}
-				elsif ($line2 =~ /^ (\w+) \s? = \s? (\S+) $/x ) {
-					$options{$private}{$1} = $2;
-				}		
-			}
-			$line ||= $infh->getline || undef;
-		}
-		else {
-			$line = $infh->getline || undef;
-		}
+	my $key_file = sprintf "%s/%s_accessKeys.csv", $outdir, $profile;
+	if ( -e $key_file ) {
+		my $infh = IO::File->new($key_file) or
+			die "unable to open file '$key_file'! $OS_ERROR\n";
+		my $line1 = $infh->getline;
+		my $line2 = $infh->getline;
+		$line2 =~ s/[\r\n]+//;
+		my ($id, $secret) = split /,/, $line2;
+		$options{$profile}{aws_access_key_id} = $id;
+		$options{$profile}{aws_secret_access_key} = $secret;
+		$infh->close;
 	}
-	$infh->close;
+	{
+		my $infh = IO::File->new($vol_connection_file) or
+			die "unable to open file '$vol_connection_file'! $OS_ERROR\n";
+		my $line = $infh->getline;
+		while ($line) {
+			chomp $line;
+			if ($line eq "[$profile]") {
+				# found the profile header
+				undef $line;
+				while (my $line2 = $infh->getline) {
+					if (substr($line2, 0, 1) eq '[') {
+						$line = $line2;
+						last;
+					}
+					elsif ($line2 =~ /^ (\w+) \s? = \s? (\S+) $/x ) {
+						$options{$profile}{$1} = $2;
+					}		
+				}
+				$line ||= $infh->getline || undef;
+			}
+			elsif ($line eq "[$private]") {
+				undef $line;
+				while (my $line2 = $infh->getline) {
+					if (substr($line2, 0, 1) eq '[') {
+						$line = $line2;
+						last;
+					}
+					elsif ($line2 =~ /^ (\w+) \s? = \s? (\S+) $/x ) {
+						$options{$private}{$1} = $2;
+					}		
+				}
+				$line ||= $infh->getline || undef;
+			}
+			else {
+				$line = $infh->getline || undef;
+			}
+		}
+		$infh->close;
+	}
+	
+	$outfile = sprintf "%s/awscred.txt", $outdir;
+	$outfh   = IO::File->new($outfile, '>')
+		or die " unable to write to '$outfile'! $OS_ERROR";
 	if ( exists $options{$profile} ) {
-		$outfile = sprintf "%s/awscred.txt", $outdir;
-		$outfh   = IO::File->new($outfile, '>')
-			or die " unable to write to '$outfile'! $OS_ERROR";
+		
 		my $cred = <<CRED;
 [$profile]
 aws_access_key_id = $options{$profile}{aws_access_key_id}
 aws_secret_access_key = $options{$profile}{aws_secret_access_key}
 region = $region
 
+CRED
+		$outfh->print($cred);
+	}
+	else {
+		printf " ! No AWS tokens for %s found\n", $profile;
+	}
+	if ( exists $options{$private} ) {
+		
+		my $cred = <<CRED;
 [$private]
 aws_access_key_id = $options{$private}{aws_access_key_id}
 aws_secret_access_key = $options{$private}{aws_secret_access_key}
@@ -273,12 +300,13 @@ region = $region
 
 CRED
 		$outfh->print($cred);
-		$outfh->close;
-		printf " > wrote AWS credential file '%s'\n", $outfile;
 	}
 	else {
-		printf " ! No AWS tokens for %s found\n", $profile;
+		printf " ! No AWS tokens for %s found\n", $private;
 	}
+	$outfh->close;
+	printf " > wrote AWS credential file '%s'\n", $outfile;
+	
 }
 
 sub create_bucket_cmd {
