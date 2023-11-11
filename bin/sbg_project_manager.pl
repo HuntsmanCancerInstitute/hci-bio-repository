@@ -650,11 +650,16 @@ sub print_download_file_links {
 	# collect file list from the project
 	my $files = collect_files();
 	if ($batch_size) {
-		unless ($got_bulk_details) {
-			$Sb->bulk_get_file_details($files);
-			$got_bulk_details = 1;
+		unless ($filelist_name) {
+			# we only need the size here, we should have obtained that from an input file
+			# if it was provided
+			unless ($got_bulk_details) {
+				$Sb->bulk_get_file_details($files);
+				$got_bulk_details = 1;
+			}
 		}
 	}
+
 	# generate download links
 	my @links;
 	my @nolinks;
