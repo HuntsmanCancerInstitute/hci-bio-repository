@@ -206,8 +206,6 @@ else {
 }
 
 
-
-
 ######## Check options
 
 if ($help) {
@@ -215,7 +213,6 @@ if ($help) {
 	exit 0;
 }
 check_options();
-my $list_header = 'Type ID                         Size  Location       FilePath';
 
 
 ######## Initialize SBG object
@@ -464,8 +461,8 @@ sub load_files_from_file {
 	while (my $line = $fh->getline) {
 		chomp $line;
 		next unless $line =~ /\w+/;
-		my $type = substr($line,0,4);
-		if ($type eq 'File'){
+		my $type = substr($line,0,3);
+		if ($type eq 'Fil'){
 			# File formatter: 'File %s %6s  %-13s  %s'
 			if ($line =~ 
 				/File \s+ ([a-z0-9]{24}) \s+ (\d+ (?:\.\d[KMG])?) \s+ [\w\-\.:]+ \s+ (.+) $/x
@@ -512,10 +509,9 @@ sub load_files_from_file {
 				$fail++;
 			}
 		}
-		elsif ($type eq 'Dir ') {
-			# Directory formatter: 'Dir  %s      0  Platform       %s'
+		elsif ($type eq 'Dir') {
 			if ($line =~ 
-				/^Dir \ \ ([a-z0-9]{24}) \ {6} 0 \ \ Platform \ {7} (.+) $/x
+				/^Dir \s+ ([a-z0-9]{24}) \s+ 0 \s+ Platform \s+ (.+) $/x
 			) {
 				my $id   = $1;
 				my $path = $2;
@@ -541,10 +537,10 @@ sub load_files_from_file {
 				$fail++;
 			}
 		}
-		elsif ($type eq 'Tota') {
+		elsif ($type eq 'Tot') {
 			next;   # total line
 		}
-		elsif ($line eq $list_header) {
+		elsif ($line =~ /^Type \s+ ID \s+ Size \s+ (?:Location|Status) \s FilePath/x) {
 			next;   # we are good, correct format
 		}
 		else {
@@ -574,8 +570,17 @@ sub print_project_file_list {
 
 	# print the file names
 	# the file IDs is always 24 characters long
-	# Status and path will be variable
-	$OUT->printf( "%s\n", $list_header );
+	# Location and path will be variable
+	my $formatter;
+	if ($output_file) {
+		# use tab delimiters with an output file
+		$formatter = "%s\t%s\t%s\t%s\t%s\n";
+	}
+	else {
+		# use original spaces with stdout
+		$formatter = "%-4s %-24s %6s  %-15s  %s\n";
+	}
+	$OUT->printf( $formatter, qw(Type ID Size Location FilePath) );
 	my @f = map {$_->[1]}
 			sort {$a->[0] cmp $b->[0]}
 			map { [ $_->type eq 'file' ? $_->pathname : $_->path, $_ ] } @{$files};
@@ -584,16 +589,16 @@ sub print_project_file_list {
 	foreach (@f) {
 		if ($_->type eq 'folder') {
 			next unless $print_folders;
-			$OUT->printf( "Dir  %s      0  Platform       %s\n", $_->id, $_->path );
+			$OUT->printf( $formatter, 'Dir', $_->id, 0, 'Platform', $_->path );
 		}
 		else {
 			my $size = $_->size || 0;
-			my $status = $_->file_status;
-			if ($status =~ m|/(\w+)$|) {
-				$status = $1;
+			my $location = $_->file_status;
+			if ($location =~ m|/(\w+)$|) {
+				$location = $1;
 			}
-			$OUT->printf( "File %s %6s  %-13s  %s\n", $_->id, format_human_size($size),
-				substr($status,0,13), $_->pathname );
+			$OUT->printf( $formatter, 'File', $_->id, format_human_size($size),
+				$output_file ? $location : substr( $location, 0, 15 ), $_->pathname );
 			$total += $size;
 			$count++;
 		}
