@@ -303,11 +303,11 @@ sub collect_sources_from_file {
 	while (my $line = $fh->getline) {
 		chomp $line;
 		next unless length $line;
-		my $type = substr($line,0,4);
-		if ($type eq 'File'){
+		my $type = substr($line,0,3);
+		if ($type eq 'Fil'){
 			# File formatter: 'File %s %6s  %-13s  %s'
 			if ($line =~ 
-				/File\ ([a-z0-9]{24}) \s+ ([\d\.KMG]+) \s+ [\w\-\.:]+ \ \ (.+) $/x
+				/File \s+ ([a-z0-9]{24}) \s+ ([\d\.KMG]+) \s+ [\w\-\.:]+ \s+ (.+) $/x
 			) {
 				my $id   = $1;
 				my $size = $2;
@@ -345,9 +345,9 @@ sub collect_sources_from_file {
 				$fail++;
 			}
 		}
-		elsif ($type eq 'Dir ') {
+		elsif ($type eq 'Dir') {
 			if ($line =~ 
-				/^Dir \ \ ([a-z0-9]{24}) \ {6} 0 \ \ Platform \ {7} (.+) $/x
+				/^Dir \s+ ([a-z0-9]{24}) \s+ 0 \s+ Platform \s+ (.+) $/x
 			) {
 				my $id   = $1;
 				my $path = $2;
@@ -367,7 +367,7 @@ sub collect_sources_from_file {
 				$fail++;
 			}
 		}
-		elsif ($line =~ /^Type \s+ ID \s+Size \s+ Location \s+ FilePath$/x) {
+		elsif ($line =~ /^Type \s+ ID \s+ Size \s+ Location \s+ FilePath$/x) {
 			# expected header
 		}
 		elsif ($line =~ /^Total \s size/x) {
