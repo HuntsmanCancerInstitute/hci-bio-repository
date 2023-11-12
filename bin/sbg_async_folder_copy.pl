@@ -56,7 +56,7 @@ Options:
     --move                      Move the files instead of copying them
     --new                       Indicate that the destination project is new
     --name            <text>    Optional long name for the new project
-    --wait         <integer>    Time to sleep between check cycles (30 sec)
+    --wait         <integer>    Time to sleep between check cycles (10 sec)
                                   set to 0 to exit immediately
 General:
     --cred            <file>    Path to SBG credentials file 
@@ -76,7 +76,7 @@ my $new_project = 0;
 my $long_name;
 my $do_move = 0;
 my $credentials_file;
-my $wait_time = 30;
+my $wait_time = 10;
 my $verbose;
 my $help;
 
