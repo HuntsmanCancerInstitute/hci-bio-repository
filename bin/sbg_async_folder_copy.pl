@@ -172,21 +172,20 @@ sub check_options {
 			print " A source project name is required!\n";
 			exit 1;
 		}
-		unless (@source_files or $list_file) {
-			print " One or more source files or folders are required!\n";
-			exit 1;
-		}
 	}
 	if ($source_name) {
 		(my $div1, $destination_project_name, $destination_folder) = split m|/|,
 			$destination_name, 3;
-		(my $div2, $source_project_name, undef) = split m|/|, $source_name, 3;
+		(my $div2, $source_project_name, my $source_folder) = split m|/|, $source_name, 3;
 		if ($div1 eq $div2) {
 			$division_name = $div1;
 		}
 		else {
 			print " Source and destination division names are not the same!\n";
 			exit 1;
+		}
+		if ($source_folder) {
+			push @source_files, $source_folder;
 		}
 	}
 	else {
@@ -387,15 +386,22 @@ sub submit_job {
 	
 	# generate list of source destination pairs
 	my @list;
-	foreach my $f (@source_files) {
-		# get folder or file object
-		my $Source = $Source_project->get_file_by_name($f);
-		if ($Source) {
-			push @list, [ $Source, $Destination ];
+	if (@source_files) {
+		foreach my $f (@source_files) {
+			# get folder or file object
+			my $Source = $Source_project->get_file_by_name($f);
+			if ($Source) {
+				push @list, [ $Source, $Destination ];
+			}
+			else {
+				print " ! Unable to find source '$f'! Skipping\n";
+			}
 		}
-		else {
-			print " ! Unable to find source '$f'! Skipping\n";
-		}
+	}
+	else {
+		# use the root folder of the source project
+		my $root = $Source_project->root_folder;
+		push @list, [ $root, $Destination ];
 	}
 
 	# submit the async job
