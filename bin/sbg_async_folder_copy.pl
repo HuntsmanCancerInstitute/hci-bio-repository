@@ -7,7 +7,7 @@ use Getopt::Long qw(:config no_ignore_case);
 use IO::File;
 use Net::SB;
 
-our $VERSION = 1.1;
+our $VERSION = 1.2;
 
 my $doc = <<END;
 
@@ -30,11 +30,26 @@ Due to SBG permissions and restrictions, both source and destination
 projects _must_ be in the same lab division, even if you have permission to 
 both. 
 
+This requires a Seven Bridges Developer token, usually stored in the file
+~/.sevenbridges/credentials. It assumes the profile name is the same as the
+lab division name (Enterprise account) or user account (personal), but will
+use "default" if it is not found.
+
 Version: $VERSION
 
 Example Usage:
     
-  sbg_async_folder_copy.pl -s big-shot-pi/project1  -d big-shot-pi/project2  file...
+  # copy one folder from one project to another
+  sbg_async_folder_copy.pl -s big-shot-pi/project1/folder  -d big-shot-pi/project2
+  
+  # copy multiple files or folders into another project
+  sbg_async_folder_copy.pl -s big-shot-pi/project1  -d big-shot-pi/project2  -f f1 -f f2
+  
+  # copy entire project files into another project folder
+  sbg_async_folder_copy.pl -s big-shot-pi/project1  -d big-shot-pi/project2/folder
+  
+  # check results of a previously submitted copy job
+  sbg_async_folder_copy.pl -d big-shot-pi/project2 -c xxxxxxxxxx
 
 Required:
     -s --source       <text>    Name of the source SBG division/project
