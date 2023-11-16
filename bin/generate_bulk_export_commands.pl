@@ -20,8 +20,10 @@ This takes as input the list of projects generated from the script
 account lookup file, which is a TSV file containing the SB division ID, 
 CORE Browser lab name, and AWS account number.
 
-Lab-specific credentials are looked for in user's credential files, 
-~/.sevenbridges/credentials and ~/.aws/credentials. 
+Lab-specific SB credentials are looked for in user's credential files, 
+~/.sevenbridges/credentials. For the lab-specific SB IAM account, 
+it will look for a 'sb-xxxx-accessKeys.csv' file in the output directory.
+For the private IAM account, it will look in '~/.aws/credentials' file.
 
 It will generate several custom, lab-specific, bash scripts with the 
 commands necessary for exporting the projects and files. The scripts 
