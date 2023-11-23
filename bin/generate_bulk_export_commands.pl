@@ -366,7 +366,7 @@ echo
 
 /usr/local/aws-account-creator/AccountCreationController \\
 -u \$USER -p \$PASS \\
--m update -i account_parameters.txt -ou 'Core Browser' \\
+-m update -i account_parameters.txt -ou 'CORE Browser' \\
 -o $profile.out.txt
 
 echo
