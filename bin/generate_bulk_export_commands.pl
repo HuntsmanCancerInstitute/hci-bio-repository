@@ -536,9 +536,10 @@ END
 	foreach my $bucket ( sort {$a cmp $b} keys %buck2proj ) {
 		my $mount = $bucket;
 		$mount =~ s/\-/_/g;
-		if (length $mount > 32) {
-			$mount = substr $mount, 0, 32;
+		if (length $mount > 31) {
+			$mount = substr $mount, 0, 31;
 		}
+		$mount =~ s/_$//;
 		push @items, sprintf "-v %s -n %s ", $bucket, $mount;
 		$buck2vol{$bucket} = $mount;
 	}
