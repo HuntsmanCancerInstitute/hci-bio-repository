@@ -776,7 +776,8 @@ function transfer
 END
 	$outfh->print($header);
 
-	# walk through the restored items 
+	# walk through the restored items
+	my $n = 1;
 	foreach my $item ( @rest_projects ) {
 		my $download_dir = './';
 		if ( $item->[1] eq $item->[2] ) {
@@ -784,6 +785,7 @@ END
 			$download_dir = $item->[1];
 		}
 		my $stanza = <<END;
+# project $n
 DIVISION=$item->[0]
 SBGPROJECT=$item->[1]
 PROJECT=$item->[2]
@@ -793,7 +795,8 @@ DLDIR=$download_dir
 transfer
 
 END
-		$outfh->print($stanza);	
+		$outfh->print($stanza);
+		$n++;
 	}
 	
 	# finish
