@@ -250,7 +250,7 @@ sub process_sbg_projects {
 		my $bucket;
 		my $prefix;
 		my $Entry;
-		if ( $Project->id =~ /^ $division \/ (a? \d+ r? )$/x ) {
+		if ( $Project->id =~ /^ $division \/ (a \d+ | \d+ r )$/x ) {
 			# uploaded request or analysis project
 			my $gnomex_id = uc $1;
 			($bucket, $prefix, $Entry) = process_gnomex_project($gnomex_id);
