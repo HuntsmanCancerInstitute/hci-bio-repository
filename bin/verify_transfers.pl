@@ -22,7 +22,7 @@ our $VERSION = 0.1;
 
 my $doc = <<END;
 
-A script to verify all files have been exported from a SBG project to a an
+A script to verify all files have been exported from a SBG project to an
 AWS bucket. It will recursively list all files from a source SBG project
 and compare file names and sizes with those listed in a corresponding AWS
 bucket. Files with mismatched file sizes or missing in either source or
@@ -37,7 +37,8 @@ Usage
 
 Options
 
--s --source   <text>   The Seven Bridges source project, folders allowed
+-s --source   <text>   The Seven Bridges source project name, folders allowed
+                         do not include division name
 -t --target   <text>   The AWS target bucket, folders allowed
 -d --division <text>   The Seven Bridges division, required
 -p --profile  <text>   The AWS profile, required
