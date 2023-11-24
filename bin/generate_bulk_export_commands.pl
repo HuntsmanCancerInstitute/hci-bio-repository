@@ -8,7 +8,7 @@ use IO::File;
 use JSON::PP;
 use Net::SB;
 
-our $VERSION = 0.5;
+our $VERSION = 0.6;
 
 my $doc = <<END;
 
@@ -33,8 +33,12 @@ These include the following script and files:
     - Script to create AWS buckets
     - Write the custom AWS IAM JSON security policy for mounting SB buckets
     - Write out lab-specific credential files
-    - Script to copy Legacy GNomEx SB projects into a new, consolidated SB project
-      for purposes of manual file archive restoration ease
+    - Optional script to copy Legacy GNomEx SB projects into a new 
+      consolidated SB project for purposes of manual file archive restoration ease.
+      These projects are included in the download_and_copy script for execution
+      in an EC2 node.
+    - Optional script for running the S3copy application to bulk copy projects
+      directly from the legacy data bucket
     - Script to mount the AWS buckets in the SB lab division
     - Script to bulk export active SB projcts to mounted bucket volumes
     - Script to batch download and copy restored project files on EC2 node
@@ -48,10 +52,19 @@ Options
 -o --out     <dir>     The output directory to write the files
 -a --account <file>    The AWS account lookup file
 -p --profile <text>    Optionally provide an alternate AWS profile name
+-l --legacy [s3|con]   Define which method to use for legacy projects
+                          s3  - Use the S3Copy app for direct copy out of legacy bucket
+                          con - Create consolidation projects for download and copy
 -h --help              Show this help
 
 END
 
+
+# custom private variables
+my $region = 'us-east-1';
+my $private = 'hci-bio-repo'; # private aws profile
+my $private_bucket = 's3://hcibioinfo-timp-test';
+my $private_legacy_bucket = 's3://sb-hci-archive-us-east-1';
 
 
 # Command line options
@@ -60,6 +73,7 @@ my $outdir;
 my $account_file;
 my $vol_connection_file = sprintf "%s/.aws/credentials", $ENV{HOME};
 my $profile;
+my $legacy_mode;
 my $help;
 
 if (@ARGV) {
@@ -68,6 +82,7 @@ if (@ARGV) {
 		'o|out=s'           => \$outdir,
 		'a|account=s'       => \$account_file,
 		'p|profile=s'       => \$profile,
+		'l|legacy=s'        => \$legacy_mode,
 		'h|help!'           => \$help,
 	) or die " bad options! Please check\n $doc\n";
 }
@@ -96,6 +111,11 @@ if ($outdir) {
 else {
 	die " must provide an output directory!\n";
 }
+if ($legacy_mode) {
+	unless ( $legacy_mode =~ / s3 | con | both /x ) {
+		die " unrecognized legacy mode value: '$legacy_mode'!\n";
+	}
+}
 
 
 # Global Variables
@@ -108,18 +128,22 @@ my @rest_projects; # list of the SBG restoration projects
                    # [division, sbg_project, project_name, bucket, prefix]
 my $division;
 
-# custom private variables
-my $region = 'us-east-1';
-my $private = 'hci-bio-repo'; # private aws profile
-my $private_bucket = 's3://hcibioinfo-timp-test';
-
 # Main Functions
 load_accounts();
 load_table();
 write_credential();
 create_bucket_cmd();
 create_sbg_policy();
-create_restoration_project_cmd();
+if ( $legacy_mode and $legacy_mode eq 'con' ) {
+	create_restoration_project_cmd();
+}
+elsif ( $legacy_mode and $legacy_mode eq 's3' ) {
+	create_s3copy_cmd();
+}
+elsif ( $legacy_mode and $legacy_mode eq 'both' ) {
+	create_restoration_project_cmd();
+	create_s3copy_cmd();
+}
 mount_bucket_cmd();
 sbg_export_cmd();
 aws_export_cmd();
@@ -505,6 +529,142 @@ END
 	$outfh->print("\necho\necho '====== Done ====='\ndate\n\n");
 	$outfh->close;
 	printf " > wrote script file '$outfile'\n";
+}
+
+sub create_s3copy_cmd {
+
+	return unless keys %leg2proj;
+
+	# privileged profile with full S3 policies
+	my $privileged;
+	if ( $profile =~ /^sb\-( [\w\-]+ )$/x ) {
+		$privileged = sprintf "cb-%s", $1;
+	}
+	else {
+		$privileged = $profile;
+	}
+
+	# prepare job file
+	my $jobfile = sprintf "%s/s3copy_jobs.txt", $outdir;
+	my $outfh   = IO::File->new($jobfile, '>')
+		or die " unable to write to '$jobfile'! $OS_ERROR";
+	
+	# walk through buckets and write out jobs
+	foreach my $bucket ( sort {$a cmp $b} keys %leg2proj ) {
+
+		foreach my $item ( @{ $leg2proj{$bucket} } ) {
+
+			# extract the legacy GNomEx project name
+			my (undef, $proj_name) = split m|/|, $item->[0];
+			
+			$outfh->printf( "%s/%s/ > s3://%s/%s/\n", $private_legacy_bucket, $proj_name,
+				$bucket, $item->[1] );
+		}
+	}
+	$outfh->close;
+	printf " > wrote S3Copy job file '$jobfile'\n";
+
+	# prepare legacy bucket list file
+	my $blistfile = sprintf "%s/legacy_bucket_list.txt", $outdir;
+	$outfh = IO::File->new($blistfile, '>')
+		or die " unable to write to '$blistfile'! $OS_ERROR";
+	$outfh->printf( "%s\n", join( "\n", sort {$a cmp $b} keys %leg2proj ) );
+	$outfh->close;
+	printf " > wrote legacy bucket list file '$blistfile'\n";
+
+	# write add bucket policy command
+	my $add_policy_cmd = sprintf "%s/2a_add_policy.sh", $outdir;
+	$outfh = IO::File->new($add_policy_cmd, '>')
+		or die " unable to write to '$add_policy_cmd'! $OS_ERROR";
+	my $script = <<END;
+#!/bin/bash
+
+# a script to add private policies to legacy bucket destinations
+# this requires appropriate S3 permissions
+# and policy file in parent folder
+
+echo '===== adding policies to buckets in $division ====='
+date
+echo
+
+echo '==== generating bucket policy files'
+
+parallel -j 4 -v -k -a legacy_bucket_list.txt \\
+sed 's/MYBUCKET/{}/' ../LegacySBTransferPolicy.json '>' legacy_{}.json
+
+echo
+echo '==== applying policies'
+
+parallel -j 2 -v -k -a legacy_bucket_list.txt \\
+aws s3api put-bucket-policy --profile $privileged --bucket {} \\
+--policy file://legacy_{}.json
+
+echo
+echo '==== deleting bucket policy files'
+
+parallel -j 4 -a legacy_bucket_list.txt rm legacy_{}.json
+
+echo
+echo '====== finished ======'
+END
+
+	$outfh->print($script);
+	$outfh->close;
+	printf " > wrote script file $add_policy_cmd\n";
+	
+	# write S3Copy command
+	my $copy_cmd = sprintf "%s/4a_legacy_s3copy.sh", $outdir;
+	$outfh = IO::File->new($copy_cmd, '>')
+		or die " unable to write to '$copy_cmd'! $OS_ERROR";
+	$script = <<END;
+#!/bin/bash
+
+# a script to directly export legacy SB projects from private bucket
+# this requires appropriate S3 permissions under 'default' profile
+
+echo '===== directly exporting legacy projects in $division ====='
+date
+echo
+
+echo '==== exporting files'
+
+java -Xmx8G -jar ../S3Copy_0.1.jar -j s3copy_jobs.txt -r -n 1 -t 8
+
+echo '====== finished ======'
+date
+echo
+
+END
+
+	$outfh->print($script);
+	$outfh->close;
+	printf " > wrote script file $copy_cmd\n";
+
+	# write delete bucket policy command
+	my $delete_policy_cmd = sprintf "%s/8_delete_policy.sh", $outdir;
+	$outfh = IO::File->new($delete_policy_cmd, '>')
+		or die " unable to write to '$delete_policy_cmd'! $OS_ERROR";
+	$script = <<END;
+#!/bin/bash
+
+# a script to delete private policies to legacy bucket destinations
+# this requires appropriate S3 permissions
+
+echo '===== deleting policies to buckets in $division ====='
+date
+echo
+
+parallel -j 2 -v -k -a legacy_bucket_list.txt \\
+aws s3api delete-bucket-policy --profile $privileged --bucket {}
+
+echo '====== finished ======'
+echo
+END
+
+	$outfh->print($script);
+	$outfh->close;
+	printf " > wrote script file $add_policy_cmd\n";
+	
 }
 
 sub mount_bucket_cmd {
@@ -895,7 +1055,7 @@ END
 
 sub cleanup_cmd {
 
-	return unless %leg2proj;
+	return unless %leg2proj and ( $legacy_mode eq 'con' or $legacy_mode eq 'both' );
 
 	# prepare script
 	my $outfile = sprintf "%s/7_remove_restoration_projects.sh", $outdir;
