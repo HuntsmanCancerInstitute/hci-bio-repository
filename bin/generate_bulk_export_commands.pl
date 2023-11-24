@@ -855,7 +855,7 @@ END
 		}
 
 		$outfh->print( <<END
-echo '===== verifying exported projects in $division ====='
+echo '===== verifying standard projects in $division ====='
 date
 $command2
 
@@ -863,24 +863,22 @@ END
 		);
 	}
 
-	# restored projects
-	if (@rest_projects) {
-
+	# legacy projects
+	if (%leg2proj) {
 		my $command2 = $command;
 		my $check = length $command2;
+		foreach my $bucket ( sort {$a cmp $b} keys %leg2proj ) {
 
-		# iterate through projects
-		foreach my $item (@rest_projects) {
-			my $project = $item->[1];
-			next if exists $seenit{ $project };
-			$command2 .= sprintf("-s %s -t %s/%s \\\n", $project, $item->[3],
-				$item->[4] );
+			# iterate through each project from each bucket
+			foreach my $item ( @{ $leg2proj{$bucket} } ) {
+				$command2 .= sprintf( "-s %s/%s -t %s/%s \\\n", $division,
+					$item->[0], $bucket, $item->[1] );
+			}
 		}
-
 		if ( length($command2) > $check ) {
 			$outfh->print( <<END
 echo
-echo '===== verifying copied projects via aws in $division ====='
+echo '===== verifying legacy projects in $division ====='
 date
 $command2
 
