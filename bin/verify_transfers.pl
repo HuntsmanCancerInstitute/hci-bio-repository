@@ -18,7 +18,7 @@ use Net::SB;
 use Net::Amazon::S3::Client;
 
 
-our $VERSION = 0.1;
+our $VERSION = 0.2;
 
 my $doc = <<END;
 
@@ -273,12 +273,12 @@ sub compare {
 				$match++;
 			}
 			else {
-				push @incomplete, [ $name, $size, $aws{$name} ];
+				push @incomplete, [ $f->pathname, $size, $aws{$name} ];
 			}
 			delete $aws{$name};
 		}
 		else {
-			push @missing, $name;
+			push @missing, $f->pathname;
 		}
 	}
 	my @extra;
@@ -299,17 +299,17 @@ sub compare {
 	}
 	if (@incomplete) {
 		foreach my $f ( @incomplete ) {
-			printf "    incomplete: %s  %d => %d\n", @{$f};
+			printf "    incomplete: %s/%s/%s  %d => %d\n", $division, $project_name, @{$f};
 		}
 	}
 	if (@missing) {
 		foreach my $f ( @missing ) {
-			printf "    missing: %s\n", $f;
+			printf "    missing: %s/%s/%s\n", $division, $project_name, $f;
 		}
 	}
 	if (@extra) {
 		foreach my $f ( @extra ) {
-			printf "    extra: %s\n", $f;
+			printf "    extra: s3://%s/%s\n", $target, $f;
 		}
 	}
 }
