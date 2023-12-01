@@ -549,7 +549,7 @@ sub load_files_from_file {
 		elsif ($type eq 'Tot') {
 			next;   # total line
 		}
-		elsif ($line =~ /^Type \s+ ID \s+ Size \s+ (?:Location|Status) \s FilePath/x) {
+		elsif ($line =~ /^Type \s+ ID \s+ Size \s+ (?:Location|Status) \s+ FilePath/x) {
 			next;   # we are good, correct format
 		}
 		else {
