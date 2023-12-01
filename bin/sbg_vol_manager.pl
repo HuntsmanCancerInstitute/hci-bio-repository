@@ -7,7 +7,7 @@ use Getopt::Long;
 use IO::File;
 use Net::SB;
 
-our $VERSION = 0.4;
+our $VERSION = 0.5;
 
 my $division_name;
 my $list_volumes = 0,
@@ -20,6 +20,7 @@ my @volume_names;
 my $vol_connection_file = sprintf "%s/.aws/credentials", $ENV{HOME};
 my $profile = 'default';
 my $access_mode;
+my $select_all;
 my $credentials_file;
 my $verbose;
 my $help;
@@ -68,16 +69,16 @@ Usage:
 Main Functions: (select one)
     -l --list                   list attached volumes with status and mode
                                    default if no other functions specified
-    --add                       attach new volume(s)
-    --activate                  activate the volume(s)
-    --deactivate                deactivate the volume(s)
-    --delete                    remove the volume(s)
+    --add                       attach indicated volume(s)
+    --activate                  activate indicated volume(s)
+    --deactivate                deactivate indicated volume(s)
+    --delete                    deactivate and remove indicated volume(s)
     
 Required:
     -d --division   <text>      name of the division
     -v --volume     <text>      name of the bucket volume, repeat as necessary
     
-    Options for adding:
+Options for adding:
     -n --name       <text>      name of the attached volume, repeat as necessary
     -c --connection <file>      AWS credentials file
                                   default ~/.aws/credentials
@@ -85,6 +86,8 @@ Required:
     --mode          [RO | RW]   specify access mode, default RO
                                     RO for Read Only
                                     RW for Read Write
+    --all                       activate/deactivate/delete all available volumes
+
 General:
     --cred          <file>      Path to SBG credentials file 
                                   default ~/.sevenbridges/credentials
@@ -109,6 +112,7 @@ if (scalar(@ARGV) > 0) {
 		'c|connection=s'    => \$vol_connection_file,
 		'profile=s'         => \$profile,
 		'mode=s'            => \$access_mode,
+		'all!'              => \$select_all,
 		'cred=s'            => \$credentials_file,
 		'verbose!'          => \$verbose,
 		'h|help!'           => \$help,
@@ -135,20 +139,24 @@ my $Sb = Net::SB->new(
 	verbose    => $verbose,
 ) or die " unable to initialize SB object!\n";
 
+if ( $select_all and not $add_volumes ) {
+	@volume_ids = $Sb->list_volumes;
+}
+
 
 if ($list_volumes) {
 	go_print_volume_list();
 }
-if ($add_volumes) {
+elsif ($add_volumes) {
 	go_add_new_volumes();
 }
-if ($activate_volumes) {
+elsif ($activate_volumes) {
 	go_activate_volumes();
 }
-if ($deactivate_volumes) {
+elsif ($deactivate_volumes) {
 	go_deactivate_volumes();
 }
-if ($delete_volumes) {
+elsif ($delete_volumes) {
 	go_delete_volumes();
 }
 exit 0;
@@ -176,7 +184,7 @@ sub check_options {
 		print " Division name is required! See help\n";
 		exit 1;
 	}
-	if ( not $list_volumes and scalar(@volume_ids) == 0 ) {
+	if ( not ( $list_volumes or $select_all ) and scalar(@volume_ids) == 0 ) {
 		print " Volume names must be specified! See help\n";
 		exit 1;
 	}
@@ -271,7 +279,14 @@ sub go_add_new_volumes {
 
 sub go_activate_volumes {
 	foreach my $id (@volume_ids) {
-		my $volume = $Sb->get_volume($id);
+		my $volume;
+		if ( $id and ref $id eq 'Net::SB::Volume' ) {
+			$volume = $id;
+			$id = $volume->name;
+		}
+		else {
+			$volume = $Sb->get_volume($id);
+		}
 		unless ($volume) {
 			print STDERR " ! volume $id not found\n";
 			next;
@@ -287,7 +302,14 @@ sub go_activate_volumes {
 
 sub go_deactivate_volumes {
 	foreach my $id (@volume_ids) {
-		my $volume = $Sb->get_volume($id);
+		my $volume;
+		if ( $id and ref $id eq 'Net::SB::Volume' ) {
+			$volume = $id;
+			$id = $volume->name;
+		}
+		else {
+			$volume = $Sb->get_volume($id);
+		}
 		unless ($volume) {
 			print STDERR " ! volume $id not found\n";
 			next;
@@ -303,13 +325,20 @@ sub go_deactivate_volumes {
 
 sub go_delete_volumes {
 	foreach my $id (@volume_ids) {
-		my $volume = $Sb->get_volume($id);
+		my $volume;
+		if ( $id and ref $id eq 'Net::SB::Volume' ) {
+			$volume = $id;
+			$id = $volume->name;
+		}
+		else {
+			$volume = $Sb->get_volume($id);
+		}
 		unless ($volume) {
 			print STDERR " ! volume $id not found\n";
 			next;
 		}
-		if ( $volume->delete ) {
-			print "  > deleted $id\n";
+		if ( $volume->deactivate and $volume->delete ) {
+			print "  > deactivated and deleted $id\n";
 		}
 		else {
 			print "  ! unable to delete $id\n";
