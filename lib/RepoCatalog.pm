@@ -7,10 +7,11 @@ use Carp;
 use IO::File;
 use DBM::Deep;
 
-our $VERSION = 5.3;
+our $VERSION = 6.0;
 
 
-### Base paths for catalog files
+# General private values
+
 my $DEFAULT_PATH  = "~/test/repository.db";
 my $repo_epoch = 2005;
 
@@ -52,8 +53,10 @@ my %req2year = (
 );
 
 my $internal_org = qr/(?: Bioinformatics \s Shared \s Resource | HTG \s Core \s Facility | SYSTEM )/x;
+my $HEADER = "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tCORELab\tProfile\tBucket\tPrefix\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n";
 
-### Initialize
+
+# Functions
 
 sub new {
 	my $class = shift;
@@ -64,6 +67,12 @@ sub new {
 	if (-e $path) {
 		$db = DBM::Deep->new($path) or 
 			croak "unable to open database file '$path'! $OS_ERROR";
+		# check if current version
+		my $first = $db->first_key;
+		my $data = $db->get($first);
+		if ( scalar @{ $data } != 28 ) {
+			croak "Database first entry does not have 28 fields! Old database?";
+		}
 	}
 	else {
 		# make a new database file
@@ -80,10 +89,6 @@ sub new {
 	return bless $self, $class;
 }
 
-
-
-### Path variables
-
 sub file {
 	return shift->{file};
 }
@@ -91,10 +96,6 @@ sub file {
 sub db {
 	return shift->{db};
 }
-
-
-
-### Main functions
 
 sub entry {
 	my ($self, $project) = @_;
@@ -122,10 +123,7 @@ sub new_entry {
 	else {
 		# make a new entry
 		# the project ID is always the first element in the array
-		# path is always the second, and we can calculate that
-		# for very early projects, the calculated path may not be accurate
-		# $self->{db}->put($project, [$project, $self->calculate_path($project)] );
-		my @data = ($project, map { q() } (1..25));
+		my @data = ($project, map { q() } (1..27));
 		my $p = $self->{db}->put($project, \@data);
 		if ($p) {
 			return RepoEntry->new( $self->{db}->get($project) );
@@ -151,7 +149,7 @@ sub list_all {
 	my $self = shift;
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
-	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
+	my $core   = (exists $opts{core} and defined $opts{core}) ? $opts{core} : undef;
 	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 0;
 	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
@@ -169,11 +167,11 @@ sub list_all {
 			( $min_size ? ($E->size >= $min_size) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
-			if (defined $sb) {
-				if ($sb and $E->division) {
+			if (defined $core) {
+				if ($core and $E->core_lab) {
 					push @list, $key;
 				}
-				elsif (not $sb and not $E->division) {
+				elsif (not $core and not $E->core_lab) {
 					push @list, $key if $E->external eq $ext;
 				}
 				# else doesn't match
@@ -206,7 +204,7 @@ sub list_projects_for_pi {
 	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 0;
 	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
-	# SB division and external status is based on PI, so no need to filter those
+	# CORE lab and external status is based on PI, so no need to filter those
 	
 	# scan through list
 	my @list;
@@ -235,7 +233,7 @@ sub export_to_file {
 	my $fh = IO::File->new($file, '>') or 
 		croak "unable to open $file for writing! $OS_ERROR\n";
 	$fh->binmode(':utf8');
-	$fh->print("ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tDivision\tURL\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n");
+	$fh->print($HEADER);
 	
 	# iterate and export as a tab-delimited file
 	my $key = $self->{db}->first_key;
@@ -257,8 +255,8 @@ sub import_from_file {
 	my $fh = IO::File->new($file, '<') or 
 		croak "unable to open $file for reading! $OS_ERROR\n";
 	$fh->binmode(':utf8');
-	my $header = $fh->getline;
-	unless ($header eq "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tDivision\tURL\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n") {
+	my $firstline = $fh->getline;
+	unless ( $firstline eq $HEADER ) {
 		croak "header doesn't match an exported file format!\n";
 	}
 	
@@ -308,7 +306,7 @@ sub find_requests_to_upload {
 			$E->lab_last !~ $internal_org and
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and
-			$E->division and 
+			$E->core_lab and 
 			substr($E->date, 0, 4) >= $year and
 			$E->age >= $min_age and
 			$E->age <= $max_age and
@@ -350,7 +348,7 @@ sub find_requests_to_hide {
 	my $self = shift;
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
-	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
+	my $core   = (exists $opts{core} and defined $opts{core}) ? $opts{core} : undef;
 	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 180;
 	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 100000;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
@@ -373,11 +371,11 @@ sub find_requests_to_hide {
 			( $max_age ? ($E->age <= $max_age) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
-			if (defined $sb) {
-				if ($sb and $E->division) {
+			if (defined $core) {
+				if ($core and $E->core_lab) {
 					push @list, $key;
 				}
-				elsif (not $sb and not $E->division) {
+				elsif (not $core and not $E->core_lab) {
 					push @list, $key if $E->external eq $ext;
 				}
 				# else doesn't match
@@ -397,7 +395,7 @@ sub find_requests_to_delete {
 	my $self = shift;
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
-	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
+	my $core   = (exists $opts{core} and defined $opts{core}) ? $opts{core} : undef;
 	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 60;
 	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
@@ -420,11 +418,11 @@ sub find_requests_to_delete {
 			( $min_size ? ($E->size >= $min_size) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
-			if (defined $sb) {
-				if ($sb and $E->division) {
+			if (defined $core) {
+				if ($core and $E->core_lab) {
 					push @list, $key;
 				}
-				elsif (not $sb and not $E->division) {
+				elsif (not $core and not $E->core_lab) {
 					push @list, $key if $E->external eq $ext;
 				}
 				# else doesn't match
@@ -456,7 +454,7 @@ sub find_analysis_to_upload {
 		if (
 			$E->lab_last !~ $internal_org and
 			not $E->is_request and
-			$E->division and                            # has division
+			$E->core_lab and                            # has division
 			not $E->hidden_datestamp   and              # not already hidden
 			$E->size > $min_size and                    # size > minimum
 			$E->age >= $min_age and                     # older than 9 months
@@ -477,7 +475,7 @@ sub find_analysis_to_hide {
 	my $self = shift;
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
-	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
+	my $core   = (exists $opts{core} and defined $opts{core}) ? $opts{core} : undef;
 	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
 	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
@@ -499,11 +497,11 @@ sub find_analysis_to_hide {
 			( $max_age ? ($E->age <= $max_age) ? 1 : 0 : 1)			
 		) {
 			# we have a possible candidate
-			if (defined $sb) {
-				if ($sb and $E->division) {
+			if (defined $core) {
+				if ($core and $E->core_lab) {
 					push @list, $key;
 				}
-				elsif (not $sb and not $E->division) {
+				elsif (not $core and not $E->core_lab) {
 					push @list, $key if $E->external eq $ext;
 				}
 				# else doesn't match
@@ -523,7 +521,7 @@ sub find_analysis_to_delete {
 	my $self = shift;
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
-	my $sb   = (exists $opts{sb} and defined $opts{sb}) ? $opts{sb} : undef;
+	my $core   = (exists $opts{core} and defined $opts{core}) ? $opts{core} : undef;
 	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 60;
 	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
@@ -545,11 +543,11 @@ sub find_analysis_to_delete {
 			( $min_size ? ($E->size >= $min_size) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
-			if (defined $sb) {
-				if ($sb and $E->division) {
+			if (defined $core) {
+				if ($core and $E->core_lab) {
 					push @list, $key;
 				}
-				elsif (not $sb and not $E->division) {
+				elsif (not $core and not $E->core_lab) {
 					push @list, $key if $E->external eq $ext;
 				}
 				# else doesn't match
@@ -564,36 +562,9 @@ sub find_analysis_to_delete {
 	return wantarray ? @list : \@list;
 }
 
-sub calculate_path {
-	my ($self, $project) = @_;
-	if ($project =~ /^(\d+) R \d? $/x) {
-		# request project
-		my $number = $1;
-		foreach my $k (sort {$a <=> $b} keys %req2year) {
-			if ($number <= $k) {
-				# we regenerate the project number in case there was a digit suffix
-				return sprintf("/Repository/MicroarrayData/%d/%dR", $req2year{$k}, $number);
-			}
-		}
-		return;
-	}
-	elsif ($project =~ /^A(\d+)$/) {
-		# analysis project
-		my $number = $1;
-		foreach my $k (sort {$a <=> $b} keys %anal2year) {
-			if ($number <= $k) {
-				return sprintf("/Repository/AnalysisData/%d/%s", $anal2year{$k}, $project);
-			}
-		}
-		return;
-	}
-	else {
-		# 
-		carp "unrecognized identifier format '$project'!\n";
-		return;
-	}
+sub header {
+	return $HEADER;
 }
-
 
 # search for other things? projects to upload, hide, delete?
 1;
@@ -606,32 +577,34 @@ package RepoEntry;
 use strict;
 use Carp;
 use constant {
-	ID          => 0,
-	PATH        => 1,
-	NAME        => 2,
-	DATE        => 3,
-	GROUP       => 4,
-	USEREMAIL   => 5,
-	USERFIRST   => 6,
-	USERLAST    => 7,
-	LABFIRST    => 8,
-	LABLAST     => 9,
-	PIEMAIL     => 10,
-	DIVISION    => 11,
-	URL         => 12,  # this could be optional, or could be sb project id
-	EXTERNAL    => 13,
-	STATUS      => 14,
-	APPLICATION => 15,
-	ORGANISM    => 16,
-	GENOME      => 17,
-	SIZE        => 18,
-	LASTSIZE    => 19,
-	AGE         => 20,
-	SCAN        => 21,
-	UPLOAD      => 22,
-	HIDDEN      => 23,
-	DELETED     => 24,
-	EMAILED     => 25,
+	ID          => 0,     # gnomex ID
+	PATH        => 1,     # bio-repo file server path
+	NAME        => 2,     # gnomex project name
+	DATE        => 3,     # gnomex project made date yyyy-mm-dd format
+	GROUP       => 4,     # gnomex group fold name
+	USEREMAIL   => 5,     # user email address
+	USERFIRST   => 6,     # user first name
+	USERLAST    => 7,     # user last name
+	LABFIRST    => 8,     # PI first name
+	LABLAST     => 9,     # PI last name
+	PIEMAIL     => 10,    # PI email address
+	CORELAB     => 11,    # name of CORE lab
+	PROFILE     => 12,    # IAM profile name for access
+	BUCKET      => 13,    # s3 bucket name
+	PREFIX      => 14,    # s3 prefix
+	EXTERNAL    => 15,    # y or n boolean
+	STATUS      => 16,    # gnomex request status
+	APPLICATION => 17,    # gnomex request application type
+	ORGANISM    => 18,    # gnomex organism string
+	GENOME      => 19,    # gnomex genome build
+	SIZE        => 20,    # current project file size total in bytes
+	LASTSIZE    => 21,    # previous project file size total in bytes
+	AGE         => 22,    # unix timestamp for youngest observed file in project
+	SCAN        => 23,    # unix timestamp for scanning
+	UPLOAD      => 24,    # unix timestamp for uploading
+	HIDDEN      => 25,    # unix timestamp for hiding
+	DELETED     => 26,    # unix timestamp for deleting
+	EMAILED     => 27,    # unix timestamp for emailing
 	DAY         => 86400, # 60 seconds * 60 minutes * 24 hours
 };
 
@@ -756,26 +729,36 @@ sub pi_email {
 }
 
 
-sub division {
+sub core_lab {
 	my $self = shift;
 	if (@_) {
-		$self->{data}->[DIVISION] = $_[0];
+		$self->{data}->[CORELAB] = $_[0];
 	}
-	return $self->{data}->[DIVISION];
+	return $self->{data}->[CORELAB];
 }
 
-
-sub project_url {
+sub profile {
 	my $self = shift;
-	if (@_ and $_[0] =~ /^https:/) {
-		$self->{data}->[URL] = $_[0];
+	if (@_) {
+		$self->{data}->[PROFILE] = $_[0];
 	}
-	if ($self->{data}->[URL] =~ /^https:/) {
-		return $self->{data}->[URL];
+	return $self->{data}->[PROFILE];
+}
+
+sub bucket {
+	my $self = shift;
+	if ( @_ and defined $_[0] ) {
+		$self->{data}->[BUCKET] = $_[0];
 	}
-	my $p = $self->division;
-	return unless defined $p and length $p;
-	return sprintf("https://igor.sbgenomics.com/u/%s/%s", $p, lc($self->id) );
+	return $self->{data}->[BUCKET] || q();
+}
+
+sub prefix {
+	my $self = shift;
+	if ( @_ and defined $_[0] ) {
+		$self->{data}->[PREFIX] = $_[0];
+	}
+	return $self->{data}->[PREFIX] || q();
 }
 
 
@@ -934,6 +917,16 @@ sub emailed_datestamp {
 	return $self->{data}->[EMAILED] || 0;
 }
 
+sub project_url {
+	my $self = shift;
+	my $b = $self->{data}->[BUCKET];
+	my $p = $self->{data}->[PREFIX];
+	return unless ( length $b and length $p );
+	return sprintf("s3://%s/%s/", $b, $p );
+}
+
+
+
 
 sub print_string {
 	my $self = shift;
@@ -953,8 +946,10 @@ sub print_string {
 		$self->lab_first,
 		$self->lab_last,
 		$self->pi_email || q(),
-		$self->division || q(),
-		$self->project_url || q(),
+		$self->core_lab || q(),
+		$self->profile || q(),
+		$self->bucket || q(),
+		$self->prefix || q(),
 		$self->external || q(),
 		$self->request_status || q(),
 		$self->request_application || q(),
@@ -1073,14 +1068,10 @@ Runs the L<DBM::Deep> C<optimize> function on the file.
 Provide a path where the database file entries will be written as 
 a tab-delimited text file. A header line is included.
 
-=item search_for_pi
+=item header
 
-=item calculate_path
-
-Provide a project ID, either Request or Analysis, and the expected 
-path on the C<hci-bio-repo> server is returned. Note that there are 
-some inconsistencies and projects are not located in its expected 
-year, primarily years 2008-2012 in C<MicroarrayData>.
+Returns the standard header line used in printing and exporting 
+files.
 
 =back
 
@@ -1098,8 +1089,8 @@ what users interact with working with the catalog.
 Provides a number of get/set functions for the various fields for 
 a Repository project entry. 
 
-The timestamp fields return an epoch time, which must be converted 
-to people time.
+The timestamp fields return Unix epoch time, which must be converted 
+to a human readable format. 
 
 =over 4
 
@@ -1127,9 +1118,13 @@ to people time.
 
 =item pi_email
 
-=item division
+=item core_lab
 
-=item project_url
+=item profile
+
+=item bucket
+
+=item prefix
 
 =item external
 
@@ -1158,8 +1153,6 @@ to people time.
 =item deleted_datestamp
 
 =item emailed_datestamp
-
-=item send_email
 
 =back
 
