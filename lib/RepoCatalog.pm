@@ -235,16 +235,22 @@ sub import_from_file {
 		}
 	}
 	
-	# import one at a time
+	# load table into file structure - this may be big
 	my $i = 0;
+	my %import;
 	while (my $line = $fh->getline) {
-		chomp $line;
 		my @data = split /\t/, $line;
+		unless (scalar @data == 28) {
+			$i++;
+			croak " ! line $i does not have 28 fields!";
+		}
+		chomp $data[-1];
 		my $id = $data[0];
-		$self->{db}->put($id => \@data);
+		$import{$id} = \@data;
 		$i++;
 	}
 	$fh->close;
+	$self->{db}->import( \%import );
 	return $i;
 }
 
