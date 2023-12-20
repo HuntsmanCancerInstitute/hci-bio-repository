@@ -10,9 +10,12 @@ use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use RepoCatalog;
 use RepoProject;
+use hciCore qw( generate_prefix generate_bucket );
+# Gnomex  is loaded at run time as necessary
+# Emailer is loaded at run time as necessary
 
 
-our $VERSION = 5.5;
+our $VERSION = 6.0;
 
 
 ######## Documentation
@@ -25,7 +28,7 @@ It is primarily used for managing the life cycles of GNomEx projects, both
 Analysis and Experiment Requests. This includes searching and listing 
 projects based on status, age, size, ownership, etc. Projects that have 
 exceeded their lifespan can be prepared for offloading to other storage 
-platforms, for example Seven Bridges. 
+platforms, for example AWS accounts. 
 
 Expired projects may be scanned and inventoried, moved to a hidden directory, 
 and permanently deleted. Scanning and archiving files is done by separate 
@@ -34,10 +37,10 @@ writes important file lists in the project directory or parent – all subsequen
 project file actions depend on these lists and cannot proceed without them.
 No project file manipulation is performed through blind or bulk wildcards. 
 
-All data is stored in a local catalog (database). This catalog may be 
+All data is stored in a local catalog (database) file. This catalog may be 
 exported (and imported) as a simple tab-delimited text file for backup purposes
 and/or work in other applications (Excel). Importing new projects can be 
-done directly from the GNomEx database.
+done directly from the GNomEx SQL database.
 
 Best practices include searching for projects and directing output to a 
 text file. This file can then be provided to this application as an input 
@@ -45,16 +48,17 @@ list. Any errors are printed with leading exclamation marks and should
 be rectified before repeating or proceeding.
 
 
+VERSION $VERSION
+
 USAGE
 
-manage_repository.pl --cat <file.db> [options] [projects]
+  manage_repository.pl --cat <file.db> [options] [projects]
 
-manage_repository.pl --cat analysis.db --status A1234 A1235 A1236
+  manage_repository.pl --cat analysis.db --status A1234 A1235 A1236
 
-manage_repository.pl --cat request.db --list_req_up --status > projects.txt
+  manage_repository.pl --cat request.db --list_req_up --status > projects.txt
 
-manage_repository.pl --cat request.db --list projects.txt --scan > projects.scan.txt
-
+  manage_repository.pl --cat request.db --list projects.txt --scan > projects.scan.txt
 
 OPTIONS
 
@@ -64,37 +68,36 @@ OPTIONS
   Catalog entry selection: 
     --list <path>             File of project identifiers to work on
                                 may be tab-delimited, only 1st column used
-    --list_req_up             Print or work on Request IDs for upload to SB
+    --list_req_up             Print or work on Request IDs for upload to AWS
     --list_req_hide           Print or work on Request IDs for hiding
     --list_req_delete         Print or work on Request IDs for deletion
-    --list_anal_up            Print or work on Analysis IDs for uploading to SB
+    --list_anal_up            Print or work on Analysis IDs for uploading to AWS
     --list_anal_hide          Print or work on Analysis IDs for hiding
     --list_anal_delete        Print or work on Analysis IDs for deletion
     --list_lab <pi_lastname>  Print or select based on PI last name
     --list_all                Apply to all catalog entries
   
   Catalog selection modifiers:
-    --year <YYYY>             Filter entries to given year or newer
-    --age <days>              Filter entries for minimum age
-    --max_age <days>          Filter entries for maximum age
-    --size <bytes>            Filter entries for minimum project size
+    --year <YYYY>             Select entries to given year or newer
+    --age <days>              Select entries older than minimum age (days)
+    --max_age <days>          Select entries younger than maximum age (days)
+    --size <bytes>            Select entries bigger than minimum project size
                                 allows K, M, and G suffix
-    --sb                      Include only projects with SB division
-    --nosb                    Exclude projects with SB division
-    --external                Include only external projects (assumes no SB division)
-    --noexternal              Exclude external projects (assumes no SB division)
+    --core                    Select only projects with a defined CORE lab name
+    --nocore                  Exclude projects with a CORE lab name
+    --external                Select only external projects (assumes no CORE lab)
+    --noexternal              Exclude external projects
     
   Action on catalog entries (select one): 
     --status                  Print the status of listed projects
     --info                    Print basic information of listed projects
-    --path                    Print the repository path to the project
+    --path                    Print the local repository path of listed project
+    --url                     Print the S3 URL of listed projects
     --print                   Print all the information of listed projects
     --delete_entry            Delete catalog entry
   
   Actions on projects:
     --scan                    Scan the project directory and write METADATA
-    --upload                  Create a new project in the Seven Bridges division
-                                 (actual uploads must now be done separately)
     --zip                     Zip archive Analysis files during scan
 
   Actions on project directories:
@@ -111,10 +114,9 @@ OPTIONS
   
   Actions to notify:
     --email_anal_del          Email Analysis scheduled deletion
-    --email_anal_up           Email Analysis upload to Seven Bridges
+    --email_anal_up           Email Analysis upload
     --email_req_del           Email Request scheduled deletion
-    --email_req_up            Email Request upload to Seven Bridges
-    --mock                    Print email messages without sending
+    --email_req_up            Email Request upload
   
   Import from GNomEx:
     --import_anal             Fetch and update Analysis projects from GNomEx DB
@@ -126,22 +128,29 @@ OPTIONS
     --update_hide <YYYYMMDD>  Update project hide timestamp
     --update_up <YYYYMMDD>    Update project upload timestamp
     --update_em <YYYYMMDD>    Update project email timestamp
-    --update_sb <text>        Update SB division name. Use 'none' to clear.
     --update_size             Update project size and age from file server
+    --update_core <text>      Update CORE lab name. Use 'none' to clear.
+    --update_profile <text>   Update the AWS IAM profile
+    --update_bucket <text>    Update the AWS S3 bucket
+    --update_prefix <text>    Update the AWS prefix (only one project)
+    --generate_s3             Generate default AWS S3 bucket/prefix
   
   Actions on catalog file:
     --export <path>           Dump the contents to tab-delimited text file
     --transform               When exporting transform to human conventions
     --import_file <path>      Import an exported table, requires non-transformed
-    
     --optimize                Run the db file optimize routine (!?)
   
   File paths:
-    --sbup <path>             Path to the Seven Bridges Java uploader start script,
-                                sbg-uploader.sh
-    --cred <path>             Path to Seven Bridges credentials file. 
-                                Default is ~/.sevenbridges/credentials. 
-    --labinfo <path>          Path to Lab Information file with SB division info
+    --labinfo <path>          Path to Lab Information file with CORE lab info
+    --cred <path>             Path to AWS credentials file. 
+                                Default is ~/.aws/credentials. 
+
+  General:
+    --mock                    For email and upload functions only,
+                                 print output but not actual work
+    -v --verbose              Print additional output for some functions
+    -h --help                 Print documentation
   
 END
  
@@ -162,7 +171,7 @@ my $list_pi = 0;
 my $list_file;
 my $list_all = 0;
 my $year;
-my $include_sb;
+my $include_core;
 my $min_age;
 my $max_age;
 my $min_size;
@@ -170,6 +179,7 @@ my $external;
 my $show_status = 0;
 my $show_info = 0;
 my $show_path = 0;
+my $show_url = 0;
 my $print_info = 0;
 my $delete_entry = 0;
 my $scan_size_age;
@@ -179,7 +189,11 @@ my $update_hide_date;
 my $update_upload_date;
 my $update_delete_date;
 my $update_email_date;
-my $update_division;
+my $update_core_lab;
+my $update_profile;
+my $update_bucket;
+my $update_prefix;
+my $generate_s3_path;
 my $project_scan;
 my $project_upload;
 my $project_zip;
@@ -204,9 +218,8 @@ my $transform = 0;
 my $import_file;
 my $run_optimize;
 my $force;
-my $sbup_path;
-my $cred_path;
 my $labinfo_path;
+my $cred_path;
 my $verbose;
 my $help;
 
@@ -216,7 +229,7 @@ my $help;
 
 if (scalar(@ARGV) > 1) {
 	GetOptions(
-		'c|cat=s'               => \$cat_file,
+		'c|catalog=s'           => \$cat_file,
 		'list_req_up!'          => \$list_req_upload,
 		'list_req_hide!'        => \$list_req_hide,
 		'list_req_delete'       => \$list_req_delete,
@@ -226,7 +239,7 @@ if (scalar(@ARGV) > 1) {
 		'list_lab|list_pi=s'    => \$list_pi,
 		'list_all!'             => \$list_all,
 		'list=s'                => \$list_file,
-		'sb!'                   => \$include_sb,
+		'core!'                 => \$include_core,
 		'year=i'                => \$year,
 		'age=i'                 => \$min_age,
 		'max_age=i'             => \$max_age,
@@ -235,6 +248,7 @@ if (scalar(@ARGV) > 1) {
 		'status!'               => \$show_status,
 		'info!'                 => \$show_info,
 		'path!'                 => \$show_path,
+		'url!'                  => \$show_url,
 		'print!'                => \$print_info,
 		'delete_entry!'         => \$delete_entry,
 		'scan!'                 => \$project_scan,
@@ -262,18 +276,21 @@ if (scalar(@ARGV) > 1) {
 		'update_up=i'           => \$update_upload_date,
 		'update_del=i'          => \$update_delete_date,
 		'update_email=i'        => \$update_email_date,
-		'update_sb=s'           => \$update_division,
+		'update_core=s'         => \$update_core_lab,
+		'update_profile=s'      => \$update_profile,
+		'update_bucket=s'       => \$update_bucket,
+		'update_prefix=s'       => \$update_prefix,
+		'generate_s3!'          => \$generate_s3_path,
 		'update_size_age|update_size|update_age!' => \$scan_size_age,
 		'export_file=s'         => \$dump_file,
 		'import_file=s'         => \$import_file,
 		'force!'                => \$force,
 		'transform!'            => \$transform,
 		'optimize!'             => \$run_optimize,
-		'sbup=s'                => \$sbup_path,
 		'cred=s'                => \$cred_path,
 		'labinfo=s'             => \$labinfo_path,
-		'verbose!'              => \$verbose,
-		'help!'                 => \$help,
+		'v|verbose!'            => \$verbose,
+		'h|help!'               => \$help,
 	) or die "please recheck your options!\n\n";
 }
 else {
@@ -349,7 +366,7 @@ sub check_options {
 	
 	# print function
 	$sanity = 0;
-	$sanity = $show_status + $show_info + $show_path + $print_info;
+	$sanity = $show_status + $show_info + $show_path + $show_url + $print_info;
 	if ($sanity > 1) {
 		die "Only 1 printing function allowed at a time!\n";
 	}
@@ -368,15 +385,15 @@ sub check_options {
 	if (($fetch_analysis or $fetch_request) and not $year) {
 		# set default year based on a calculation
 		# year is 60 * 60 * 24 * 365 = 31536000 seconds
-		my $n = $fetch_analysis ? 63072000 : 31536000; # 2 years Analysis, 1 Request
+		my $n = $fetch_analysis ? 94608000 : 63072000; # 3 years Analysis, 2 Request
 		my @t = localtime(time - $n);
 		$year = $t[5] + 1900;
 	}
-	
+
 	# external
 	if (defined $external) {
 		$external = $external ? 'Y' : 'N';
-		$include_sb = 0 if $external eq 'Y'; # no external should be part of SB
+		$include_core = 0 if $external eq 'Y'; # no external lab should have CORE account
 	}
 	
 	# convert sizes
@@ -403,6 +420,12 @@ sub check_options {
 	if ($unhide_zip_files or $unhide_del_files) {
 		die "can't do anything else if unhiding files!\n" if ($move_del_files or 
 			$move_zip_files or $delete_del_files or $delete_zip_files);
+	}
+	
+	# contradictory metadata options
+	if ( $generate_s3_path and ( $update_bucket or $update_prefix ) ) {
+		die 
+" Cannot specify --generate_s3 with --update_bucket or --update_prefix options\n";
 	}
 }
 
@@ -434,9 +457,9 @@ sub open_import_catalog {
 			require Gnomex;
 			$gnomex_good = 1;
 		};
-		my $G;
+		my $GNomEx;
 		if ($gnomex_good) {
-			$G = Gnomex->new(
+			$GNomEx = Gnomex->new(
 				catalog => $Cat,
 				lab     => $labinfo_path,
 			) or die "can't instantiate Gnomex object!\n";
@@ -450,7 +473,7 @@ sub open_import_catalog {
 		if ($fetch_analysis) {
 			print " Fetching new analysis projects from database...\n";
 			my ($update_list, $new_list, $nochange_list, $skip_count) = 
-				$G->fetch_analyses($year);
+				$GNomEx->fetch_analyses($year);
 			printf " Finished processing %d Analysis project database entries\n", 
 				scalar(@{$update_list}) + scalar(@{$new_list}) + scalar(@{$nochange_list});
 			
@@ -498,7 +521,7 @@ sub open_import_catalog {
 		if ($fetch_request) {
 			print " Fetching new request projects from database...\n";
 			my ($update_list, $new_list, $nochange_list, $skip_count) = 
-				$G->fetch_requests($year);
+				$GNomEx->fetch_requests($year);
 			printf " Finished processing %d Experiment Request project database entries\n", 
 				scalar(@{$update_list}) + scalar(@{$new_list}) + scalar(@{$nochange_list});
 			
@@ -629,7 +652,7 @@ sub generate_list {
 			age      => $min_age, 
 			maxage   => $max_age,
 			year     => $year, 
-			sb       => $include_sb,
+			core     => $include_core,
 			external => $external,
 			size     => $min_size,
 		);
@@ -653,7 +676,7 @@ sub generate_list {
 			age      => $min_age, 
 			maxage   => $max_age,
 			year     => $year, 
-			sb       => $include_sb,
+			core     => $include_core,
 			external => $external,
 			size     => $min_size,
 		);
@@ -666,7 +689,7 @@ sub generate_list {
 			age      => $min_age, 
 			maxage   => $max_age,
 			year     => $year, 
-			sb       => $include_sb,
+			core     => $include_core,
 			external => $external,
 			size     => $min_size,
 		);
@@ -690,7 +713,7 @@ sub generate_list {
 			age      => $min_age, 
 			maxage   => $max_age,
 			year     => $year, 
-			sb       => $include_sb,
+			core     => $include_core,
 			external => $external,
 			size     => $min_size,
 		);
@@ -703,7 +726,7 @@ sub generate_list {
 			age      => $min_age, 
 			maxage   => $max_age,
 			year     => $year, 
-			sb       => $include_sb,
+			core     => $include_core,
 			external => $external,
 			size     => $min_size,
 		);
@@ -862,24 +885,160 @@ sub run_metadata_actions {
 		print "  updated email date for $count entries\n";
 	}
 
-	# update the seven bridges division name
-	if (defined $update_division) {
-		print " Setting SB division name to $update_division\n";
+	# update the CORE lab name
+	if (defined $update_core_lab) {
+		print " Setting CORE Lab name to $update_core_lab\n";
 		unless (@action_list) {
 			die "No list provided to update division name!\n";
 		}
-		if ($update_division eq 'none') {
-			$update_division = q();
+		if ($update_core_lab eq 'none') {
+			$update_core_lab = q();
 		}
 		my $count = 0;
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
 			my $Entry = $Catalog->entry($id) or next;
-			$Entry->division($update_division);
+			$Entry->core_lab($update_core_lab);
 			$count++;
 		}
 		print "  updated division name for $count entries\n";
+	}
+	
+	# update the AWS IAM profile name
+	if (defined $update_profile) {
+		print " Setting AWS IAM profile name to $update_profile\n";
+		unless (@action_list) {
+			die "No list provided to update division name!\n";
+		}
+		if ($update_profile eq 'none') {
+			$update_profile = q();
+		}
+		my $count = 0;
+		foreach my $item (@action_list) {
+			my ($id, @rest) = split(m/\s+/, $item);
+			next unless (defined $id);
+			my $Entry = $Catalog->entry($id) or next;
+			$Entry->profile($update_profile);
+			$count++;
+		}
+		print "  updated division name for $count entries\n";
+	}
+	
+	# update the S3 bucket
+	if ( defined $update_bucket ) {
+		unless (@action_list) {
+			die "No list provided to update bucket!\n";
+		}
+		$update_bucket =~ s|^s3://||;
+		$update_bucket =~ s|/$||;
+		my $count    = 0;
+		my $nocore   = 0;
+		my $uploaded = 0;
+		my $skipped  = 0;
+		foreach my $item (@action_list) {
+			my ($id, @rest) = split(m/\s+/, $item);
+			next unless (defined $id);
+			my $Entry = $Catalog->entry($id) or next;
+			if (not $Entry->core_lab) {
+				$nocore++;
+				next;
+			}
+			if ( $Entry->upload_datestamp > 1000 ) {
+				$uploaded++;
+				next;
+			}
+			if ($Entry->project_url and not $force) {
+				$skipped++;
+				next;
+			}
+			if ( $update_bucket eq 'none' ) {
+				$Entry->bucket( q() );
+			}
+			else {
+				$Entry->bucket($update_bucket);
+			}
+			$count++;
+		}
+		print "  updated the bucket name for $count entries\n";
+		if ($skipped) {
+			print "  skipped $skipped entries with existing S3 path (use --force)\n";
+		}
+		if ($nocore) {
+			print "  skipped $nocore entries with no CORE lab assignment\n";
+		}
+		if ($uploaded) {
+			print "  skipped $uploaded entries already uploaded\n";
+		}
+	}
+
+	# update the S3 prefix
+	if (defined $update_prefix) {
+		unless (@action_list) {
+			die "No list provided to update prefix!\n";
+		}
+		if (scalar @action_list > 1) {
+			print "! Only the first project will have its prefix updated!\n"
+		}
+		$update_prefix =~ s|/$||;
+		my ($id, @rest) = split( m/\s+/, $action_list[0] );
+		my $Entry = $Catalog->entry($id);
+		if ($Entry) {
+			if ( not $Entry->core_lab ) {
+				print "  Project $id is not assigned to a CORE lab\n";
+			}
+			elsif ( $Entry->upload_datestamp > 1000 ) {
+				print "  Project $id has already been uploaded\n";
+			}
+			else {
+				$Entry->prefix($update_prefix);
+				print "  Project $id is not assigned to a CORE lab\n";
+			}
+		}
+		else {
+			print " no Catalog entry for '$id'!\n";
+		}
+	}
+
+	if ($generate_s3_path) {
+		print " Generating default bucket/prefix S3 paths\n";
+		unless (@action_list) {
+			die "No list provided to update division name!\n";
+		}
+		my $count    = 0;
+		my $nocore   = 0;
+		my $uploaded = 0;
+		my $skipped  = 0;
+		foreach my $item (@action_list) {
+			my ($id, @rest) = split(m/\s+/, $item);
+			next unless (defined $id);
+			my $Entry = $Catalog->entry($id) or next;
+			if (not $Entry->core_lab) {
+				$nocore++;
+				next;
+			}
+			if ( $Entry->upload_datestamp > 1000 ) {
+				$uploaded++;
+				next;
+			}
+			if ($Entry->project_url and not $force) {
+				$skipped++;
+				next;
+			}
+			generate_bucket($Entry);
+			generate_prefix($Entry);
+			$count++;
+		}
+		print "  generated bucket/prefix default paths for $count entries\n";
+		if ($skipped) {
+			print "  skipped $skipped entries with existing S3 path (use --force)\n";
+		}
+		if ($nocore) {
+			print "  skipped $nocore entries with no CORE lab assignment\n";
+		}
+		if ($uploaded) {
+			print "  skipped $uploaded entries already uploaded\n";
+		}
 	}
 	
 }
@@ -1352,7 +1511,7 @@ sub print_functions {
 		unless (@action_list) {
 			die "No list provided to show status!\n";
 		}
-		printf "%-6s\t%-6s\t%-5s\t%-10s\t%-10s\t%-10s\t%-10s\t%-10s\n", qw(ID Size Age Scan Upload Hide Delete Division);
+		printf "%-6s\t%-6s\t%-5s\t%-10s\t%-10s\t%-10s\t%-10s\t%-10s\n", qw(ID Size Age Scan Upload Hide Delete CORELab);
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
@@ -1403,7 +1562,7 @@ sub print_functions {
 			my $division = 'none'; # default
 			my $e = $Entry->external; # default is undefined
 			if (defined $e) {
-				$division = $e eq 'Y' ? 'external' : $Entry->division || 'none';
+				$division = $e eq 'Y' ? 'external' : $Entry->core_lab || 'none';
 			}
 			
 			# print
@@ -1447,12 +1606,36 @@ sub print_functions {
 		}
 	}
 	
+	# print the remote AWS S3 URI
+	elsif ($show_url) {
+		unless (@action_list) {
+			die "No list provided to show URLs!\n";
+		}
+		my $missing = 0;
+		foreach my $item (@action_list) {
+			my ($id, @rest) = split(m/\s+/, $item);
+			next unless (defined $id);
+			my $Entry = $Catalog->entry($id) or next;
+			my $url = $Entry->project_url;
+			if ($url) {
+				printf "%s\n", $url;
+			}
+			else {
+				$missing++;
+			}
+		}
+		if ($missing) {
+			printf STDERR " ! There were %d projects without URLs\n", $missing;
+		}
+	}
+	
 	# print everything to screen
 	elsif ($print_info) {
 		unless (@action_list) {
 			die "No list provided to show status!\n";
 		}
-		printf "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tDivision\tURL\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n";
+		my $header = RepoCatalog->header;
+		print $header;
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
