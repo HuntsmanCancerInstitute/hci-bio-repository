@@ -11,7 +11,7 @@ use File::Path qw(make_path);
 use File::Find;
 use Digest::MD5;
 
-our $VERSION = 5.4;
+our $VERSION = 6.0;
 
 ### Initialize
 
@@ -591,6 +591,16 @@ sub _age_callback {
 	return if $file eq $current_project->zip_file;  
 	return if $file eq $current_project->ziplist_file;  
 	return if $file eq $current_project->remove_file;  
+
+	# don't calculate anything if it appears to be a Request folder QC directory
+	# or checksum files, since these might be added since original scan
+	return if $file =~ m/\.md5$/;
+	return if $file =~ m/^ md5.* \. (?: txt | out ) $/x; 
+	if ($File::Find::name =~
+		 m/ \d+R \/ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC ) \/ /x)
+	{
+		return;
+	}
 	
 	# get file size and time
 	my ($size, $age) = (stat($file))[7,9];
@@ -598,17 +608,7 @@ sub _age_callback {
 	# add to running total of file sizes
 	$project_size += $size;
 	
-	# check age
-	# but don't calculate anything if it appears to be a Request folder QC directory
-	if ($File::Find::name =~
-		 m/\d+R \/ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC ) (?: .?\w+ )? \/ /x)
-	{
-		return;
-	}
-	# or checksum files, since these might be added since original scan
-	return if $file =~ m/\.md5$/;
-	return if $file =~ m/^ md5.* \. (?: txt | out ) $/x; 
-	
+	# check age	
 	if ($project_age == 0) {
 		# first file! seed with current data
 		$project_age = $age;
