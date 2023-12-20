@@ -14,44 +14,6 @@ our $VERSION = 6.0;
 
 my $DEFAULT_PATH  = "~/test/repository.db";
 my $repo_epoch = 2005;
-
-
-
-### Numbers for identifying years - there are some exceptions!!???
-my %anal2year = (
-	19		=> 2008,
-	81		=> 2009,
-	202		=> 2010,
-	422		=> 2011,
-	1325	=> 2012,
-	2290	=> 2013,
-	2817	=> 2014,
-	3377	=> 2015,
-	4060	=> 2016,
-	5379	=> 2017,
-	5693	=> 2018,
-	6091	=> 2019,
-	1000000 => 2020, # impossibly big number means current year
-);
-my %req2year = (
-	5034	=> 2005,
-	5288	=> 2006,
-	6146	=> 2007, 
-	6536	=> 2008, # has one exception
-	7118	=> 2009, # has exceptions
-	7914	=> 2010, # has exceptions
-	8929	=> 2011, # has exceptions
-	8999	=> 2012, # has exceptions
-	10590	=> 2013,
-	11325	=> 2014,
-	12068	=> 2015,
-	13987	=> 2016,
-	14838	=> 2017,
-	15743	=> 2018,
-	17680	=> 2019,
-	1000000 => 2020, # impossibly big number means current year
-);
-
 my $internal_org = qr/(?: Bioinformatics \s Shared \s Resource | HTG \s Core \s Facility | SYSTEM )/x;
 my $HEADER = "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tCORELab\tProfile\tBucket\tPrefix\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n";
 
