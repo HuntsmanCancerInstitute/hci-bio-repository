@@ -10,12 +10,10 @@ use POSIX qw(strftime);
 use Getopt::Long;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
-use Net::SB;
 use RepoCatalog;
 use RepoProject;
-use Emailer;
 
-our $VERSION = 5.9;
+our $VERSION = 6.0;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -26,22 +24,16 @@ use vars qw(*fname);
 ######## Documentation
 my $doc = <<END;
 
-A script to process GNomEx Experiment Request project folders for 
-Seven Bridges upload.
+A script to process GNomEx Experiment Request project folders.
 
-This will generate a manifest CSV file from the fastq files, and 
-optionally upload the files using SB tools, and optionally then hide 
-the Fastq files in a hidden directory in preparation for eventual 
-deletion from the server.
+It will recursively scan a Request folder and generate a manifest CSV
+file of the fastq files including file and sequencing metadata. 
+A list of filenames to be deleted is also written in the parent directory.
 
 This requires collecting data from the GNomEx LIMS database and 
 passing certain values on to this script for inclusion as metadata 
-in the metadata Manifest CSV file. Alternatively, simply provide 
+in the metadata Manifest CSV file. Alternatively, one can simply provide 
 a Catalog database file with the project ID.
-
-A Markdown description is generated for the Seven Bridges Project 
-using the GNomEx metadata, including user name, strategy, title, 
-and group name.
 
 Version: $VERSION
 
@@ -52,16 +44,10 @@ Example usage:
 
 Options:
  
- Main functions - not exclusive
-    --scan              Scan the project folder and generate the manifest
-    --upload            Prepare the project for upload
-    --hide              Hide the Fastq files in hidden deletion folder
-
  Metadata
     --cat <path>        Provide path to metadata catalog database
     --first <text>      User first name for the owner of the project
     --last <text>       User last name for the owner of the project
-    --email <text>      User email address for notifications
     --strategy "text"   GNomEx database application value. This is a long 
                         and varied text field, so must be protected by 
                         quoting. It will be distilled into a single-word 
@@ -72,56 +58,32 @@ Options:
                         text field, so must be protected by quoting.
 
  Options
-    --desc "text"       Description for new SB project when uploading. 
-                        Can be Markdown text.
-    --notify            Send email to user and PI when uploading
     --verbose           Tell me everything!
  
- Seven Bridges
-    --division <text>   The Seven Bridges division name
-
- Paths
-    --cred <path>       Path to the Seven Bridges credentials file. 
-                        Default is ~/.sevenbridges/credentials. Each profile 
-                        should be named after the SB division.
-
 END
 
 
 
 ######## Process command line options
 my $path;
-my $scan;
-my $hide_files;
-my $upload;
+my $scan = 1;
 my $cat_file;
 my $userfirst     = q();
 my $userlast      = q();
-my $email_address = q();
 my $strategy;
 my $title         = q();
 my $group         = q();
-my $description   = q();
-my $sb_division   = q();
-my $cred_path     = q();
-my $send_email;
 my $verbose;
 
 if (scalar(@ARGV) > 1) {
 	GetOptions(
 		'scan!'         => \$scan,
-		'hide!'         => \$hide_files,
-		'upload!'       => \$upload,
-		'catalog=s'     => \$cat_file,
+		'c|catalog=s'   => \$cat_file,
 		'first=s'       => \$userfirst,
 		'last=s'        => \$userlast,
 		'strategy=s'    => \$strategy,
 		'title=s'       => \$title,
 		'group=s'       => \$group,
-		'desc=s'        => \$description,
-		'notify!'       => \$send_email,
-		'division=s'    => \$sb_division,
-		'cred=s'        => \$cred_path,
 		'verbose!'      => \$verbose,
 	) or die "please recheck your options!\n\n$doc\n";
 	$path = shift @ARGV;
@@ -159,9 +121,6 @@ if ($cat_file) {
 		if (not $userlast) {
 			$userlast = $Entry->user_last;
 		}
-		if (not $email_address) {
-			$email_address = $Entry->user_email;
-		}
 		if (not $strategy) {
 			$strategy = $Entry->request_application;
 		}
@@ -171,9 +130,6 @@ if ($cat_file) {
 		if (not $group) {
 			$group = $Entry->group;
 		}
-		if (not $sb_division) {
-			$sb_division = $Entry->division;
-		}
 		$path = $Entry->path;
 	}
 	else {
@@ -181,11 +137,6 @@ if ($cat_file) {
 	}
 }
 
-
-if ($upload) {
-	die "must provide a SB division name!\n" unless $sb_division;
-	die "must provide a title for SB project!\n" unless $title;
-}
 
 
 
@@ -201,14 +152,14 @@ my $runfolder_warning; # Gigantic Illumina RunFolder present
 
 # our sequence machine IDs to platform technology lookup
 my %machinelookup = (
-	'D00550'  => 'Illumina HiSeq', # 2500
-	'D00294'  => 'Illumina HiSeq', # 2500
-	'A00421'  => 'Illumina NovaSeq', # 6000
+	'D00550'  => 'Illumina HiSeq 2500',
+	'D00294'  => 'Illumina HiSeq 2500',
+	'A00421'  => 'Illumina NovaSeq 6000',
 	'M05774'  => 'Illumina MiSeq',
 	'M00736'  => 'Illumina MiSeq',
-	'DQNZZQ1' => 'Illumina HiSeq', # 2000
-	'HWI-ST1117' => 'Illumina HiSeq', # 2000
-	'LH00227' => 'Illumina NovaSeqX', 
+	'DQNZZQ1' => 'Illumina HiSeq 2000',
+	'HWI-ST1117' => 'Illumina HiSeq 2000',
+	'LH00227' => 'Illumina NovaSeq X',
 );
 
 # experimental strategy
@@ -262,11 +213,6 @@ printf " > working on %s at %s\n", $Project->id, $Project->given_dir;
 printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
 
-# given application paths
-if ($verbose) {
-	print " => SB credentials path: $cred_path\n" if $cred_path;
-}
-
 
 # file paths
 if ($verbose) {
@@ -278,19 +224,9 @@ if ($verbose) {
 # removed file hidden folder
 printf " => deleted folder: %s\n", $Project->delete_folder if $verbose;
 if (-e $Project->delete_folder) {
-	if ($hide_files) {
-		print " ! deleted files hidden folder already exists! Will not move deleted files\n";
-		$hide_files = 0; # do not want to move zipped files
-		$failure_count++;
-	} 
 	if ($scan) {
 		print "! cannot re-scan if deleted files hidden folder exists!\n";
 		$scan = 0;
-		$failure_count++;
-	}
-	if ($upload) {
-		print "! cannot upload if deleted files hidden folder exists!\n";
-		$upload = 0;
 		$failure_count++;
 	}
 }
@@ -324,31 +260,6 @@ if ($scan) {
 	}
 }
 
-
-# upload files to Seven Bridges
-if ($upload) {
-	if (-e $Project->manifest_file) {
-		printf " > uploading %s project files to $sb_division\n", $Project->id;
-		upload_files();
-	}
-	else {
-		print " ! No manifest file! Cannot upload files\n";
-		$failure_count++;
-	}
-}
-
-
-# hide files
-if ($hide_files) {
-	if (-e $Project->alt_remove_file) {
-		printf " > moving files to %s\n", $Project->delete_folder;
-		$failure_count += $Project->hide_deleted_files;
-	}
-	else {
-		print " ! No deleted files to hide\n";
-		$failure_count++;
-	}
-}
 
 
 
@@ -409,7 +320,7 @@ sub scan_directory {
 	# compile list
 	my @manifest;
 	my %dupmd5; # for checking for errors
-	push @manifest, join(',', qw(File sample_id investigation library_id platform 
+	push @manifest, join(',', qw(File Type sample_id investigation library_id platform 
 								platform_unit_id paired_end quality_scale 
 								experimental_strategy UserFirstName UserLastName Size Date MD5));
 	foreach my $f (sort {$a cmp $b} keys %filedata) {
@@ -442,14 +353,15 @@ sub scan_directory {
 		# add to the list
 		push @manifest, join(',', 
 			sprintf("\"%s\"", $filedata{$f}{clean}),
+			$filedata{$f}{type} || q(),
 			$filedata{$f}{sample},
-			$Project->id,
+			$filedata{$f}{type} eq 'fastq' ? $Project->id : q(),
 			$filedata{$f}{library},
 			sprintf("\"%s\"", $machinelookup{$filedata{$f}{machineID}} || q() ),
 			$filedata{$f}{laneID},
 			$is_paired ? $filedata{$f}{pairedID} : '-',
-			'sanger',
-			$experimental_strategy,
+			$filedata{$f}{type} eq 'fastq' ? 'sanger' : q(),
+			$filedata{$f}{type} eq 'fastq' ? $experimental_strategy : q(),
 			sprintf("\"%s\"", $userfirst),
 			sprintf("\"%s\"", $userlast),
 			$filedata{$f}{size},
@@ -494,6 +406,8 @@ sub callback {
 	my $clean_name = $fname;
 	$clean_name =~ s|^\./||; # strip the beginning ./ from the name to clean it up
 	
+	# file metadata
+	my ($type, $sample, $machineID, $laneID, $pairedID);
 	
 	### Ignore certain files
 	if (-l $file) {
@@ -534,10 +448,10 @@ sub callback {
 	elsif ($file eq $Project->manifest_file) {
 		return;
 	}
-	elsif ($fname =~ m/^\. \/ (?: bioanalysis | Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC ) (?:.?\w+)? \/ /x) {
+	elsif ($fname =~ m/^\. \/ (?: bioanalysis | Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC ) \/ /x) {
 		# these are QC samples in a bioanalysis or Sample of Library QC folder
 		# directly under the main project 
-		print "   > skipping bioanalysis file $fname\n" if $verbose;
+		print "   > skipping QC file $fname\n" if $verbose;
 		return;
 	}
 	elsif ($fname =~ /^\. \/ RunFolder/x) {
@@ -557,61 +471,91 @@ sub callback {
 	}
 	elsif ($fname =~ /^ \. \/ upload_staging/x) {
 		# somebody directly uploaded files to this directory!
-		print "   ! skipping uploaded file $fname\n";
+		print "   ! uploaded file $fname\n";
+		$failure_count++;
 		return;
 	}
 	elsif ($fname =~ / samplesheet \. \w+ /xi) {
 		# file run sample sheet, can safely ignore
-		print "   > skipping file $fname\n" if $verbose;
-		return;
+		$type = 'document';
+		$sample = q();
+		$laneID = q();
+		$pairedID = q();
+		$machineID = q();
 	}
-	elsif ($file =~ /\. (?: xlsx | numbers) $/x) {
+	elsif ($file =~ / \. (?: xlsx | numbers | docx | pdf ) $/x) {
 		# some stray request spreadsheet file
-		print "   ! skipping $file\n";
-		return;
-	}
-	elsif ($file =~ /\.docx$/) {
-		# presumably user-provided barcodes in a word file
-		print "   ! skipping $file\n";
-		return;
+		$type = 'document';
+		$sample = q();
+		$laneID = q();
+		$pairedID = q();
+		$machineID = q();
 	}
 	elsif ( $file =~ /\.txt$/ and $file !~ /md5/ ) {
 		# additional stray files but not md5 files!
-		print "   ! skipping $file\n";
-		return;
-	}
-	elsif ($file =~ /\.pdf$/) {
-		# some PDF files 
-		print "   ! skipping $file\n";
-		return;
+		$type = 'document';
+		$sample = q();
+		$laneID = q();
+		$pairedID = q();
+		$machineID = q();
 	}
 	elsif ($file =~ /\.zip$/) {
 		# some Zip file - caution
-		print "   ! skipping $file\n";
-		return;
+		$type = 'zip';
+		$sample = q();
+		$laneID = q();
+		$pairedID = q();
+		$machineID = q();
 	}
-	
-	
 	### Possible Fastq file types
-	my ($sample, $machineID, $laneID, $pairedID);
 	# 15945X8_190320_M05774_0049_MS7833695-50V2_S1_L001_R2_001.fastq.gz
 	# new style: 16013X1_190529_D00550_0563_BCDLULANXX_S12_L001_R1_001.fastq.gz
 	# NovoaSeqX: 21185X1_20230810_LH00227_0005_A227HG7LT3_S42_L004_R1_001.fastq.gz
-	if ($file =~ m/^ (\d{4,5} [xXP] \d+ ) _\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _R(\d) _001 \. fastq \.gz$/x) {
+	elsif ($file =~ m/^ (\d{4,5} [xXP] \d+ ) _\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _R(\d) _001 \. fastq \.gz$/x) {
+		$type = 'fastq';
 		$sample = $1;
 		$machineID = $2;
 		$laneID = $3;
 		$pairedID = $4;
+		if ($pairedID == 2) {
+			my $file2 = $file;
+			$file2 =~ s/_R2_/_R3_/;
+			if ( -e $file2 ) {
+				# this is likely a UMI fastq file, check sizes
+				my $size1 = (stat $file)[7];
+				my $size2 = (stat $file2)[7];
+				if ( $size2 > ($size1 * 3) ) {
+					# yes, most likely
+					$pairedID = 'UMI';
+				}
+			}
+		}
+		elsif ($pairedID == 3) {
+			# most likely the 2nd read
+			my $file2 = $file;
+			$file2 =~ s/_R3_/_R2_/;
+			if ( -e $file2 ) {
+				# this is likely a UMI fastq file, check sizes
+				my $size1 = (stat $file)[7];
+				my $size2 = (stat $file2)[7];
+				if ( $size1 > ($size2 * 3) ) {
+					# yes, most likely
+					$pairedID = 2;
+				}
+			}
+		}
 	}
 	# new style index: 15603X1_181116_A00421_0025_AHFM7FDSXX_S4_L004_I1_001.fastq.gz
-	elsif ($file =~ m/^ (\d{4,5} [xX] \d+) _\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _I\d _001 \. fastq \.gz$/x) {
+	elsif ($file =~ m/^ (\d{4,5} [xX] \d+) _\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _I(\d) _001 \. fastq \.gz$/x) {
+		$type = 'fastq';
 		$sample = $1;
 		$machineID = $2;
 		$laneID = $3;
-		$pairedID = 3;
+		$pairedID = "index$4";
 	}
 	# new old style HiSeq: 15079X10_180427_D00294_0392_BCCEA1ANXX_R1.fastq.gz
 	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _\d+ _( [ADM]\d+ ) _\d+ _[A-Z\d\-]+ _R(\d) \. (?: txt | fastq ) \.gz$/x){
+		$type = 'fastq';
 		$sample = $1;
 		$machineID = $2;
 		$laneID = 1;
@@ -619,12 +563,14 @@ sub callback {
 	}
 	# old style, single-end: 15455X2_180920_D00294_0408_ACCFVWANXX_2.txt.gz
 	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _\d+ _( [ADM] \d+ ) _\d+ _[A-Z\d]+ _(\d) \.txt \.gz $/x) {
+		$type = 'fastq';
 		$sample = $1;
 		$machineID = $2;
 		$laneID = $3;
 	}
 	# old style, paired-end: 15066X1_180427_D00294_0392_BCCEA1ANXX_5_1.txt.gz
 	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _\d+ _( [ADM] \d+ ) _\d+ _[A-Z\d]+ _(\d) _[12] \.txt \.gz$/x) {
+		$type = 'fastq';
 		$sample = $1;
 		$machineID = $2;
 		$laneID = $3;
@@ -632,6 +578,7 @@ sub callback {
 	}
 	# 10X genomics and MiSeq read file: 15454X1_S2_L001_R1_001.fastq.gz, sometimes not gz????
 	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _S\d+ _L(\d+) _R(\d) _001 \.fastq (?:\.gz)? $/x) {
+		$type = 'fastq';
 		$sample = $1;
 		$laneID = $2;
 		$pairedID = $3;
@@ -642,10 +589,11 @@ sub callback {
 		}
 	}
 	# 10X genomics index file: 15454X1_S2_L001_I1_001.fastq.gz
-	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _S\d+ _L(\d+) _I1 _001 \.fastq \.gz $/x) {
+	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _S\d+ _L(\d+) _I(\d) _001 \.fastq \.gz $/x) {
+		$type = 'fastq';
 		$sample = $1;
 		$laneID = $2;
-		$pairedID = 3;
+		$pairedID = "index$3";
 		# must grab the machine ID from the read name
 		my $head = qx(gzip -dc $file | head -n 1);
 		if ($head =~ /^ @ ( [ADM]\d+ ) :/x) {
@@ -654,6 +602,7 @@ sub callback {
 	}
 	# another MiSeq file: 15092X7_180424_M00736_0255_MS6563328-300V2_R1.fastq.gz
 	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _\d+ _( [ADM] \d+ ) _\d+ _[A-Z\d\-]+ _R(\d) \.fastq \.gz $/x) {
+		$type = 'fastq';
 		$sample = $1;
 		$machineID = $2;
 		$pairedID = $3;
@@ -661,6 +610,7 @@ sub callback {
 	}
 	# crazy name: GUPTA_S1_L001_R1_001.fastq.gz
 	elsif ($file =~ m/^ ( \w+ ) _S\d+ _L(\d+) _R(\d )_00\d \.fastq \.gz $/x) {
+		$type = 'fastq';
 		$sample = $1;
 		$laneID = $2;
 		$pairedID = $3;
@@ -671,10 +621,11 @@ sub callback {
 		}
 	}
 	# crazy index: GUPTA_S1_L001_I1_001.fastq.gz
-	elsif ($file =~ m/^ ( \w+ ) _S\d+ _L(\d+) _I\d _00\d \.fastq \.gz $/x) {
+	elsif ($file =~ m/^ ( \w+ ) _S\d+ _L(\d+) _I(\d) _00\d \.fastq \.gz $/x) {
+		$type = 'fastq';
 		$sample = $1;
 		$laneID = $2;
-		$pairedID = 3;
+		$pairedID = "index$3";
 		# must grab the machine ID from the read name
 		my $head = qx(gzip -dc $file | head -n 1);
 		if ($head =~ /^ @ ( [ADM]\d+ ) :/x) {
@@ -683,6 +634,7 @@ sub callback {
 	}
 	# really old single-end file: 9428X9_120926_SN1117_0117_AC168KACXX_8.txt.gz
 	elsif ($file =~ m/^ ( \d{4,5} [xX] \d+ ) _\d+ _SN\d+ _\d+ _[A-Z\d]+ _(\d) \.txt \.gz $/x) {
+		$type = 'fastq';
 		$sample = $1;
 		$laneID = $2;
 		$pairedID = 1;
@@ -694,6 +646,7 @@ sub callback {
 	}
 	# undetermined file: Undetermined_S0_L001_R1_001.fastq.gz
 	elsif ($file =~ m/^ Undetermined _.+ \.fastq \.gz $/x) {
+		$type = 'fastq';
 		$sample = 'undetermined';
 		if ($file =~ m/_L(\d+)/) {
 			$laneID = $1;
@@ -709,6 +662,7 @@ sub callback {
 	}
 	# I give up! catchall for other weirdo fastq files!!!
 	elsif ($file =~ m/ .+ \. (?: fastq | fq ) \.gz $/xi) {
+		$type = 'fastq';
 		# I can't extract metadata information
 		# but at least it will get recorded in the manifest and list files
 		print "   ! processing unrecognized Fastq file $fname\n";
@@ -749,8 +703,12 @@ m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 [\._] .* \. (?: t
 	}
 	elsif ($fname =~ /^ \. \/ Fastq \/ .+ \. (?: xml | csv ) $/x) {
 		# other left over files from de-multiplexing
-		print "   ! skipping demultiplexing file $fname\n";
-		return;
+		print "   ! leftover demultiplexing file $fname\n";
+		$type = 'document';
+		$sample = q();
+		$laneID = q();
+		$pairedID = q();
+		$machineID = q();
 	}
 	elsif ($file eq $Project->ziplist_file) {
 		# really old projects might still have these - keep it
@@ -776,6 +734,7 @@ m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 [\._] .* \. (?: t
 	
 	### Record the collected file information
 	$filedata{$fname}{clean} = $clean_name;
+	$filedata{$fname}{type} = $type;
 	$filedata{$fname}{sample} = $sample;
 	$filedata{$fname}{library} = $library;
 	$filedata{$fname}{machineID} = $machineID;
@@ -788,129 +747,6 @@ m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 [\._] .* \. (?: t
 }
 
 
-sub upload_files {
-	
-	### Grab missing information
-	unless ($userfirst and $userlast and $strategy) {
-		# this can be grabbed from the first data line in the manifest CSV
-		my $fh = IO::File->new($Project->manifest_file) or die "unable to read manifest file!";
-		my $h = $fh->getline;
-		my $l = $fh->getline;
-		my @d = split(/,/, $l);
-		$userfirst = $d[9];
-		$userlast  = $d[10];
-		$strategy  = $d[8];
-		$fh->close;
-	}
-	
-	### Initialize SB wrapper
-	my $sb = Net::SB->new(
-		div     => $sb_division,
-		cred    => $cred_path,
-	) or die "unable to initialize SB wrapper module!";
-	$sb->verbose(1) if $verbose;
-	
-	
-	### Create the project on Seven Bridges
-	# first check whether it exists
-	# use lower case to mimic the short name that would be used.
-	my $sbproject = $sb->get_project(lc($Project->id));
-	
-	# create the project if it doesn't exist
-	if (defined $sbproject) {
-		# we must be picking up from a previous upload
-		printf "   > using existing SB project %s\n", $sbproject->id;
-	}
-	else {
-		
-		# check description
-		if (not $description) {
-			# generate simple description in markdown
-			$description = sprintf "# %s\n## %s\n GNomEx project %s is a %s experiment generated by %s %s",
-				$Project->id, $title, $Project->id, $strategy, $userfirst, $userlast;
-			if ($group) {
-				$description .= " in the group '$group'. ";
-			}
-			else {
-				$description .= ". ";
-			}
-			$description .= sprintf("Details on the experiment may be found in [GNomEx](https://hci-bio-app.hci.utah.edu/gnomex/?requestNumber=%s).\n", 
-				$Project->id);
-			$description .= "\n**Warning:** After these files are removed from GNomEx, these may be your only copies. Do not delete!\n";
-		}
-		
-		# create project
-		$sbproject = $sb->create_project(
-			name        => $Project->id,
-			description => $description,
-		);
-		if ($sbproject and $sbproject->id) {
-			printf "   > created SB project %s\n", $sbproject->id;
-			# rename the project to something more meaningful
-			$sbproject->update(
-				name => sprintf("%s: $title", $Project->id)
-			);
-		}
-		else {
-			print "   ! failed to make SB project!\n";
-			$failure_count++;
-			return;
-		}
-	}
-	print "     Ready for upload\n";
-	
-	return 1;
-}
-
-
-sub add_user_to_sb_project {
-	my ($division, $sbproject) = @_;
-	
-	# find division member
-	my $divMember;
-	foreach my $member ($division->list_members) {
-		if (lc($member->email) eq lc($email_address)) {
-			# email matches, that was easy!
-			$divMember = $member;
-			last;
-		}
-		elsif (
-			lc($member->last_name) eq lc($userlast) and 
-			lc($member->first_name) eq lc($userfirst)
-		) {
-			# first and last names match
-			$divMember = $member;
-			last;
-		}
-	}
-	return unless ($divMember);
-	
-	# check if user is already a member of project
-	foreach my $member ($sbproject->list_members) {
-		if ($member->username eq $divMember->username) {
-			# user is already a member of this project!
-			# nothing more needs to be done
-			return $member->username;
-		}
-	}
-	
-	# otherwise add member with full permissions
-	my @permissions = (
-		'read'      => 'true',
-		'copy'      => 'true',
-		'write'     => 'true',
-		'execute'   => 'true',
-		'admin'     => 'true'
-	);
-	my $pMember = $sbproject->add_member($divMember, @permissions);
-	if ($pMember) {
-		return $pMember->username;
-	}
-	
-	return;
-}
-
-
 
 
 __END__
@@ -918,7 +754,7 @@ __END__
 =head1 AUTHOR
 
  Timothy J. Parnell, PhD
- Dept of Oncological Sciences
+ Cancer Bioinformatics Shared Resource
  Huntsman Cancer Institute
  University of Utah
  Salt Lake City, UT, 84112
