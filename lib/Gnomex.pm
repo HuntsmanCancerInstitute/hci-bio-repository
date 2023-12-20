@@ -7,8 +7,9 @@ use IO::File;
 use File::Spec;
 use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
+use hciCore qw( generate_prefix generate_bucket );
 
-our $VERSION = 5.4;
+our $VERSION = 6.0;
 
 
 
@@ -117,8 +118,8 @@ sub new {
 		my $header = $fh->getline;
 		
 		# check header
-		unless ($header =~ /^ Name \t Email \t Allow.Upload \t SB.Division $/x) {
-			croak "lab division file must have four columns: Name, Email, Allow_Upload, SB_Division\n";
+		unless ($header =~ /^ Name \t Email \t Allow.Upload \t CORE.Lab \t Profile $/x) {
+			croak "lab information file must have file columns: Name, Email, Allow_Upload, CORE_Lab, Profile\n";
 		}
 		
 		# load lab information
@@ -210,29 +211,39 @@ sub fetch_analyses {
 			# an existing project, just need to update 
 			my $u = 0;
 			
-			# basically check to see if we have a sb lab division
+			# basically check to see if we have a CORE lab
 			if ($E->external eq 'N') {
 				# for university clients only
+
+				if ( $row[7] ne $E->lab_first or $row[8] ne $E->lab_last ) {
+					$E->lab_first($row[7]);
+					$E->lab_last($row[8]);
+					printf "  > updating lab name %s %s for %s\n", $E->lab_first, 
+						$E->lab_last, $E->id;
+					$u++;
+				}
 				my $lab = sprintf("%s %s", $row[7], $row[8]);
 				if (exists $lab2info->{$lab}) {
 					
-					# check SBG division
+					# check CORE lab status
 					if (
 						# check length of values to ensure comparing real values
 						# also, skip if it's already been uploaded
-						(length($E->division) > 1 or length($lab2info->{$lab}->[2]) > 1)
-						and $E->division ne $lab2info->{$lab}->[2]
+						(length($E->core_lab) > 1 or length($lab2info->{$lab}->[2]) > 1)
+						and $E->core_lab ne $lab2info->{$lab}->[2]
 						and not $E->upload_datestamp
 					) {
 						# there's a difference here
 						# we assume the lab information file is correct and updated
 						if ($lab2info->{$lab}->[1] eq 'Y') {
-							printf "  > updating division for %s from '%s' to '%s'\n", $row[0], $E->division, $lab2info->{$lab}->[2];
-							$E->division($lab2info->{$lab}->[2]);
+							printf "  > updating CORE Lab for %s from '%s' to '%s'\n",
+								$row[0], $E->core_lab, $lab2info->{$lab}->[2];
+							$E->core_lab($lab2info->{$lab}->[2]);
+							$E->profile( $lab2info->{$lab}->[3] );
 							$u++;
 						}
-						elsif ($lab2info->{$lab}->[1] eq 'N' and length($E->division) > 1) {
-							printf "  ! mismatched division '%s' for %s\n", $E->division, $row[0];
+						elsif ($lab2info->{$lab}->[1] eq 'N' and length($E->core_lab) > 1) {
+							printf "  ! mismatched CORE Lab '%s' for %s\n", $E->core_lab, $row[0];
 						}
 					}
 					
@@ -252,12 +263,37 @@ sub fetch_analyses {
 				}
 			}
 			
-			# check user email address
+			# check user info
 			if ($row[4] ne $E->user_email) {
 				printf "  > updating user %s %s email address for %s\n", $E->user_first, 
 					$E->user_last, $E->id;
 				$E->user_email($row[4]);
 				$u++;
+			}
+			if ( $row[5] ne $E->user_first or $row[6] ne $E->user_last ) {
+				$E->user_first($row[5]);
+				$E->user_last($row[6]);
+				printf "  > updating user name %s %s for %s\n", $E->user_first, 
+					$E->user_last, $E->id;
+				$u++;
+			}
+			
+			# update project name and group
+			if ($row[1] ne $E->name) {
+				printf "  > updating project name for %s\n", $E->id;
+				$E->name($row[1]);
+				$u++;
+				if ( $E->core_lab and $E->upload_datestamp < 1000 ) {
+					generate_prefix($E);
+				}
+			}
+			if ($row[3] ne $E->group) {
+				printf "  > updating project group for %s\n", $E->id;
+				$E->group($row[3]);
+				$u++;
+				if ( $E->core_lab and $E->upload_datestamp < 1000 ) {
+					generate_bucket($E);
+				}
 			}
 			
 			# add to return lists
@@ -291,7 +327,7 @@ sub fetch_analyses {
 			$E->organism($row[11]);
 			$E->genome($row[12]);
 		
-			# external lab and division information
+			# lab information
 			if ($row[9] eq 'Y' or $row[10] eq 'Y') {
 				$E->external('Y');
 			}
@@ -304,7 +340,11 @@ sub fetch_analyses {
 					$E->pi_email($lab2info->{$lab}->[0]);
 					if ($lab2info->{$lab}->[1] eq 'Y') {
 						# we're allowed to upload
-						$E->division($lab2info->{$lab}->[2]);
+						$E->core_lab($lab2info->{$lab}->[2]);
+						$E->profile( $lab2info->{$lab}->[3] );
+						# generate bucket and prefix
+						generate_bucket($E);
+						generate_prefix($E);
 					}
 				}
 				else {
@@ -389,19 +429,22 @@ sub fetch_requests {
 					if (
 						# check length of values to ensure comparing real values
 						# also, skip if it's already been uploaded
-						(length($E->division) > 1 or length($lab2info->{$lab}->[2]) > 1)
-						and $E->division ne $lab2info->{$lab}->[2]
+						(length($E->core_lab) > 1 or length($lab2info->{$lab}->[2]) > 1)
+						and $E->core_lab ne $lab2info->{$lab}->[2]
 						and not $E->upload_datestamp
 					) {
 						# there's a difference here
 						# we assume the lab information file is correct and updated
 						if ($lab2info->{$lab}->[1] eq 'Y') {
-							printf "  > updating division for %s from '%s' to '%s'\n", $row[0], $E->division, $lab2info->{$lab}->[2];
-							$E->division($lab2info->{$lab}->[2]);
+							printf "  > updating CORE lab for %s from '%s' to '%s'\n",
+								$row[0], $E->core_lab, $lab2info->{$lab}->[2];
+							$E->core_lab($lab2info->{$lab}->[2]);
+							$E->profile( $lab2info->{$lab}->[3] );
 							$u++;
 						}
-						elsif ($lab2info->{$lab}->[1] eq 'N' and length($E->division) > 1) {
-							printf "  ! mismatched division '%s' for %s\n", $E->division, $row[0];
+						elsif ($lab2info->{$lab}->[1] eq 'N' and length($E->core_lab) > 1) {
+							printf "  ! mismatched CORE Lab '%s' for %s\n", 
+								$E->core_lab, $row[0];
 						}
 					}
 					
@@ -436,6 +479,24 @@ sub fetch_requests {
 				$u++;
 			}
 			
+			# update project name and group
+			if ($row[1] ne $E->name) {
+				printf "  > updating project name for %s\n", $E->id;
+				$E->name($row[1]);
+				$u++;
+				if ( $E->core_lab and $E->upload_datestamp < 1000 ) {
+					generate_prefix($E);
+				}
+			}
+			if ($row[3] ne $E->group) {
+				printf "  > updating project group for %s\n", $E->id;
+				$E->group($row[3]);
+				$u++;
+				if ( $E->core_lab and $E->upload_datestamp < 1000 ) {
+					generate_bucket($E);
+				}
+			}
+			
 			# add to return lists
 			if ($u) {
 				push @update_list, $row[0];
@@ -467,20 +528,24 @@ sub fetch_requests {
 			$E->request_status($row[11]);
 			$E->request_application($row[12]);
 		
-			# external lab and division information
+			# lab information
 			if ($row[9] eq 'Y' or $row[10] eq 'Y') {
 				$E->external('Y');
 			}
 			else {
 				# not an external lab
 				$E->external('N');
-				# check SB division information
+				# check CORE lab information
 				my $lab = sprintf("%s %s", $row[7], $row[8]);
 				if (exists $lab2info->{$lab}) {
 					$E->pi_email($lab2info->{$lab}->[0]);
 					if ($lab2info->{$lab}->[1] eq 'Y') {
 						# we're allowed to upload
-						$E->division($lab2info->{$lab}->[2]);
+						$E->core_lab($lab2info->{$lab}->[2]);
+						$E->profile( $lab2info->{$lab}->[3] );
+						# generate bucket and prefix
+						generate_bucket($E);
+						generate_prefix($E);
 					}
 				}
 				else {
