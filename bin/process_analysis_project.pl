@@ -9,13 +9,11 @@ use POSIX qw(strftime);
 use Getopt::Long;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
-use Net::SB;
 use RepoProject;
 use RepoCatalog;
-use Emailer;
 
 
-our $VERSION = 5.8;
+our $VERSION = 6.0;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -26,15 +24,13 @@ use vars qw(*fname);
 ######## Documentation
 my $doc = <<END;
 
-A script to process GNomEx Analysis project folders for 
-Seven Bridges upload.
+A script to process GNomEx Analysis project folders.
 
-It will inventory files, classify them based on known file 
-type extensions, and calculate basic metadata, including size 
-in bytes, date, and MD5 checksum. It will write a CSV manifest 
-file. It will also a write a list of all files targeted for 
-deletion at a later date. The deletion list file is written in 
-the parent directory.
+It will recursively scan and inventory files, classifying them based on
+known file type extensions, and calculate basic metadata, including size in
+bytes, date, and MD5 checksum. It will write a CSV manifest file containing
+all of this metadata. It will also a write a list of all files targeted for
+deletion at a later date in the parent directory.
 
 Options to compress and/or archive small files are available. 
 Known file types that exceed a minimum specified size may be gzip 
@@ -43,19 +39,10 @@ and compressed files, may be stored into a single Zip archive.
 Files that are zip archived are automatically moved into a hidden 
 folder in the parent directory.
 
-This requires collecting data from the GNomEx LIMS database and 
-passing certain values on to this script for inclusion as metadata 
-in the metadata Manifest CSV file. However, the current bulk 
-uploader does not simultaneously handle CSV metadata and recursive 
-paths. Therefore metadata is not set upon uploading to Seven Bridges.
-
-A catalog database file may be provided to automatically retrieve 
-metadata given a project identifier.
-
-A Seven Bridges Project is automatically generated when uploading,
-using the project identifier as the name. A Markdown description is
-generated for the Project using the GNomEx metadata, including user
-name, title, group name, and genome version. 
+This requires collecting some metadata from the GNomEx LIMS database 
+for inclusion in the metadata Manifest CSV file. If not directly provided,
+a catalog database file may be provided to automatically retrieve 
+the data given the project identifier.
 
 Version: $VERSION
 
@@ -66,22 +53,10 @@ Example Usage:
 
 Options:
 
- Main functions - not exclusive
-    --scan              Scan the project folder and generate the manifest
-                          also zip archives and/or compresses files
-    --upload            Prepare the project for upload
-    --hide              Hide the deleted files in hidden folder
-
  Metadata
     --cat <path>        Provide path to metadata catalog database
     --first <text>      User first name for the owner of the project
     --last <text>       User last name for the owner of the project
-    --email <text>      User email address for notifications
-    --title "text"      GNomEx Request Name or title. This is a long text 
-                        field, so must be protected by quoting. It will 
-                        become the name of SB project.
-    --group "text"      GNomEx Request group or ProjectName. This is a long 
-                        text field, so must be protected by quoting.
     --species "text"    Specify the species, such as Homo sapiens or 
                         Mus musculus. Also accepts: human, 
                         mouse, rat, yeast, zebrafish, worm.
@@ -91,20 +66,9 @@ Options:
  Options
     --zip               Zip archive small files when scanning
     --all               Mark everything, including Analysis files, for deletion
-    --desc "text"       Description for new SB project when uploading. 
-                        Can be Markdown text.
     --keepzip           Do not hide files that have been zip archived
     --delzip            Immediately delete files that have been zip archived
-    --notify            Send email to user and PI when uploading
     --verbose           Tell me everything!
- 
- Seven Bridges
-    --division <text>   The Seven Bridges division name. 
-
- Paths
-    --cred <path>       Path to the Seven Bridges credentials file. 
-                        Default is ~/.sevenbridges/credentials. Each profile 
-                        should be named after the SB division.
 
 END
 
@@ -112,25 +76,17 @@ END
 
 ######## Process command line options
 my $path;
-my $scan;
+my $scan = 1;
 my $zip;
-my $hide_files;
-my $upload;
 my $cat_file;
 my $userfirst           = q();
 my $userlast            = q();
-my $email_address       = q();
-my $title               = q();
-my $group               = q();
 my $species             = q();
 my $genome              = q();
 my $description         = q();
 my $max_zip_size        = 200000000; # 200 MB
 my $keepzip             = 0;
 my $deletezip           = 0;
-my $sb_division         = q();
-my $cred_path           = q();
-my $send_email;
 my $everything;
 my $verbose;
 
@@ -138,23 +94,15 @@ if (scalar(@ARGV) > 1) {
 	GetOptions(
 		'scan!'         => \$scan,
 		'zip!'          => \$zip,
-		'hide!'         => \$hide_files,
-		'upload!'       => \$upload,
-		'catalog=s'     => \$cat_file,
+		'c|catalog=s'   => \$cat_file,
 		'first=s'       => \$userfirst,
 		'last=s'        => \$userlast,
-		'email=s'       => \$email_address,
-		'title=s'       => \$title,
-		'group=s'       => \$group,
 		'species=s'     => \$species,
 		'genome=s'      => \$genome,
 		'desc=s'        => \$description,
 		'keepzip!'      => \$keepzip,
 		'delzip!'       => \$deletezip,
-		'notify!'       => \$send_email,
 		'all!'          => \$everything,
-		'division=s'    => \$sb_division,
-		'cred=s'        => \$cred_path,
 		'verbose!'      => \$verbose,
 	) or die "please recheck your options!\n\n";
 }
@@ -193,23 +141,11 @@ if ($cat_file) {
 		if (not $userlast) {
 			$userlast = $Entry->user_last;
 		}
-		if (not $email_address) {
-			$email_address = $Entry->user_email;
-		}
-		if (not $title) {
-			$title = $Entry->name;
-		}
-		if (not $group) {
-			$group = $Entry->group;
-		}
 		if (not $species) {
 			$species = $Entry->organism;
 		}
 		if (not $genome) {
 			$genome = $Entry->genome;
-		}
-		if (not $sb_division) {
-			$sb_division = $Entry->division;
 		}
 		$path = $Entry->path;
 	}
@@ -218,10 +154,6 @@ if ($cat_file) {
 	}
 }
 
-if ($upload) {
-	die "must provide a SB division name or Catalog db file!\n" unless $sb_division;
-	die "must provide a title for SB project or Catalog db file!\n" unless $title;
-}
 if ($keepzip and $deletezip) {
 	die "must choose one: --keepzip or --delzip   Not both!!!\n";
 }
@@ -385,7 +317,6 @@ printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
 
 # application paths
 if ($verbose) {
-	print " => SB credentials path: $cred_path\n" if $cred_path;
 	print " =>    gzip compression: $gzipper\n";
 	print " =>   bgzip compression: $bgzipper\n";
 	print " =>         zip utility: $zipper\n";
@@ -417,17 +348,9 @@ if (-e $Project->zip_folder) {
 
 # removed file hidden folder
 if (-e $Project->delete_folder) {
-	if ($hide_files) {
-		print " ! deleted files hidden folder already exists! Will not move deleted files\n";
-		$hide_files = 0; # do not want to move zipped files
-	} 
 	if ($scan) {
 		print "! cannot re-scan if deleted files hidden folder exists!\n";
 		$scan = 0;
-	}
-	if ($upload) {
-		print "! cannot upload if deleted files hidden folder exists!\n";
-		$upload = 0;
 	}
 }
 
@@ -461,38 +384,6 @@ if ($scan) {
 		}
 	}
 }
-
-
-# upload files to Seven Bridges
-if ($upload and not $failure_count) {
-	if (-e $Project->manifest_file) {
-		printf " > uploading project %s files to $sb_division\n", $Project->id;
-		upload_files();
-		
-		# re-calculate the size here for email notification
-		# must do it before the directory is cleaned up below
-		($post_zip_size, undef) = $Project->get_size_age;
-	}
-	else {
-		print " ! No manifest file! Cannot upload files\n";
-		$failure_count++;
-	}
-}
-
-
-# hide files
-if ($hide_files and not $failure_count) {
-	if (-e $Project->alt_remove_file) {
-		printf " > moving project %s files to %s\n", $Project->id, 
-			$Project->delete_folder;
-		$failure_count += $Project->hide_deleted_files;
-	}
-	else {
-		print " ! No deleted files to hide\n";
-		$failure_count++;
-	}
-}
-
 
 
 ######## Finished
@@ -1079,138 +970,6 @@ sub get_file_stats {
 }
 
 
-sub upload_files {
-	
-	### Grab missing information
-	unless ($userfirst and $userlast) {
-		# this can be grabbed from the first data line in the manifest CSV
-		my $fh = IO::File->new($Project->manifest_file) or die "unable to read manifest file!";
-		my $h = $fh->getline;
-		my $l = $fh->getline;
-		my @d = split(/,/, $l);
-		$userfirst = $d[4];
-		$userlast  = $d[5];
-		$fh->close;
-	}
-	
-	### Initialize SB wrapper
-	my $sb = Net::SB->new(
-		div     => $sb_division,
-		cred    => $cred_path,
-	) or die "unable to initialize SB wrapper module!";
-	$sb->verbose(1) if $verbose;
-	
-	
-	### Create the project on Seven Bridges
-	# first check whether it exists
-	# use lower case to mimic the short name that would be used.
-	my $sbproject = $sb->get_project(lc($Project->id));
-	
-	
-	# create the project if it doesn't exist
-	if (defined $sbproject) {
-		# we must be picking up from a previous upload
-		printf "   > using existing SB project %s\n", $sbproject->id;
-	}
-	else {
-		# generate description in markdown as necessary
-		if (not $description) {
-			# compose title and description paragraph
-			$description = sprintf "# %s\n## %s\n GNomEx project %s is an Analysis project for %s %s",
-				$Project->id, $title, $Project->id, $userfirst, $userlast;
-			if ($group) {
-				$description .= " in the group '$group'. ";
-			}
-			else {
-				$description .= '. ';
-			}
-			if ($sb_species and $sb_genome) {
-				$description .= "Analysis files are for species $sb_species, genome build version $sb_genome. ";
-			}
-			$description .= sprintf("Details on the experiment may be found in [GNomEx](https://hci-bio-app.hci.utah.edu/gnomex/?analysisNumber=%s).\n",
-				$Project->id);
-			
-			# zip instructions
-			if (-e $Project->zip_file) {
-				# project was zipped up, so include instructions
-				$description .= sprintf "\nSmall analysis files are zipped into the `%s` file, the contents of which are listed in the `%s` file. This is to ease and facilitate file transfer and Glacial archiving. You may download the zip file and extract the contents to reconstitute the original GNomEx contents with folder structure intact.\n", $Project->zip_file, $Project->ziplist_file;
-			}
-			
-			# warning
-			$description .= "\n**Warning:** After these files are removed from GNomEx, these may be your only copies. Do not delete!\n";
-		}
-		
-		# create project
-		$sbproject = $sb->create_project(
-			name        => $Project->id,
-			description => $description,
-		);
-		if ($sbproject and $sbproject->id) {
-			printf "   > created SB project %s\n", $sbproject->id;
-			# rename the project to something more meaningful
-			$sbproject->update(
-				name => sprintf("%s: $title", $Project->id)
-			);
-		}
-		else {
-			print "   ! failed to make SB project\n";
-			$failure_count++;
-			return;
-		}
-	}
-	print "     Ready for upload\n";
-	
-	return 1;
-}
-
-
-sub add_user_to_sb_project {
-	my ($division, $sbproject) = @_;
-	
-	# find division member
-	my $divMember;
-	foreach my $member ($division->list_members) {
-		if (lc($member->email) eq lc($email_address)) {
-			# email matches, that was easy!
-			$divMember = $member;
-			last;
-		}
-		elsif (
-			lc($member->last_name) eq lc($userlast) and 
-			lc($member->first_name) eq lc($userfirst)
-		) {
-			# first and last names match
-			$divMember = $member;
-			last;
-		}
-	}
-	return unless ($divMember);
-	
-	# check if user is already a member of project
-	foreach my $member ($sbproject->list_members) {
-		if ($member->username eq $divMember->username) {
-			# user is already a member of this project!
-			# nothing more needs to be done
-			return $member->username;
-		}
-	}
-	
-	# otherwise add member with full permissions
-	my @permissions = (
-		'read'      => 'true',
-		'copy'      => 'true',
-		'write'     => 'true',
-		'execute'   => 'true',
-		'admin'     => 'true'
-	);
-	my $pMember = $sbproject->add_member($divMember, @permissions);
-	if ($pMember) {
-		return $pMember->username;
-	}
-	
-	return;
-}
-
 
 
 
@@ -1219,7 +978,7 @@ __END__
 =head1 AUTHOR
 
  Timothy J. Parnell, PhD
- Dept of Oncological Sciences
+ Cancer Bioinformatics Shared Resource
  Huntsman Cancer Institute
  University of Utah
  Salt Lake City, UT, 84112
