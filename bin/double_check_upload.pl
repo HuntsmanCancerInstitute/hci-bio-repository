@@ -29,6 +29,7 @@ Example usage:
 double_check_upload.pl <catalog_file> <list_file.txt>
 
 DOC
+	exit 0;
 }
 
 my $cat_file = shift;
@@ -79,11 +80,11 @@ foreach my $id (@list) {
 	}
 	else {
 		# no upload stamp
-		if ($Entry->division) {
-			printf " ! $id has no upload date but has division %s!\n", $Entry->division;
+		if ($Entry->core_lab) {
+			printf " ! $id has no upload date but has CORE lab %s!\n", $Entry->core_lab;
 		}
 		else {
-			print " > $id has no division and was not uploaded\n";
+			print " > $id has no CORE lab and was not uploaded\n";
 		}
 	}
 }
