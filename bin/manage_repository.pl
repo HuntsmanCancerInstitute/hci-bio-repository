@@ -99,6 +99,7 @@ OPTIONS
   Actions on projects:
     --scan                    Scan the project directory and write METADATA
     --zip                     Zip archive Analysis files during scan
+    --upload                  Upload projects to CORE lab AWS bucket
 
   Actions on project directories:
     --hide_zip                Hide the zipped files to _ZIPPED_FILES folder
@@ -1088,21 +1089,6 @@ sub run_project_actions {
 			if ($project_zip and substr($id, 0, 1) eq 'A') {
 				$command .= " --zip";
 			}
-			if ($project_upload) {
-				$command .= " --upload";
-				if ($email_anal_up or $email_req_up) {
-					$command .= " --notify";
-				}
-			}
-			if ($move_del_files) {
-				$command .= " --hide";
-			}
-			if ($sbup_path) {
-				$command .= " --sbup $sbup_path";
-			}
-			if ($cred_path) {
-				$command .= " --cred $cred_path";
-			}
 			if ($verbose) {
 				$command .= " --verbose";
 			}
@@ -1112,64 +1098,75 @@ sub run_project_actions {
 		}
 		
 		# reset the actions already done
-		if ($project_upload and ($email_anal_up or $email_req_up)) {
-			$email_anal_up = 0;
-			$email_req_up  = 0;
-		}
 		$move_del_files = 0;
 		$move_zip_files = 0 if $project_zip; # automatically done
 	}
 	
-	# upload the project to Seven Bridges
-	if ($project_upload and not $project_scan) {
-		print " Uploading projects...\n";
+	# upload the project
+	if ($project_upload) {
+		print " Preparing projects for upload...\n";
 		unless (@action_list) {
 			die "No list provided to update division name!\n";
 		}
+
+		# prepare valid project upload list
+		my @upload_list;
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
-			
-			# generate the command for external utility
-			# these will be executed one at a time
-			my $command;
-			if ($id =~ /^A\d+$/) {
-				$command = "$Bin/process_analysis_project.pl";
-			}
-			elsif ($id =~ /^\d+R\d?$/) {
-				$command = "$Bin/process_request_project.pl";
-			}
-			else {
-				warn "unrecognized project id! skipping\n";
+			my $Entry = $Catalog->entry($id);
+			unless ($Entry) {
+				print " ! Identifier $id not in Catalog! skipping\n";
 				next;
 			}
-			$command .= sprintf(" --catalog %s --upload", $cat_file);
-			if ($email_anal_up or $email_req_up) {
-				$command .= " --notify";
+			unless ($Entry->core_lab) {
+				print " ! $id is not assigned to a CORE lab\n";
+				next;
 			}
-			if ($move_del_files) {
-				$command .= " --hide";
+			unless ($Entry->profile) {
+				print " ! $id does not have an AWS profile\n";
+				next;
 			}
-			if ($sbup_path) {
-				$command .= " --sbup $sbup_path";
+			unless ($Entry->bucket) {
+				print " ! $id is not assigned a destination bucket\n";
+				next;
 			}
-			if ($cred_path) {
-				$command .= " --cred $cred_path";
+			unless ($Entry->prefix) {
+				print " ! $id is not assigned a destination prefix\n";
+				next;
 			}
+			unless ($Entry->scan_datestamp) {
+				print " ! $id has not been scanned yet\n";
+				next;
+			}
+			unless ( $Entry->scan_datestamp > $Entry->youngest_age ) {
+				# this is not a fool proof test without initiating a real scan, 
+				# but it's better than nothing
+				# go ahead and proceed with a warning
+				print " ! $id has new files since last scan\n";
+			}
+
+			push @upload_list, $id;
+		}
+		printf " > %d projects to upload: %s\n", scalar @upload_list,
+			join(', ', @upload_list);
+
+		# run upload tool
+		foreach my $id (@upload_list) {
+			my $command = sprintf "%s/upload_repo_projects.pl --catalog %s --project %s",
+				$Bin, $cat_file, $id;
 			if ($verbose) {
 				$command .= " --verbose";
 			}
-			$command .= " $id";
-			print " Executing $command\n";
+			if ($mock) {
+				# Not the actual mock command, which goes through the entire forking
+				# and dryrun aws s3 commands. Instead just checks bucket and counts
+				# number of files to upload, which is what we really want here. 
+				$command .= " --check";
+			}
+			print "\n Executing $command\n";
 			system($command);
 		}
-		
-		# reset the actions already done
-		if ($email_anal_up or $email_req_up) {
-			$email_anal_up = 0;
-			$email_req_up  = 0;
-		}
-		$move_del_files = 0;
 	}
 }
 
