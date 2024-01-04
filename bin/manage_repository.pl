@@ -15,7 +15,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 6.0;
+our $VERSION = 6.1;
 
 
 ######## Documentation
@@ -75,7 +75,9 @@ OPTIONS
     --list_anal_hide          Print or work on Analysis IDs for hiding
     --list_anal_delete        Print or work on Analysis IDs for deletion
     --list_lab <pi_lastname>  Print or select based on PI last name
-    --list_all                Apply to all catalog entries
+    --list_req                Print or select all request catalog entries
+    --list_anal               Print or select all analysis catalog entries
+    --list_all                Print or select all catalog entries
   
   Catalog selection modifiers:
     --year <YYYY>             Select entries to given year or newer
@@ -171,6 +173,8 @@ my $list_anal_delete = 0;
 my $list_pi = 0;
 my $list_file;
 my $list_all = 0;
+my $list_req = 0;
+my $list_anal = 0;
 my $year;
 my $include_core;
 my $min_age;
@@ -239,6 +243,8 @@ if (scalar(@ARGV) > 1) {
 		'list_anal_delete'      => \$list_anal_delete,
 		'list_lab|list_pi=s'    => \$list_pi,
 		'list_all!'             => \$list_all,
+		'list_anal!'            => \$list_anal,
+		'list_req!'             => \$list_req,
 		'list=s'                => \$list_file,
 		'core!'                 => \$include_core,
 		'year=i'                => \$year,
@@ -338,31 +344,16 @@ sub check_options {
 		die "No catalog file provided!\n";
 	}
 	
-	# request search
-	my $sanity = $list_req_upload + $list_req_hide + $list_req_delete + $list_all + 
-		($list_pi ? 1 : 0);
+	# search functions
+	my $sanity = $list_req_upload + $list_req_hide + $list_req_delete + 
+		$list_anal_upload + $list_anal_hide + $list_anal_delete + $list_all + 
+		$list_req + $list_anal + ($list_pi ? 1 : 0);
 	if ($sanity > 1) {
 		die "Only 1 Request search allowed at a time!\n";
 	}
 	elsif ($sanity == 1) {
 		die "No search functions allowed if exporting!\n" if $dump_file;
 		die "No search functions allowed if importing!\n" if $import_file;
-# 		die "No search functions allowed if fetching from database!\n" if 
-# 			($fetch_analysis or $fetch_request);
-	}
-	
-	# analysis search
-	$sanity = 0;
-	$sanity = $list_anal_upload + $list_anal_hide + $list_anal_delete + $list_all + 
-		($list_pi ? 1 : 0);
-	if ($sanity > 1) {
-		die "Only 1 Analysis search allowed at a time!\n";
-	}
-	elsif ($sanity == 1) {
-		die "No search functions allowed if exporting!\n" if $dump_file;
-		die "No search functions allowed if importing!\n" if $import_file;
-# 		die "No search functions allowed if fetching from database!\n" if 
-# 			($fetch_analysis or $fetch_request);
 	}
 	
 	# print function
@@ -648,8 +639,8 @@ sub generate_list {
 	}
 	
 	# search for all entries
-	elsif ($list_all) {
-		return $Catalog->list_all(
+	elsif ( $list_all or $list_req or $list_anal ) {
+		my @list = $Catalog->list_all(
 			age      => $min_age, 
 			maxage   => $max_age,
 			year     => $year, 
@@ -657,6 +648,15 @@ sub generate_list {
 			external => $external,
 			size     => $min_size,
 		);
+		if ($list_req) {
+			return grep  {m/^\d+R$/} @list;
+		}
+		elsif ($list_anal) {
+			return grep {m/^A\d+$/} @list;
+		}
+		else {
+			return @list;
+		}
 	}
 	
 	# search for requests to upload
