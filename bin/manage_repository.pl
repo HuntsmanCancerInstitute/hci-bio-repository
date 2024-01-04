@@ -277,7 +277,7 @@ if (scalar(@ARGV) > 1) {
 		'mock!'                 => \$mock,
 		'import_anal!'          => \$fetch_analysis,
 		'import_req!'           => \$fetch_request,
-		'update_size!'          => \$import_sizes,
+		'import_size!'          => \$import_sizes,
 		'update_scan=i'         => \$update_scan_date,
 		'update_hide=i'         => \$update_hide_date,
 		'update_up=i'           => \$update_upload_date,
