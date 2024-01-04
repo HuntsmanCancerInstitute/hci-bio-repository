@@ -63,10 +63,10 @@ USAGE
 OPTIONS
 
   Required:
-    --cat <path>              Provide the path to a catalog file
+    --cat <file>              Provide the path to a catalog database file
   
   Catalog entry selection: 
-    --list <path>             File of project identifiers to work on
+    --list <file>             File of project identifiers to work on
                                 may be tab-delimited, only 1st column used
     --list_req_up             Print or work on Request IDs for upload to AWS
     --list_req_hide           Print or work on Request IDs for hiding
