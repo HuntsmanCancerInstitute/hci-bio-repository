@@ -18,21 +18,23 @@ our $VERSION = 1.8;
 my $doc = <<END;
 
 An application to manage Seven Bridges Genomics projects and their files.
+This includes the Cancer Genomics Cloud platform.
 
-It can generate a recursive list of files and directories in a project, 
-including file IDs, size, location, and pathname. Importantly, recursive 
+It can generate a recursive list of files and directories in a project,
+including file IDs, size, location, and pathname. Importantly, recursive
 lists can be generated starting from nested folder if the path is already
-known. File lists can filtered by providing a regular expression. Furthermore, 
-file list output may be redirected to a text file, manipulated as necessary,
-and provided as an input file to this program.
+known. File lists can be filtered by providing a regular expression.
+Furthermore, file list output may be redirected to a text file, manipulated
+as necessary, and provided as an input file to this program.
 
-NOTE: Recursive listing is default behavior. Use --limit option to restrict
-recursive depth.
+NOTE: Recursive listing is default behavior. Use the --limit option to
+restrict recursive depth, or provide a starting folder, especially with
+very large projects.
 
 File manipulation includes generating download URLs, copying files to 
 another project, moving files to a folder within the same project, exporting 
-the files to a mounted volume such as an AWS bucket (either copy-and-link or
-move), or file deletion.
+the files to a mounted volume such as an AWS bucket (either move-and-link or
+copy-only), or file deletion.
 
 This requires a Seven Bridges Developer token, usually stored in the file
 ~/.sevenbridges/credentials. It assumes the profile name is the same as the
@@ -74,9 +76,11 @@ Main function: Pick one only
     -x --export                 Export files to the attached external volume
     -c --copy                   Copy the files to the indicated project
     -m --move                   Move the files to the indicated folder
-                                    (Copy/Move does not currently preserve folders!)
+                                    Copy/Move does not preserve folders!
+                                    See "sbg_async_folder_copy.pl" to do so
     --delete                    DELETE all (selected) files from the project!!!
     --deleteproject             DELETE the project!!!!
+                                    delete functions include a 10 second delay
                                    
 
 Required:
@@ -120,9 +124,9 @@ Options for bulk volume export:
     --wait          <int>       Wait time between status checks (20 seconds)
 
 Options for file copy/move:
-    --destination   <text>      The [project]/[folder] destination.
-                                    Copy should be a project/[folder]
-                                    Move should be a folder within same project
+    --destination   <text>      The [project][/folder] destination.
+                                    Copy should be a project only
+                                    Move should be project/folder
     --new                       Indicate that the destination should be created
 
 General:
