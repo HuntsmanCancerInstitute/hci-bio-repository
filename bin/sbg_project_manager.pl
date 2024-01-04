@@ -250,6 +250,10 @@ else {
 my $OUT;
 if ($output_file) {
 
+	unless ( $output_file =~ /\.txt$/ ) {
+		$output_file .= '.txt';
+		printf "writing output to %s\n", $output_file;
+	}
 	# open indicated output file
 	$OUT = IO::File->new( $output_file, 'w' )
 		or die "unable to open output file '$output_file'! $OS_ERROR\n";
