@@ -11,7 +11,7 @@ use Net::SB;
 use Net::SB::File;
 use Net::SB::Folder;
 
-our $VERSION = 1.7;
+our $VERSION = 1.8;
 
 
 ######## Documentation
@@ -316,14 +316,16 @@ else {
 
 sub check_options {
 	if (scalar @ARGV > 1) {
-		die " Only one SB division/project parameter allowed!\n";
+		print " Only one SB division/project parameter allowed!\n";
+		exit 1;
 	}
 	if (scalar @ARGV == 1 and not $division_name and not $project_name) {
 		my $a = shift @ARGV;
 		($division_name, $project_name, $remote_dir_name) = split m{/}, $a, 3;
 	}
 	unless ($division_name) {
-		die " SBG division name is required!\n";
+		print " SBG division name is required!\n";
+		exit 1;
 	}
 	my $check = $list_files + $download_links + $export_files + $delete_files
 		+ $list_projects + $list_volumes + $sum_files + $copy_files + $move_files
@@ -337,29 +339,34 @@ sub check_options {
 		$check = 1;
 	}
 	if ($check == 0) {
-		die " Must pick a single function: see help!\n";
+		print " Must pick a single function: see help!\n";
+		exit 1;
 	}
 	elsif ($check > 1) {
-		die " Can only pick one function: see help!\n";
+		print " Can only pick one function: see help!\n";
+		exit 1;
 	}
 	if ($recurse_limit > 0) {
 		$print_folders = 1;
 	}
 	if ($copy_files or $move_files) {
 		unless ($destination) {
-			die " Must set a destination with copy or move functions!\n";
+			print " Must set a destination with copy or move functions!\n";
+			exit 1;
 		}
 	}
 	## no critic - doesn't like xx
 	if ( $task_id and $task_id !~ /^ [ \d \- a-z ]+ $/xx ) {
-		die " task id must consist of numbers, letters, and dashes only!\n";
+		print " task id must consist of numbers, letters, and dashes only!\n";
+		exit 1;
 	}
 	## use critic
 	$vol_prefix ||= $project_name;
 
 	if ($download_links and $batch_size) {
 		unless ($output_file) {
-			die " Must define an output file with --out when chunking!\n";
+			print " Must define an output file with --out when chunking!\n";
+			exit 1;
 		}
 	}
 	if ($batch_size) {
