@@ -511,8 +511,8 @@ sub child_super_callback {
 				$alt =~ s/^Fastq\///;
 				$remote_path = sprintf "s3://%s/%s/%s", $bucket_name, $prefix, $alt;
 			}
-			my $command = sprintf qq(aws s3 cp --profile %s --no-progress %s "%s"),
-				$profile, $file, $remote_path;
+			my $command = sprintf qq(aws s3 cp '%s' '%s' --profile %s --no-progress),
+				$file, $remote_path, $profile;
 			if ($storage_class) {
 				$command .= sprintf(" --storage-class %s", $storage_class);
 			}
