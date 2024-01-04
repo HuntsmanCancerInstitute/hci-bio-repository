@@ -9,7 +9,7 @@ use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
 use hciCore qw( generate_prefix generate_bucket );
 
-our $VERSION = 6.0;
+our $VERSION = 6.1;
 
 
 
@@ -283,16 +283,26 @@ sub fetch_analyses {
 				printf "  > updating project name for %s\n", $E->id;
 				$E->name($row[1]);
 				$u++;
-				if ( $E->core_lab and $E->upload_datestamp < 1000 ) {
-					generate_prefix($E);
+				if ( $E->core_lab ) {
+					if ( $E->upload_datestamp < 1000 ) {
+						generate_prefix($E);
+					}
+					else {
+						printf "    ! name changed after upload\n"
+					}
 				}
 			}
 			if ($row[3] ne $E->group) {
 				printf "  > updating project group for %s\n", $E->id;
 				$E->group($row[3]);
 				$u++;
-				if ( $E->core_lab and $E->upload_datestamp < 1000 ) {
-					generate_bucket($E);
+				if ( $E->core_lab ) {
+					if ( $E->upload_datestamp < 1000 ) {
+						generate_bucket($E);
+					}
+					else {
+						printf "    ! group changed after upload\n"
+					}
 				}
 			}
 			
@@ -484,16 +494,26 @@ sub fetch_requests {
 				printf "  > updating project name for %s\n", $E->id;
 				$E->name($row[1]);
 				$u++;
-				if ( $E->core_lab and $E->upload_datestamp < 1000 ) {
-					generate_prefix($E);
+				if ( $E->core_lab ) {
+					if ( $E->upload_datestamp < 1000 ) {
+						generate_prefix($E);
+					}
+					else {
+						printf "    ! name changed after upload\n"
+					}
 				}
 			}
 			if ($row[3] ne $E->group) {
 				printf "  > updating project group for %s\n", $E->id;
 				$E->group($row[3]);
 				$u++;
-				if ( $E->core_lab and $E->upload_datestamp < 1000 ) {
-					generate_bucket($E);
+				if ( $E->core_lab ) {
+					if ( $E->upload_datestamp < 1000 ) {
+						generate_bucket($E);
+					}
+					else {
+						printf "    ! group changed after upload\n"
+					}
 				}
 			}
 			
