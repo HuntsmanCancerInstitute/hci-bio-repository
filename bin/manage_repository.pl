@@ -1615,9 +1615,10 @@ sub print_functions {
 			my $Entry = $Catalog->entry($id) or next;
 			my $url = $Entry->project_url;
 			if ($url) {
-				printf "%s\n", $url;
+				printf "%s\t%s\n", $id, $url;
 			}
 			else {
+				printf "%s\t\n", $id;
 				$missing++;
 			}
 		}
