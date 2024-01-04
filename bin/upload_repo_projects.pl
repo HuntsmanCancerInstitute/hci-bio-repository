@@ -18,7 +18,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 0.1;
+our $VERSION = 0.2;
 
 my $doc = <<END;
 
@@ -356,8 +356,11 @@ sub prepare_list {
 		
 		# generate alternate name, old Request projects uploaded to Seven Bridges did
 		# not maintain directories, so skip the Fastq directory to maintain consistency
-		my $altname = $fname;
-		$altname =~ s/^Fastq\///;
+		my $altname;
+		if ( $fname =~ m|^Fastq/| ) {
+			$altname = $fname;
+			$altname =~ s|^Fastq/||;
+		}
 		
 		# check if we need to skip this file
 		if (exists $zipped{$fname}) {
@@ -367,13 +370,19 @@ sub prepare_list {
 			$skip++;
 			next;
 		}
-		if ( exists $existing{$fname} or exists $existing{$altname} ) {
-			if ( exists $existing{$altname} and not $using_flat_req ) {
+		if ( exists $existing{$fname} or ( $altname and exists $existing{$altname} ) ) {
+			if ( $altname and exists $existing{$altname} and not $using_flat_req ) {
 				$using_flat_req = 1;
+				print "   ! old-style flat folder structure detected\n";
 			}
 			my $local_time  = str2time( $file{Date} );
-			my $remote_time = $using_flat_req ? str2time( $existing{$altname} ) :
-				str2time( $existing{$fname} );
+			my $remote_time;
+			if ( $using_flat_req and $altname ) {
+				$remote_time = str2time( $existing{$altname} );
+			}
+			else {
+				$remote_time = str2time( $existing{$fname} );
+			}
 			if ($remote_time > $local_time) {
 				if ($verbose) {
 					print "   > skipping uploaded file $fname\n";
