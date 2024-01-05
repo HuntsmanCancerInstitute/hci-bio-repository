@@ -118,9 +118,9 @@ Options for bulk volume export:
     --volume        <text>      Name of the attached external volume
     --prefix        <text>      Prefix used for new file path on external volume
                                   Default is project name. The entire file path and 
-                                  folder structure is preserved.
+                                  folder structure from SBG is preserved.
     --volcopy                   Copy only to volume, do not move and link (the default)
-    --overwrite                 Overwrite pre-existing files (default false)
+    --overwrite                 Overwrite pre-existing files (default will rename)
     --wait          <int>       Wait time between status checks (20 seconds)
 
 Options for file copy/move:
@@ -381,6 +381,19 @@ sub check_options {
 		$batch_size *= 0.95;            # leave a 5% buffer
 		$batch_size *= 1_073_741_824;   # convert GB to base-2 bytes
 		$batch_size = int $batch_size;  # drop decimals
+	}
+	if ( $export_files and $task_id ) {
+		print <<END;
+
+!! Directory structure is not preserved when selecting files by task ID and exporting.
+   Either use --filter or explicitly set the full --prefix path.
+   Pausing for 10 seconds if you want to abort....
+
+END
+		for my $i ( 1..10 ) {
+			print " $i\n";
+			sleep 1;
+		}
 	}
 }
 
