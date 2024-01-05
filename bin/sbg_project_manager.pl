@@ -428,6 +428,13 @@ sub collect_files {
 		else {
 			$files = $Project->list_files_by_task($task_id);
 		}
+		if ($file_filter) {
+			# this function doesn't support regex filtering so do it manually
+			## no critic
+			my @selected = grep { $_->pathname =~ m/$file_filter/ } @{$files};
+			## use critic
+			$files = \@selected;
+		}
 	}
 	elsif ($remote_dir_name) {
 		my $folder = $Project->get_file_by_name($remote_dir_name) or
@@ -468,9 +475,11 @@ sub collect_files {
 			else {
 				$location = $f->file_status;
 			}
-			if ( $location =~ /$location_filter/xi ) {
+			## no critic
+			if ( $location =~ /$location_filter/i ) {
 				push @keep, $f;
 			}
+			## use critic
 		}
 		$files = \@keep;
 	}
