@@ -10,7 +10,7 @@ use Email::Sender::Transport::SMTP;
 my $default_from_email = 'Timothy Parnell <timothy.parnell@hci.utah.edu>';
 my $default_smtp = 'smtp.utah.edu';
 
-our $VERSION = 5.1;
+our $VERSION = 6.0;
 
 
 sub new {
@@ -48,21 +48,17 @@ sub send_request_upload_email {
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Request project $opt->{id}, $opt->{name}, has been uploaded to your lab division $opt->{division} on the Seven Bridges platform. You may find it at $opt->{url}. 
+Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, has been uploaded to your Amazon Web Services (AWS) account ‘$opt->{core}’. You may view the files using the CORE Browser application (https://hci-apps-ext.hci.utah.edu/core-browser). They are located in the bucket ‘$opt->{bucket}’ in the folder prefix ‘$opt->{prefix}’; this is based on the Group folder and metadata in the GNomEx database.
 
-You will need a Seven Bridges account to view the project. If you are unable to view the project, contact your lab division administrator (Your PI or lab manager).
+The standard bucket lifecycle policies will archive the Fastq files to Deep Glacier within 3 days, unless the bucket is configured otherwise. This is meant for long-term storage (>6 months) at the lowest cost available (currently \$0.001 per GB per month). Archived files will need to be temporarily restored before they can be viewed or downloaded; this will incur a small fee per standard AWS cost policies. 
 
-Your files are on standard AWS S3 storage and may be used immediately for analysis on the platform. It will cost about $opt->{s3_cost} per month.
+Your files may remain on GNomEx for your convenience as space allows (a few months). A manifest of the files will always remain on GNomEx, as well as the record of your sequencing request and samples in the GNomEx database.
 
-You may archive these files to AWS Glacier at a reduced cost of $opt->{glacier_cost} per month. This is not done automatically.
-
-The files will remain on GNomEx for your convenience for an additional six months before being removed. A manifest of the files will remain on GNomEx, as well as the record of your sequencing request and samples.
-
-For more information, see our FAQ at https://uofuhealth.utah.edu/huntsman/shared-resources/gba/bioinformatics/cloud-storage/seven-bridges-usage-faq.php. 
+For more information, see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage.  
 
 DOC
 		
-	my $subject = sprintf "GNomEx Request %s upload to Seven Bridges", $opt->{id};
+	my $subject = sprintf "GNomEx Request %s upload to your AWS account", $opt->{id};
 	
 	# send
 	return $self->_send_email($opt, $body, $subject);
@@ -79,21 +75,17 @@ sub send_analysis_upload_email {
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Analysis project $opt->{id}, $opt->{name}, is $opt->{age} days old and has reached the age limits for storage on GNomEx. The files have been uploaded to your lab division $opt->{division} on the Seven Bridges platform. You may find it at $opt->{url}. 
+Your GNomEx Analysis project ‘$opt->{id}’, ‘$opt->{name}’, is $opt->{age} days old and has reached the age limits for storage on GNomEx. The files have been uploaded to your Amazon Web Services (AWS) account ‘$opt->{core}’. You may view the files using the CORE Browser application (https://hci-apps-ext.hci.utah.edu/core-browser). They are located in the bucket ‘$opt->{bucket}’ in the folder prefix ‘$opt->{prefix}’; this is based on the Group folder and metadata in the GNomEx database.
 
-You will need a Seven Bridges account to view the project. If you are unable to view the project, contact your lab division administrator (Your PI or lab manager).
-
-Your files are on standard AWS S3 storage and may still be accessed immediately. It will cost about $opt->{s3_cost} per month to keep these files.
-
-You may archive these files to AWS Glacier at a reduced cost of $opt->{glacier_cost} per month. This is not done automatically.
+The standard bucket lifecycle policies will archive large files to Deep Glacier within 3 days, unless the bucket is configured otherwise. This is meant for long-term storage (>6 months) at the lowest cost available (currently \$0.001 per GB per month). Archived files will need to be temporarily restored before they can be viewed or downloaded; this will incur a small fee per standard AWS cost policies. 
 
 The files on GNomEx have been removed, although a manifest of the files will always remain, as well as the database entry for the project. Certain analysis files may remain as a courtesy for serving to genome browsers.
 
-For more information, see our FAQ at https://uofuhealth.utah.edu/huntsman/shared-resources/gba/bioinformatics/cloud-storage/seven-bridges-usage-faq.php. 
+For more information, see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage.  
 
 DOC
 		
-	my $subject = sprintf "GNomEx Analysis %s upload to Seven Bridges", $opt->{id};
+	my $subject = sprintf "GNomEx Analysis %s upload to your AWS account", $opt->{id};
 	
 	# send
 	return $self->_send_email($opt, $body, $subject);
@@ -110,14 +102,16 @@ sub send_request_deletion_email {
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Request project $opt->{id}, $opt->{name}, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED. Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files, especially Fastq files.
+Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED. Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files, especially Fastq files.
 
 Files will be removed in one week.
 
 A manifest of the files will remain on GNomEx, as well as the record of your sequencing request and samples. 
 
-For more information, including long-term cloud storage options, please contact the 
-Cancer Bioinformatics Core at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi. 
+For more information, including long-term cloud storage options, please see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage. Please contact us if you have any questions or would like to set up an AWS cloud storage account.
+
+Cancer Bioinformatics Shared Resource
+https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi. 
 
 DOC
 		
@@ -138,14 +132,16 @@ sub send_analysis_deletion_email {
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Analysis project $opt->{id}, $opt->{name}, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED. Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files.
+Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED. Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files, especially Fastq files.
 
 Files will be removed in one week.
 
 A manifest of the files will always remain on GNomEx, as well as the database entry for the project. Certain analysis files may remain as a courtesy for serving to genome browsers.
 
-For more information, including long-term cloud storage options, please contact the 
-Cancer Bioinformatics Core at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi. 
+For more information, including long-term cloud storage options, please see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage. Please contact us if you have any questions or would like to set up an AWS cloud storage account.
+
+Cancer Bioinformatics Shared Resource
+https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi. 
 
 DOC
 		
@@ -169,8 +165,9 @@ sub _process_options {
 		$opt{piemail}   = $E->pi_email;
 		$opt{id}        = $E->id;
 		$opt{name}      = $E->name;
-		$opt{division}  = $E->division;
-		$opt{url}       = $E->project_url;
+		$opt{core}      = $E->core_lab;
+		$opt{bucket}    = $E->bucket;
+		$opt{prefix}    = $E->prefix;
 		$opt{size}      = $E->size;
 		$opt{age}       = $E->age;
 		
@@ -193,23 +190,14 @@ sub _process_options {
 		$opt{piemail}   ||= q();
 		$opt{id}        ||= q();
 		$opt{name}      ||= q();
-		$opt{division}  ||= q();
-		$opt{url}       ||= q();
+		$opt{core}      ||= q();
+		$opt{bucket}    ||= q();
+		$opt{prefix}    ||= q();
 		$opt{size}      ||= q();
 		$opt{age}       ||= '?';
 	}
 	unless (exists $opt{from}) {
 		$opt{from}      = $self->from;
-	}
-	
-	# calculate costs
-	if ($opt{size}) {
-		$opt{s3_cost} = sprintf "\$%.2f", ($opt{size} / 1000000000) * 0.023;
-		$opt{glacier_cost} = sprintf "\$%.2f", ($opt{size} / 1000000000) * 0.004;
-	}
-	else {
-		$opt{s3_cost} = q();
-		$opt{glacier_cost} = q();
 	}
 	
 	return \%opt;
@@ -249,10 +237,8 @@ Emailer - HCI-specific library for sending out form emails
 
 =head1 DESCRIPTION
 
-These are subroutines for sending standard form emails to users 
-of the Huntsman Cancer Institute enterprise license of Seven Bridges.
-The content of the emails are included in here as code. Customizing 
-the emails requires changing the code.
+These are subroutines for sending standard form emails to University
+of Utah GNomEx users. The content of the emails is hard coded here.
 
 =head1 USAGE
 
@@ -263,28 +249,28 @@ There are four exported functions for sending emails.
 =item send_analysis_upload_email
 
 This is sent to the GNomEx user and the corresponding principal investigator 
-upon the completion of uploading a GNomEx Analysis project to their 
-corresponding Seven Bridges lab division.
+upon the completion of uploading a GNomEx Analysis project to their bucket
+in their corresponding AWS account.
 
 =item send_request_upload_email
 
 This is sent to the GNomEx user and the corresponding principal investigator 
-upon the completion of uploading a GNomEx Request project to their 
-corresponding Seven Bridges lab division.
+upon the completion of uploading a GNomEx Request project to their bucket
+in their corresponding AWS account.
 
 =item send_analysis_deletion_email
 
 This is sent to the GNomEx user and the corresponding principal investigator 
 to notify them of the impending scheduled removal of their GNomEx Analysis 
 project in one week. This is primarily meant for labs that do not have a 
-currently active Seven Bridges lab division.  
+an active AWS account.  
 
 =item send_request_deletion_email
 
 This is sent to the GNomEx user and the corresponding principal investigator 
 to notify them of the impending scheduled removal of their GNomEx Request 
 project in one week. This is primarily meant for labs that do not have a 
-currently active Seven Bridges lab division.  
+an active AWS account.  
 
 =back
 
@@ -324,13 +310,17 @@ GNomEx project identifier
 
 GNomEx project title name
 
-=item division
+=item core_lab
 
-Seven Bridges lab division identifier
+AWS CORE lab name
 
-=item url
+=item bucket
 
-Seven Bridges URL to the uploaded project
+The AWS bucket name
+
+=item prefix
+
+The AWS bucket prefix
 
 =item size
 
@@ -354,7 +344,7 @@ An example of the usage is below.
 =head1 AUTHOR
 
  Timothy J. Parnell, PhD
- Bioinformatics Shared Resource
+ Cancer Bioinformatics Shared Resource
  Huntsman Cancer Institute
  University of Utah
  Salt Lake City, UT, 84112
