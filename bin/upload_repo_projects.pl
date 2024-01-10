@@ -18,7 +18,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 0.2;
+our $VERSION = 0.3;
 
 my $doc = <<END;
 
@@ -251,10 +251,13 @@ sub prepare_list {
 	if ( -e $ziplist ) {
 		my $fh = IO::File->new($ziplist) or 
 			die " Cannot read zip list file '$ziplist'! $OS_ERROR";
-		%zipped = map { $_ => 1 } map { chomp } $fh->getlines;
+		while ( my $line = $fh->getline ) {
+			chomp $line;
+			$zipped{$line} = 1;
+		}
 		$fh->close;
 		if ($verbose) {
-			printf "  > loaded %d files from zip list file '%s'\n", scalar keys %zipped,
+			printf "  > loaded %d files from zip list file '%s'\n", scalar(keys %zipped),
 				$ziplist;
 		}
 	}
@@ -350,6 +353,8 @@ sub prepare_list {
 		die " Cannot read manifest file '$manifest'! $OS_ERROR";
 	my $header = $csv->getline($fh);
 	my $skip   = 0;
+	my $zipcnt = 0;
+	my $upcnt  = 0;
 	while ( my $data = $csv->getline($fh) ) {
 		my %file = mesh $header, $data;
 		my $fname = $file{File};
@@ -368,6 +373,7 @@ sub prepare_list {
 				print "   > skipping zipped file $fname\n";
 			}
 			$skip++;
+			$zipcnt++;
 			next;
 		}
 		if ( exists $existing{$fname} or ( $altname and exists $existing{$altname} ) ) {
@@ -388,6 +394,7 @@ sub prepare_list {
 					print "   > skipping uploaded file $fname\n";
 				}
 				$skip++;
+				$upcnt++;
 				next;
 			}
 		}
@@ -404,6 +411,12 @@ sub prepare_list {
 	
 	printf " > Collected %d files (%s) out of %d to upload to %s/%s\n",
 		$count, format_human_size($size), $count + $skip, $bucket_name, $prefix;
+	if ($zipcnt) {
+		printf "   > %d files were zipped\n", $zipcnt;
+	}
+	if ($upcnt) {
+		printf "   > %d files were already uploaded\n", $upcnt;
+	}
 
 }
 
