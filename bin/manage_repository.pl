@@ -1447,7 +1447,7 @@ sub run_email_notifications {
 		
 			my $result = $Email->send_request_upload_email($Entry, 'mock' => $mock);
 			if ($result) {
-				printf " > Sent Request SB upload email for $id: %s\n", 
+				printf " > Sent Request AWS upload email for $id: %s\n", 
 					ref($result) ? $result->message : "\n$result";
 				$Entry->emailed_datestamp(time) if not $mock;
 			}
@@ -1485,7 +1485,7 @@ sub run_email_notifications {
 		
 			my $result = $Email->send_analysis_upload_email($Entry, 'mock' => $mock);
 			if ($result) {
-				printf " > Sent Analysis SB upload email for $id: %s\n", 
+				printf " > Sent Analysis AWS upload email for $id: %s\n", 
 					ref($result) ? $result->message : "\n$result";
 				$Entry->emailed_datestamp(time) if not $mock;
 			}
