@@ -48,31 +48,33 @@ buckets.
 
 - Seven Bridges scripts
 
-There are multiple scripts for working with the Seven Bridges (now part of Velsera)
-platform, and by extension, the Cancer Genomics Cloud platfrom. These include 
+There are multiple scripts for working with the 
+[Seven Bridges](https://www.sevenbridges.com) platform (now part of
+[Velsera](https://velsera.com/)), and the
+[Cancer Genomics Cloud](https://www.cancergenomicscloud.org) platform. These include 
 `sbg_project_manager.pl` (an extensive file and project manager for listing, moving, 
 and exporting files), `sbg_vol_manager.pl` (manager for mounted AWS buckets),
 `sbg_async_folder_copy.pl` (bulk, recursive, asynchronous file copy within or between 
-projects), `add_user_sb_project.pl` (add users to projects), `check_divisions.pl`
-(list projects, members, tasks, and more), and others. These are mostly retired.
+projects), `check_divisions.pl` (list projects, members, tasks, and more), and others.
+These are mostly retired.
 
 - other
 
 There are a few other sundry scripts for data migration, various one-off purposes,
-and such. These also include scripts for working with Seven Bridges and Cancer Genomics
-Cloud. 
+and such. These also include scripts for the bulk migration from Seven Bridges to
+AWS buckets. 
 
 
 ### Modules
 
-There are a few specific Perl library modules for working with the Catalog database 
+There are specific Perl library modules for working with the Catalog database 
 file, Repository project folders on the file server, and GNomEx. These are fairly 
 specific to the scripts here and unlikely of general interest.
 
 
 ### Deprecated Stuff
 
-These are bunch of old, deprecated scripts. See it's dedicated page for more information.
+These are bunch of old, deprecated scripts. See its dedicated page for more information.
 
 
 ## Requirements
@@ -88,9 +90,6 @@ The [Net::SB](https://github.com/tjparnell/Net-SB) library module is the Perl wr
 around the Seven Bridges API. The code was originally part of this package but split 
 off to make it more generally accessible. It is currently not on CPAN and must be 
 installed manually.
-
-In addition, you will need to have your AWS credentials and/or
-[Seven Bridges credentials file](https://docs.sevenbridges.com/docs/store-credentials-to-access-seven-bridges-client-applications-and-libraries).
 
 
 ### Compiling single executables
