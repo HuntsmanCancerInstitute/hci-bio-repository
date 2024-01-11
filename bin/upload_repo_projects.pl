@@ -58,8 +58,8 @@ Usage
     --class <text>          Specify storage class (default STANDARD)
                               Examples include INTELLIGENT_TIERING, 
                               GLACIER, DEEP_ARCHIVE
-    --check                 Check and report upload list only
-    --mock                  Do not upload (dryrun mode)
+    --check                 Check and report upload counts only
+    --dryrun                Do not upload
     --cred <path>           Path to AWS credentials file. 
                                Default is ~/.aws/credentials. 
     -v --verbose            Print additional details
@@ -79,7 +79,7 @@ my $project_id;
 my $cpu = 4;
 my $storage_class;
 my $check_only;
-my $mock;
+my $dryrun;
 my $aws_cred_file = sprintf "%s/.aws/credentials", $ENV{HOME};
 my $verbose;
 my $help;
@@ -91,7 +91,7 @@ if (@ARGV) {
 		'f|forks=i'             => \$cpu,
 		'class=s'               => \$storage_class,
 		'check!'                => \$check_only,
-		'mock!'                 => \$mock,
+		'dryrun!'               => \$dryrun,
 		'cred=s'                => \$aws_cred_file,
 		'v|verbose!'            => \$verbose,
 		'h|help!'               => \$help,
@@ -551,7 +551,7 @@ sub child_super_callback {
 			if ($storage_class) {
 				$command .= sprintf(" --storage-class %s", $storage_class);
 			}
-			if ($mock) {
+			if ($dryrun) {
 				$command .= ' --dryrun';
 			}
 			if ($verbose) {
@@ -561,7 +561,7 @@ sub child_super_callback {
 			chomp $result;
 			unless ($result) {
 				# actual errors are probably not captured here
-				$result = $mock ? "dryrun with $file" : "error with $file";
+				$result = $dryrun ? "dryrun with $file" : "error with $file";
 			}
 			printf "%s\n", $result;
 		}
