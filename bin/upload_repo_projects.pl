@@ -12,13 +12,14 @@ use Config::Tiny;
 use Date::Parse;
 use Forks::Super;
 use Net::Amazon::S3::Client;
+use Text::Levenshtein::Flexible;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 0.3;
+our $VERSION = 0.4;
 
 my $doc = <<END;
 
@@ -36,6 +37,11 @@ uploaded.
 
 The target AWS bucket and prefix are determined from a Project catalog
 database. See the manage_repository.pl application.
+
+If the AWS bucket does not exist, then a warning will be issued and the 
+program will exit; it will not create a bucket for you. Existing buckets
+with similar names will be printed as possibilities, in which case the 
+target bucket will need to be adjusted in the catalog database.
 
 This uses the AWS command line utility to perform the actual uploads,
 running them in parallel jobs for each file individually. This tool 
@@ -110,6 +116,11 @@ my @upload_list;
 my $count = 0;
 my $size  = 0;
 
+# levenshtein distance weights, emphasize insertion/deletion rather than substitution
+my $max_dist = 12;
+my $cost_ins = 1;
+my $cost_del = 1;
+my $cost_sub = 2;
 
 
 #### Main functions
@@ -208,7 +219,8 @@ sub prepare_list {
 
 	# check bucket
 	my $bucket;
-	foreach my $b ($aws->buckets) {
+	my @buckets = $aws->buckets;
+	foreach my $b (@buckets) {
 		if ($b->name eq $bucket_name) {
 			$bucket = $b;
 			last;
@@ -220,8 +232,18 @@ sub prepare_list {
 		}
 	}
 	else {
-		printf " ! Bucket '%s' in '%s' does not exist\n", $bucket_name,
-			$Entry->core_lab;
+		printf " ! Bucket '%s' in '%s' for %s does not exist\n", $bucket_name,
+			$Entry->core_lab, $project_id;
+		my $TL = Text::Levenshtein::Flexible->new($max_dist, $cost_ins, $cost_del,
+			$cost_sub);
+		my @names = grep { !/logs$/ } map { $_->name } @buckets;
+		if ($verbose) {
+			printf "    > all buckets: %s\n", join( q(, ), @names );
+		}
+		my @top   = map { $_->[0] }
+		            sort { $a->[1] <=> $b->[1] }
+		            $TL->distance_lc_all( $bucket_name, @names );
+		printf "    Possibilities include: %s\n", join( q(, ), @top );
 		exit 1;
 	}
 
