@@ -20,14 +20,14 @@ sub generate_bucket {
 	my $group = $Entry->group || q();
 
 	# process common group names
-	if ( $group =~ /^ (?: experiment s? | project s? ) \s for \s .+/xi ) {
-		$group = sprintf "%s-%s", $Entry->user_first, $Entry->user_last;
+	if ( $group =~ /^ (?: experiment s? | project s? ) \s for \s ([\w\-]+) \s ([\w\-\s]+)$/xi ) {
+		$group = sprintf "%s-%s", $1, $2;
 	}
-	elsif ( $group =~ /^Request s? \s submitted \s by \s .+/xi ) {
-		$group = sprintf "%s-%s", $Entry->user_first, $Entry->user_last;
+	elsif ( $group =~ /^Request s? \s submitted \s by \s ([\w\-]+) \s ([\w\-\s]+)$/xi ) {
+		$group = sprintf "%s-%s", $1, $2;
 	}
-	elsif ( $group =~ /^submitted \s for \s .+/xi ) {
-		$group = sprintf "%s-%s", $Entry->user_first, $Entry->user_last;
+	elsif ( $group =~ /^submitted \s for \s ([\w\-]+) \s ([\w\-\s]+)$/xi ) {
+		$group = sprintf "%s-%s", $1, $2;
 	}
 	unless ($group) {
 		$group = sprintf "%s-%s", $Entry->user_first, $Entry->user_last;
