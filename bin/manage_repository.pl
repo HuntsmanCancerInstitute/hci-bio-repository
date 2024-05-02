@@ -1508,6 +1508,14 @@ sub print_functions {
 		unless (@action_list) {
 			die "No list provided to show status!\n";
 		}
+
+		# binary sizes
+		my $KB = 1024;
+		my $MB = 1048576;
+		my $GB = 1073741824;
+		my $TB = 1099511627776;
+
+		# loop through items
 		printf "%-6s\t%-6s\t%-5s\t%-10s\t%-10s\t%-10s\t%-10s\t%-10s\n", qw(ID Size Age Scan Upload Hide Delete CORELab);
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
@@ -1519,14 +1527,18 @@ sub print_functions {
 			if ( $Entry->last_size > $size ) {
 				$size = $Entry->last_size;
 			}
-			if ($size > 1000000000) {
-				$size = sprintf("%.1fG", $size / 1000000000);
+			if ($size > $TB) {
+				$size = sprintf("%.1fT", $size / $TB);
 			}
-			elsif ($size > 1000000) {
-				$size = sprintf("%.1fM", $size / 1000000);
+			elsif ($size > $GB) {
+				$size = sprintf("%.1fG", $size / $GB);
+			}
+			elsif ($size > $MB) {
+				$size = sprintf("%.1fM", $size / $MB);
 			}
 			elsif ($size > 1000) {
-				$size = sprintf("%.1fK", $size / 1000);
+				# avoid weird formatting situations of >1000 and < 1024 bytes
+				$size = sprintf("%.1fK", $size / $KB);
 			}
 			else {
 				$size = sprintf("%dB", $size);

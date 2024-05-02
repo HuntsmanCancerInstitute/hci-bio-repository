@@ -7,7 +7,7 @@ use Carp;
 use IO::File;
 use DBM::Deep;
 
-our $VERSION = 6.0;
+our $VERSION = 6.1;
 
 
 # General private values
@@ -574,6 +574,10 @@ use constant {
 	DELETED     => 26,    # unix timestamp for deleting
 	EMAILED     => 27,    # unix timestamp for emailing
 	DAY         => 86400, # 60 seconds * 60 minutes * 24 hours
+	KB          => 1024,  # binary size prefixes
+	MB          => 1048576,
+	GB          => 1073741824,
+	TB          => 1099511627776,
 };
 
 
@@ -954,14 +958,17 @@ sub print_string {
 		
 		# convert sizes
 		for my $i (SIZE, LASTSIZE) {
-			if ($data[$i] > 1000000000) {
-				$data[$i] = sprintf("%.1fG", $data[$i] / 1000000000);
+			if ($data[$i] > TB) {
+				$data[$i] = sprintf("%.1fT", $data[$i] / TB);
 			}
-			elsif ($data[$i] > 1000000) {
-				$data[$i] = sprintf("%.1fM", $data[$i] / 1000000);
+			elsif ($data[$i] > GB) {
+				$data[$i] = sprintf("%.1fG", $data[$i] / GB);
+			}
+			elsif ($data[$i] > MB) {
+				$data[$i] = sprintf("%.1fM", $data[$i] / MB);
 			}
 			elsif ($data[$i] > 1000) {
-				$data[$i] = sprintf("%.1fK", $data[$i] / 1000);
+				$data[$i] = sprintf("%.1fK", $data[$i] / KB);
 			}
 			else {
 				$data[$i] = sprintf("%dB", $data[$i]);
