@@ -11,7 +11,7 @@ use File::Path qw(make_path);
 use File::Find;
 use Digest::MD5;
 
-our $VERSION = 6.0;
+our $VERSION = 6.1;
 
 ### Initialize
 
@@ -594,11 +594,12 @@ sub _age_callback {
 
 	# don't calculate anything if it appears to be a Request folder QC directory
 	# or checksum files, since these might be added since original scan
+	# also include AutoAnalysis folders since these are separate
 	return if $file =~ m/\.md5$/;
 	return if $file =~ m/^ md5.* \. (?: txt | out ) $/x; 
 	if ($File::Find::name =~
-		 m/ \d+R \/ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC ) \/ /x)
-	{
+m/ \d+R \/ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | AutoAnalysis_\d+\w+ ) \/ /x
+	) {
 		return;
 	}
 	

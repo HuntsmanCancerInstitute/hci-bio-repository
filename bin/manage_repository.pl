@@ -132,6 +132,7 @@ OPTIONS
     --update_up <YYYYMMDD>    Update project upload timestamp
     --update_em <YYYYMMDD>    Update project email timestamp
     --update_size             Update project size and age from file server
+                                ignores QC and AutoAnalysis folders
     --update_core <text>      Update CORE lab name. Use 'none' to clear.
     --update_profile <text>   Update the AWS IAM profile
     --update_bucket <text>    Update the AWS S3 bucket

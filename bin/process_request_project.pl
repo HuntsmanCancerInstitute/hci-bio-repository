@@ -13,7 +13,7 @@ use lib "$Bin/../lib";
 use RepoCatalog;
 use RepoProject;
 
-our $VERSION = 6.0;
+our $VERSION = 6.1;
 
 # shortcut variable name to use in the find callback
 use vars qw(*fname);
@@ -149,6 +149,7 @@ my %filedata;
 my %checksums;
 my $failure_count = 0;
 my $runfolder_warning; # Gigantic Illumina RunFolder present
+my $autoanal_warning  = 0; # Auto Analysis folder present
 
 # our sequence machine IDs to platform technology lookup
 my %machinelookup = (
@@ -410,8 +411,9 @@ sub callback {
 	my ($type, $sample, $machineID, $laneID, $pairedID);
 	
 	### Ignore certain files
-	if (-l $file) {
+	if ( -l $file and $fname !~ /AutoAnalysis/ ) {
 		# we will delete symlinks
+		# autoanalysis symlinks are temporary and should automatically be cleaned up
 		print "   ! deleting symbolic link $clean_name\n";
 		unlink $file;
 		return;
@@ -453,6 +455,22 @@ sub callback {
 		# directly under the main project 
 		print "   > skipping QC file $fname\n" if $verbose;
 		return;
+	}
+	elsif ($fname =~ /^\. \/ AutoAnalysis/x) {
+		# an auto-aligner analysis result file
+		# these really should be put into an Analysis project, not left here - sigh
+		# we will fully process these elsewhere but record file name in remove list
+		print "   > skipping AutoAnalysis file $clean_name\n" if $verbose;
+		if ($autoanal_warning) {
+			push @removelist, $clean_name;
+			return;
+		}
+		else {
+			print " ! Autoanalysis Folder exists - skipping contents\n";
+			$autoanal_warning = 1;
+			push @removelist, $clean_name;
+			return;
+		}
 	}
 	elsif ($fname =~ /^\. \/ RunFolder/x) {
 		# a few external requesters want the entire original RunFolder 
