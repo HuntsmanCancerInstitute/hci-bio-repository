@@ -143,12 +143,12 @@ if ($cat_file) {
 
 ######## Global variables
 # these are needed since the File::Find callback doesn't accept pass through variables
-my $start_time = time;
 my @removelist;
 my %filedata;
 my %checksums;
-my $failure_count = 0;
-my $runfolder_warning; # Gigantic Illumina RunFolder present
+my $start_time        = time;
+my $failure_count     = 0;
+my $runfolder_warning = 0; # Gigantic Illumina RunFolder present
 my $autoanal_warning  = 0; # Auto Analysis folder present
 
 # our sequence machine IDs to platform technology lookup
@@ -401,7 +401,7 @@ sub scan_directory {
 # find callback
 sub callback {
 	my $file = $_;
-	print "  > find callback on $file for $fname\n" if $verbose;
+	# print "  > find callback on $file for $fname\n" if $verbose;
 
 	# generate a clean name for recording
 	my $clean_name = $fname;
@@ -420,7 +420,7 @@ sub callback {
 	}
 	elsif (-d $file) {
 		# skip directories
-		print "   > skipping directory\n" if $verbose;
+		print "   > skipping directory $clean_name\n" if $verbose;
 		return;
 	}
 	elsif ($file =~ /libsnappyjava\.so$/xi) {
@@ -437,7 +437,13 @@ sub callback {
 	}
 	elsif ($file eq '.DS_Store' or $file eq 'Thumbs.db') {
 		# Windows and Mac file browser devil spawn, delete these immediately
-		print "   ! deleting file browser metadata file\n" if $verbose;
+		print "   ! deleting unnecessary file $clean_name\n" if $verbose;
+		unlink $file;
+		return;
+	}
+	elsif ($file eq '.snakemake_timestamp') {
+		# Auto Analysis snakemake droppings
+		print "   ! deleting unnecessary file $clean_name\n" if $verbose;
 		unlink $file;
 		return;
 	}
@@ -453,7 +459,7 @@ sub callback {
 	elsif ($fname =~ m/^\. \/ (?: bioanalysis | Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC ) \/ /x) {
 		# these are QC samples in a bioanalysis or Sample of Library QC folder
 		# directly under the main project 
-		print "   > skipping QC file $fname\n" if $verbose;
+		print "   > skipping QC file $clean_name\n" if $verbose;
 		return;
 	}
 	elsif ($fname =~ /^\. \/ AutoAnalysis/x) {
@@ -475,6 +481,7 @@ sub callback {
 	elsif ($fname =~ /^\. \/ RunFolder/x) {
 		# a few external requesters want the entire original RunFolder 
 		# these folders typically have over 100K files!!!!
+		# do not print even if verbose is turned on
 		# print one warning and add to remove list
 		if ($runfolder_warning) {
 			push @removelist, $clean_name;
@@ -501,9 +508,17 @@ sub callback {
 		$pairedID = q();
 		$machineID = q();
 	}
-	elsif ($file =~ / \. (?: xlsx | numbers | docx | pdf ) $/x) {
-		# some stray request spreadsheet file
+	elsif ($file =~ / \. (?: xlsx | numbers | docx | pdf | csv | html ) $/x) {
+		# some stray request spreadsheet file or report
 		$type = 'document';
+		$sample = q();
+		$laneID = q();
+		$pairedID = q();
+		$machineID = q();
+	}
+	elsif ($file =~ /\.sh$/) {
+		# processing shell script
+		$type = 'script';
 		$sample = q();
 		$laneID = q();
 		$pairedID = q();
@@ -683,7 +698,7 @@ sub callback {
 		$type = 'fastq';
 		# I can't extract metadata information
 		# but at least it will get recorded in the manifest and list files
-		print "   ! processing unrecognized Fastq file $fname\n";
+		print "   ! processing unrecognized Fastq file $clean_name\n";
 		$sample = q();
 		$laneID = q();
 		$pairedID = q();
@@ -697,13 +712,13 @@ sub callback {
 		$fh->close;
 		$fname =~ s/\.md5$//;
 		$filedata{$fname}{md5} = $md5;
-		print "   > processed md5 file\n" if $verbose;
+		print "   > processed md5 file $clean_name\n" if $verbose;
 		push @removelist, $clean_name;
 		return; # do not continue
 	}
 	# multiple checksum file - with or without datetime stamp in front - ugh
 	elsif ($file =~ 
-m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 [\._] .* \. (?: txt | out ) $/x
+m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (?: sum)? [\._] .* \. (?: txt | out ) $/x
 	) {
 		my $fh = IO::File->new($file);
 		while (my $line = $fh->getline) {
@@ -715,13 +730,13 @@ m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 [\._] .* \. (?: t
 			$checksums{$fastqname} = $md5;
 		}
 		$fh->close;
-		print "   > processed md5 file\n" if $verbose;
+		print "   > processed md5 file $clean_name\n" if $verbose;
 		push @removelist, $clean_name;
 		return; # do not continue
 	}
 	elsif ($fname =~ /^ \. \/ Fastq \/ .+ \. (?: xml | csv ) $/x) {
 		# other left over files from de-multiplexing
-		print "   ! leftover demultiplexing file $fname\n";
+		print "   ! leftover demultiplexing file $clean_name\n";
 		$type = 'document';
 		$sample = q();
 		$laneID = q();
@@ -730,15 +745,15 @@ m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 [\._] .* \. (?: t
 	}
 	elsif ($file eq $Project->ziplist_file) {
 		# really old projects might still have these - keep it
-		print "   ! old archive list file $file present\n";
+		print "   ! old archive list file $clean_name present\n";
 	}
 	elsif ($file eq $Project->zip_file) {
 		# really old projects might still have these - keep it
-		print "   ! old archive zip file $file present\n";
+		print "   ! old archive zip file $clean_name present\n";
 	}
 	else {
 		# programmer error!
-		print "   ! unrecognized file $fname\n";
+		print "   ! unrecognized file $clean_name\n";
 		$failure_count++;
 		return;
 	}
@@ -761,7 +776,7 @@ m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 [\._] .* \. (?: t
 	$filedata{$fname}{date} = strftime("%B %d, %Y %H:%M:%S", localtime($st[9]));
 	$filedata{$fname}{size} = $st[7];
 	
-	print "   > processed file\n" if $verbose;
+	print "   > processed $type file $clean_name\n" if $verbose;
 }
 
 
