@@ -557,6 +557,84 @@ sub find_analysis_to_delete {
 	return wantarray ? @list : \@list;
 }
 
+sub find_autoanal_req {
+	my $self = shift;
+	my %opts = @_;
+	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
+	my $min_age = (exists $opts{age} and defined $opts{age}) ? $opts{age} :
+		$req_up_min_age; 
+	my $max_age = (exists $opts{maxage} and defined $opts{maxage}) ? $opts{maxage} :
+		$req_up_max_age; 
+
+	# scan through list
+	my @list;
+	my $key = $self->{db}->first_key;
+	while ($key) {
+		my $E = $self->entry($key);
+		if (
+			$E->lab_last !~ $internal_org and
+			$E->is_request and
+			$E->autoanal_folder and
+			substr($E->date, 0, 4) >= $year and
+			$E->age >= $min_age and
+			$E->age <= $max_age and
+			not $E->hidden_datestamp 
+		) {
+			push @list, $key;
+		}
+		$key = $self->{db}->next_key($key);
+	}
+	@list = sort {$a cmp $b} @list;
+	return wantarray ? @list : \@list;
+}
+
+sub find_autoanal_to_upload {
+	my $self = shift;
+	my %opts = @_;
+	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
+	my $min_age = (exists $opts{age} and defined $opts{age}) ? $opts{age} :
+		$req_hide_min_age; 
+	my $max_age = (exists $opts{maxage} and defined $opts{maxage}) ? $opts{maxage} :
+		$req_hide_max_age; 
+	
+	# scan through list
+	my @list;
+	my $key = $self->{db}->first_key;
+	while ($key) {
+		my $E = $self->entry($key);
+		if (
+			$E->lab_last !~ $internal_org and
+			$E->is_request and
+			$E->autoanal_folder and
+			$E->request_status eq 'COMPLETE' and
+			$E->core_lab and 
+			substr($E->date, 0, 4) >= $year and
+			$E->age >= $min_age and
+			$E->age <= $max_age and
+			not $E->hidden_datestamp 
+		) {
+			
+			# we have a candidate
+			# going to assume the autoanalysis folder, if it is present, is not empty
+			if ( $E->autoanal_datestamp > 1 ) {
+				# it has been uploaded before? check the age
+				# this doesn't guarantee that the differences are in the autoanalysis
+				# folder, just that something is younger in the folder
+				if ( $E->autoanal_age > $E->age ) {
+					push @list, $key;
+				}
+			}
+			else {
+				# has not been uploaded yet
+				push @list, $key;
+			}
+		}
+		$key = $self->{db}->next_key($key);
+	}
+	@list = sort {$a cmp $b} @list;
+	return wantarray ? @list : \@list;
+}
+
 sub header {
 	return $HEADER;
 }
