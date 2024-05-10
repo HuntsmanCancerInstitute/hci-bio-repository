@@ -10,7 +10,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw( generate_bucket generate_prefix cleanup );
 
-our $VERSION = 6.0;
+our $VERSION = 7.0;
 my  $net_loaded = 0;
 
 sub generate_bucket {
@@ -18,6 +18,11 @@ sub generate_bucket {
 	my $first = $Entry->lab_first;
 	my $last  = $Entry->lab_last;
 	my $group = $Entry->group || q();
+	
+	# lab names with hyphenated names - we're using the first part
+	if ($last =~ /^ (\w+) \- \w+/x) {
+		$last = $1;
+	}
 
 	# process common group names
 	if ( $group =~ /^ (?: experiment s? | project s? ) \s for \s ([\w\-]+) \s ([\w\-\s]+)$/xi ) {
