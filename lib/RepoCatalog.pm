@@ -16,9 +16,21 @@ my $DEFAULT_PATH  = "~/test/repository.db";
 my $HEADER = "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tCORELab\tProfile\tBucket\tPrefix\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\tAAUpload\tQCScan\tAutoAnalysisFolder\n";
 my $ARRAY_SIZE = 31;  # size of DB Entry array, see RepoEntry index list
 
+# default search values
 my $repo_epoch = 2005;
 my $internal_org = qr/(?: Bioinformatics \s Shared \s Resource | HTG \s Core \s Facility | SYSTEM )/x;
-
+my $req_up_min_size    = 104857600;  # minimum Request size to upload, 100 MB
+my $req_up_min_age     = 0;  # minimum age for request upload
+my $req_up_max_age     = 180;  # maximum age for request upload
+my $req_hide_min_age   = 180;  # minimum age for hiding request
+my $req_hide_max_age   = 100000;  # maximum age for hiding request
+my $req_del_min_age    = 30;  # minimum age to delete hidden request
+my $anal_up_min_age    = 360;  # minimum age for analysis upload
+my $anal_up_max_age    = 100000;  # maximum age for analysis upload
+my $anal_up_min_size   = 104857600;  # minimum Analysis size to upload, 100 MB
+my $anal_hide_min_age  = 360;  # minimum age to hide analysis
+my $anal_hide_max_age  = 100000;  # maximum age to hide analysis
+my $anal_del_min_age   = 60;  # minimum age to delete hidden analysis
 
 # Functions
 
@@ -263,10 +275,12 @@ sub find_requests_to_upload {
 	my $self = shift;
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
-	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 100000000;
-		# set the minimum size to 100 MB
-	my $min_age = (exists $opts{age} and defined $opts{age}) ? $opts{age} : 0; 
-	my $max_age = (exists $opts{maxage} and defined $opts{maxage}) ? $opts{maxage} : 60; 
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} :
+		$req_up_min_size;
+	my $min_age = (exists $opts{age} and defined $opts{age}) ? $opts{age} :
+		$req_up_min_age; 
+	my $max_age = (exists $opts{maxage} and defined $opts{maxage}) ? $opts{maxage} :
+		$req_up_max_age; 
 	
 	# scan through list
 	my @list;
@@ -291,7 +305,7 @@ sub find_requests_to_upload {
 			# too little, and we might include large sample-quality projects
 			if ($E->size > $min_size) {
 				# size is bigger than 25 MB, looks like a candidate
-				if ($E->upload_datestamp) {
+				if ($E->upload_datestamp > 1) {
 					# already been uploaded? Make sure we're considerably bigger
 					if (
 						$E->upload_age > $E->age and
@@ -320,11 +334,13 @@ sub find_requests_to_hide {
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
 	my $core   = (exists $opts{core} and defined $opts{core}) ? $opts{core} : undef;
-	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 180;
-	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 100000;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} :
+		$req_hide_min_age;
+	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} :
+		$req_hide_max_age;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
-	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 100000000;
-		# set minimum size to 100 MB
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} :
+		$req_up_min_size;  # same size as upload
 	
 	# scan through list
 	my @list;
@@ -335,11 +351,11 @@ sub find_requests_to_hide {
 			$E->lab_last !~ $internal_org and
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and        # finished
-			not $E->hidden_datestamp and                # not hidden yet
+			$E->hidden_datestamp < 1 and                # not hidden yet
 			$E->size > $min_size and                    # size > minimum size
 			substr($E->date, 0, 4) >= $year and         # current year
-			$E->age >= $min_age and                     # older than 6 months
-			( $max_age ? ($E->age <= $max_age) ? 1 : 0 : 1)
+			$E->age >= $min_age and              # older than 6 months
+			$E->age <= $max_age
 		) {
 			# we have a possible candidate
 			if (defined $core) {
@@ -367,8 +383,10 @@ sub find_requests_to_delete {
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
 	my $core   = (exists $opts{core} and defined $opts{core}) ? $opts{core} : undef;
-	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 60;
-	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} :
+		$req_del_min_age;
+	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} :
+		$req_hide_max_age;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
 	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
 	
@@ -381,12 +399,12 @@ sub find_requests_to_delete {
 			$E->lab_last !~ $internal_org and
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and        # finished
-			$E->hidden_datestamp and                    # hidden
-			not $E->deleted_datestamp and               # not yet deleted
+			$E->hidden_datestamp > 1 and                # hidden
+			$E->deleted_datestamp < 1 and               # not yet deleted
 			$E->hidden_age >= $min_age and              # older than 60 days
 			substr($E->date, 0, 4) >= $year and         # current year
-			( $max_age ? ($E->hidden_age <= $max_age) ? 1 : 0 : 1) and
-			( $min_size ? ($E->size >= $min_size) ? 1 : 0 : 1)
+			$E->hidden_age <= $max_age and
+			$E->size > $min_size
 		) {
 			# we have a possible candidate
 			if (defined $core) {
@@ -412,10 +430,12 @@ sub find_analysis_to_upload {
 	my $self = shift;
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
-	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
-	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
-	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 100000000;
-		# set minimum size to 100 MB
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} :
+		$anal_up_min_age;
+	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} :
+		$anal_up_max_age;
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} :
+		$anal_up_min_size;
 	
 	# scan through list
 	my @list;
@@ -426,11 +446,11 @@ sub find_analysis_to_upload {
 			$E->lab_last !~ $internal_org and
 			not $E->is_request and
 			$E->core_lab and                            # has division
-			not $E->hidden_datestamp   and              # not already hidden
+			$E->hidden_datestamp < 1 and                # not already hidden
 			$E->size > $min_size and                    # size > minimum
 			$E->age >= $min_age and                     # older than 9 months
 			substr($E->date, 0, 4) >= $year and         # current year
-			( $max_age ? ($E->age <= $max_age) ? 1 : 0 : 1)
+			$E->age <= $max_age
 		) {
 			# we have a candidate
 			push @list, $key;
@@ -447,11 +467,13 @@ sub find_analysis_to_hide {
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
 	my $core   = (exists $opts{core} and defined $opts{core}) ? $opts{core} : undef;
-	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 270;
-	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} :
+		$anal_hide_min_age;
+	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} :
+		$anal_hide_max_age;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
-	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 100000000;
-		# set minimum size to 100 MB
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} :
+		$anal_up_min_size;
 	
 	# scan through list
 	my @list;
@@ -461,11 +483,11 @@ sub find_analysis_to_hide {
 		if (
 			$E->lab_last !~ $internal_org and
 			not $E->is_request and
-			not $E->hidden_datestamp and                # not already hidden
+			$E->hidden_datestamp < 1 and                # not already hidden
 			$E->size > $min_size and                    # size > minimum
 			$E->age >= $min_age and                     # older than 9 months
 			substr($E->date, 0, 4) >= $year and         # current year
-			( $max_age ? ($E->age <= $max_age) ? 1 : 0 : 1)			
+			$E->age <= $max_age		
 		) {
 			# we have a possible candidate
 			if (defined $core) {
@@ -493,8 +515,10 @@ sub find_analysis_to_delete {
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
 	my $core   = (exists $opts{core} and defined $opts{core}) ? $opts{core} : undef;
-	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} : 60;
-	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
+	my $min_age = (exists $opts{age} and $opts{age} =~ /^\d+$/) ? $opts{age} :
+		$anal_del_min_age;
+	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} :
+		$anal_up_max_age;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
 	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
 	
@@ -506,12 +530,12 @@ sub find_analysis_to_delete {
 		if (
 			$E->lab_last !~ $internal_org and
 			not $E->is_request and
-			$E->hidden_datestamp and                    # hidden
-			not $E->deleted_datestamp and               # not yet deleted
+			$E->hidden_datestamp > 1 and                # hidden
+			$E->deleted_datestamp < 1 and               # not yet deleted
 			$E->hidden_age >= $min_age and              # older than 60 days
 			substr($E->date, 0, 4) >= $year and         # current year
-			( $max_age ? ($E->hidden_age <= $max_age) ? 1 : 0 : 1) and
-			( $min_size ? ($E->size >= $min_size) ? 1 : 0 : 1)
+			$E->hidden_age <= $max_age and
+			$E->size >= $min_size
 		) {
 			# we have a possible candidate
 			if (defined $core) {
