@@ -912,25 +912,25 @@ sub last_size {
 }
 
 
-sub youngest_age {
+sub youngest_datestamp {
 	my $self = shift;
 	if (@_ and defined $_[0] and $_[0] > 1) {
 		$self->{data}->[AGE] = $_[0];
 	}
 	my $a = $self->{data}->[AGE];
 	return $a if defined $a;
-	return;
+	return -1;
 }
 
 
 sub age {
 	my $self = shift;
 	# calculate current age in days
-	my $a = $self->youngest_age;
-	if (defined $a) {
+	my $a = $self->youngest_datestamp;
+	if (defined $a and $a > 1) {
 		return sprintf("%.0f", (time - $a) / DAY);
 	}
-	return;
+	return -1;
 }
 
 
@@ -940,9 +940,8 @@ sub upload_age {
 	if ($u > 1) {
 		return sprintf("%.0f", (time - $u) / DAY);
 	}
-	return;
+	return -1;
 }
-
 
 sub scan_datestamp {
 	my $self = shift;
