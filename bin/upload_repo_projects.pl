@@ -19,7 +19,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 0.4;
+our $VERSION = 0.5;
 
 my $doc = <<END;
 
@@ -48,25 +48,41 @@ running them in parallel jobs for each file individually. This tool
 must be in your environment PATH. It uses the default AWS credential
 files.
 
-Usage
+VERSION: $VERSION
 
+USAGE:
+
+  upload_repo_projects.pl -c <catalog> -p <project> --check
+  
   upload_repo_projects.pl -c <catalog> -p <project>
   
-    -c --cat <path>         Path to metadata catalog database. Required.
-    -p --project <text>     Project identifier. Required.
-    -f --forks <int>        Number of parallel aws upload jobs, default 4
+  upload_repo_projects.pl --manifest <file> --bucket <name> --prefix <text> --profile <text>
+
+
+OPTIONS:
+  
+  Project information from database:
+    -c --cat <path>         Path to metadata catalog database
+    -p --project <text>     Project identifier
+  
+  Or manually specify project information:
+    --manifest <file>       CSV file of local relative file paths to upload
+    --bucket <text>         Remote AWS bucket name
+    --prefix <text>         Prefix for destination objects
+    --profile <text>        AWS profile name in credentials file
+  
+  Options:
+    --check                 Check and report upload counts only
+    --aa                    Include the Request AutoAnalysis folder (default skip)
+    -f --forks <int>        Number of parallel aws upload jobs, default 2
     --class <text>          Specify storage class (default STANDARD)
                               Examples include INTELLIGENT_TIERING, 
                               GLACIER, DEEP_ARCHIVE
-    --check                 Check and report upload counts only
     --dryrun                Do not upload
     --cred <path>           Path to AWS credentials file. 
                                Default is ~/.aws/credentials. 
     -v --verbose            Print additional details
     -h --help               Show this help
-
-
-Options
 
 
 END
@@ -76,10 +92,16 @@ END
 # Command line options
 my $cat_file;
 my $project_id;
-my $cpu = 4;
-my $storage_class;
+my $manifest_file;
+my $project_path;
+my $bucket_name;
+my $prefix;
+my $profile;
 my $check_only;
+my $include_autoanal;
+my $storage_class;
 my $dryrun;
+my $cpu = 2;
 my $aws_cred_file = sprintf "%s/.aws/credentials", $ENV{HOME};
 my $verbose;
 my $help;
@@ -88,10 +110,15 @@ if (@ARGV) {
 	GetOptions(
 		'c|catalog=s'           => \$cat_file,
 		'p|project=s'           => \$project_id,
-		'f|forks=i'             => \$cpu,
-		'class=s'               => \$storage_class,
+		'manifest=s'            => \$manifest_file,
+		'bucket=s'              => \$bucket_name,
+		'prefix=s'              => \$prefix,
+		'profile=s'             => \$profile,
 		'check!'                => \$check_only,
+		'aa!'                   => \$include_autoanal,
+		'class=s'               => \$storage_class,
 		'dryrun!'               => \$dryrun,
+		'f|forks=i'             => \$cpu,
 		'cred=s'                => \$aws_cred_file,
 		'v|verbose!'            => \$verbose,
 		'h|help!'               => \$help,
@@ -106,10 +133,6 @@ else {
 # global variables
 my $Entry;
 my $Project;
-my $project_path;
-my $bucket_name;
-my $prefix;
-my $profile;
 my $aws;
 my $using_flat_req;
 my @upload_list;
@@ -139,12 +162,21 @@ sub check_options {
 		print $doc;
 		exit 0;
 	}
-	unless ($project_id) {
-		print " No project identifer provided! See help\n";
-		exit 1;
+	if ( $project_id or $cat_file ) {
+		unless ($project_id) {
+			print " No project identifer provided! See help\n";
+			exit 1;
+		}
+		unless ($cat_file) {
+			print " No catalog file provided! See help\n";
+			exit 1;
+		}
 	}
-	unless ($cat_file) {
-		print " No catalog file provided! See help\n";
+	elsif ( $manifest_file and $bucket_name and $prefix and $profile ) {
+		print " Using provided manifest, bucket, prefix, and profile\n";
+	}
+	else {
+		print " Not enough source or destination specifications provided! See help\n";
 		exit 1;
 	}
 	unless ( $aws_cred_file and -e $aws_cred_file ) {
@@ -166,19 +198,21 @@ sub initialize {
 	printf " > Preparing Project %s for upload\n", $project_id;
 	
 	# Catalog entry
-	my $Catalog = RepoCatalog->new($cat_file) or 
-		die "Cannot open catalog file '$cat_file'!";
-	$Entry = $Catalog->entry($project_id);
-	unless ($Entry) {
-		print " ! Identifier $project_id not in Catalog! failing\n";
-		exit 1;
+	if ( $cat_file and $project_id ) {
+		my $Catalog = RepoCatalog->new($cat_file) or 
+			die "Cannot open catalog file '$cat_file'!";
+		$Entry = $Catalog->entry($project_id);
+		unless ($Entry) {
+			print " ! Identifier $project_id not in Catalog! failing\n";
+			exit 1;
+		}
+		$bucket_name  = $Entry->bucket;
+		$profile      = $Entry->profile;
+		$prefix       = $Entry->prefix;
+		$project_path = $Entry->path;
 	}
 
-	# check if project is eligble
-	$bucket_name  = $Entry->bucket;
-	$profile      = $Entry->profile;
-	$prefix       = $Entry->prefix;
-	$project_path = $Entry->path;
+	# check if project is eligible
 	unless ($profile) {
 		print " ! $project_id does not have an AWS profile\n";
 		exit 1;
@@ -191,8 +225,8 @@ sub initialize {
 		print " ! $project_id is not assigned a destination prefix\n";
 		exit 1;
 	}
-	unless ($Entry->scan_datestamp) {
-		print " ! $project_id has not been scanned yet\n";
+	unless ($manifest_file) {
+		print " ! $project_id has not been scanned or no manifest file provided\n";
 		exit 1;
 	}
 
@@ -233,7 +267,7 @@ sub prepare_list {
 	}
 	else {
 		printf " ! Bucket '%s' in '%s' for %s does not exist\n", $bucket_name,
-			$Entry->core_lab, $project_id;
+			$Entry ? $Entry->core_lab : '???', $project_id;
 		my $TL = Text::Levenshtein::Flexible->new($max_dist, $cost_ins, $cost_del,
 			$cost_sub);
 		my @names = grep { !/logs$/ } map { $_->name } @buckets;
@@ -291,7 +325,7 @@ sub prepare_list {
 	my %existing;
 	if ( $bucket ) {
 		# perform a recursive search, but this may be empty
-		my $stream = $bucket->list( { prefix => $Entry->prefix } );
+		my $stream = $bucket->list( { prefix => $prefix } );
 		until ( $stream->is_done ) {
 			foreach my $object ($stream->items) {
 				my $k = $object->key;
@@ -306,7 +340,7 @@ sub prepare_list {
 		}
 		if (%existing and not $Entry->upload_datestamp) {
 			printf " ! Project %s has contents in %s/%s but no upload date\n",
-				$Entry->id, $Entry->bucket, $Entry->prefix;
+				$Entry->id, $bucket_name, $prefix;
 		}
 	}
 	
@@ -377,6 +411,7 @@ sub prepare_list {
 	my $skip   = 0;
 	my $zipcnt = 0;
 	my $upcnt  = 0;
+	my $aacnt  = 0;
 	while ( my $data = $csv->getline($fh) ) {
 		my %file = mesh $header, $data;
 		my $fname = $file{File};
@@ -398,6 +433,12 @@ sub prepare_list {
 			$zipcnt++;
 			next;
 		}
+		if ( not $include_autoanal and $fname =~ /^ AutoAnalysis_ \w+\d{4} \/ /x ) {
+			$skip++;
+			$aacnt++;
+			next;
+		}
+		
 		if ( exists $existing{$fname} or ( $altname and exists $existing{$altname} ) ) {
 			if ( $altname and exists $existing{$altname} and not $using_flat_req ) {
 				$using_flat_req = 1;
@@ -438,6 +479,9 @@ sub prepare_list {
 	}
 	if ($upcnt) {
 		printf "   > %d files were already uploaded\n", $upcnt;
+	}
+	if ($aacnt) {
+		printf "   > %d files were in AutoAnalysis folder and not included\n", $upcnt;
 	}
 
 }
@@ -527,8 +571,13 @@ sub upload_files_super {
 	if ($failure) {
 		printf " ! There were %d upload failures\n", $failure;
 	}
-	else {
-		$Entry->upload_datestamp(time);
+	elsif ($success) {
+		if ($Entry) {
+			$Entry->upload_datestamp(time);
+			if ($include_autoanal) {
+				$Entry->autoanal_datestamp(time);
+			}
+		}
 	}
 }
 
