@@ -10,6 +10,7 @@ use File::Copy;
 use File::Path qw(make_path);
 use File::Find;
 use Digest::MD5;
+use POSIX qw(strftime);
 
 our $VERSION = 7.0;
 
@@ -22,7 +23,7 @@ my $Digest = Digest::MD5->new;
 my $current_project = undef;
 my $project_age     = 0;
 my $project_size    = 0;
-my $day             = 86400; # 60 seconds * 60 minutes * 24 hours
+
 
 sub new {
 	my ($class, $path, $verbose) = @_;
@@ -148,6 +149,10 @@ sub ziplist_file {
 	return shift->{ziplist};
 }
 
+sub alt_ziplist_file {
+	return shift->{alt_ziplist};
+}
+
 sub notice_file {
 	return shift->{notice};
 }
@@ -253,6 +258,79 @@ sub hide_deleted_files {
 	$failure_count += $self->add_notice_file;
 	
 	return $failure_count;
+}
+
+sub zip_archive_files {
+	my $self = shift;
+
+	# check zip list
+	unless ( -e $self->alt_ziplist_file ) {
+		carp "  ! no alternate zip list file";
+		return 1;
+	}
+
+	# An extensive internet search reveals no parallelized zip archiver, despite
+	# there being a parallelized version of gzip, when both use the common DEFLATE 
+	# algorithm. So we just run plain old zip.
+	my $zipper = `which zip`;
+	chomp $zipper;
+	unless ($zipper) {
+		print " ! no zip compression utility, disabling\n";
+		return 1;
+	}
+	
+	# first we move the zip list file
+	chdir $self->given_dir; # just in case
+	move( $self->alt_ziplist_file, $self->ziplist_file ) or do {
+		printf " ! failed to move zip list file %s\n", $self->alt_ziplist_file;
+		return 1;
+	};
+	
+	# Zip the files
+	my $command = sprintf("cat %s | $zipper --names-stdin %s", $self->ziplist_file, 
+		$self->zip_file);
+	print "  > executing: $command\n";
+	my $result = system($command);
+	if ($result) {
+		print "     failed!\n";
+		return 1;
+	}
+	elsif (not $result and -e $self->zip_file) {
+		# zip appears successful
+		# need to add these files to the manifest file
+		my @zl_st  = stat($self->ziplist_file);
+		my @zip_st = stat($self->zip_file);
+		my $zl_md5 = $self->calculate_file_checksum( $self->ziplist_file );
+		my $zip_md = $self->calculate_file_checksum( $self->zip_file );
+		my $fh = IO::File->new( $self->manifest_file, '>>' ) or do {
+			printf " ! failed to update manifest file %s: $OS_ERROR\n",
+				$self->manifest_file;
+			return 1;
+		};
+		$fh->printf( "%s\n%s\n", 
+			join(',', ( sprintf(qq("%s"), $self->ziplist_file), 'Text', 'N', $zl_st[7], 
+				sprintf(qq("%s"), strftime("%B %d, %Y %H:%M:%S", localtime($zl_st[9]) ) ),
+				$zl_md5, q(), q(), q(), q() ) ),
+			join(',', ( sprintf(qq("%s"), $self->zip_file), 'Archive', 'N', $zip_st[7], 
+				sprintf(qq("%s"), strftime("%B %d, %Y %H:%M:%S", localtime($zl_st[9]) ) ),
+				$zip_md, q(), q(), q(), q() ) ),
+		);
+		$fh->close;
+
+		# update the remove list
+		$fh = IO::File->new( $self->alt_remove_file, '>>' ) or do {
+			printf " ! failed to update remove list file %s: $OS_ERROR\n",
+				$self->alt_remove_file;
+			return 1;
+		};
+		$fh->printf("%s\n", $self->zip_file);
+		$fh->close;
+		
+		# finish up by hiding the zipped files
+		print "  > moving zipped files\n";
+		return $self->hide_zipped_files;
+	}
+	return;
 }
 
 sub hide_zipped_files {
@@ -418,6 +496,7 @@ sub delete_zipped_files {
 		my $filelist = $self->get_file_list($self->ziplist_file);
 		my $fc = $self->_delete_directory_files('./', $filelist);
 		$fc += $self->clean_empty_directories($self->given_dir);
+		return $fc;
 	}
 	else {
 		print "  No zip list file found to delete files!\n";
