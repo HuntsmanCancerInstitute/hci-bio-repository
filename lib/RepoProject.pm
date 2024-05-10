@@ -11,7 +11,7 @@ use File::Path qw(make_path);
 use File::Find;
 use Digest::MD5;
 
-our $VERSION = 6.1;
+our $VERSION = 7.0;
 
 ### Initialize
 
@@ -494,6 +494,23 @@ sub get_size_age {
 	return ($project_size, $project_age);
 }
 
+sub get_autoanal_folder {
+	my $self = shift;
+	return unless ($self->project =~ /^\d+R$/);
+	my $curdir = File::Spec->curdir();
+	chdir $self->given_dir;
+	my @results = glob("AutoAnalysis_*");
+	my $aapath = q();
+	if ( scalar @results == 1 and $results[0] ) {
+		$aapath = $results[0];
+	}
+	elsif ( scalar @results > 1 ) {
+		printf "   ! more than one AutoAnalysis folders found for %s\n", $self->project;
+		$aapath = join(',', @results);
+	}
+	chdir $curdir;
+	return $aapath;
+}
 
 
 #### Internal functions
