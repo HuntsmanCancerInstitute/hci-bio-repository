@@ -7,15 +7,17 @@ use Carp;
 use IO::File;
 use DBM::Deep;
 
-our $VERSION = 6.1;
+our $VERSION = 7.0;
 
 
 # General private values
 
 my $DEFAULT_PATH  = "~/test/repository.db";
+my $HEADER = "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tCORELab\tProfile\tBucket\tPrefix\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\tAAUpload\tQCScan\tAutoAnalysisFolder\n";
+my $ARRAY_SIZE = 31;  # size of DB Entry array, see RepoEntry index list
+
 my $repo_epoch = 2005;
 my $internal_org = qr/(?: Bioinformatics \s Shared \s Resource | HTG \s Core \s Facility | SYSTEM )/x;
-my $HEADER = "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tCORELab\tProfile\tBucket\tPrefix\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\n";
 
 
 # Functions
@@ -32,8 +34,8 @@ sub new {
 		# check if current version
 		my $first = $db->first_key;
 		my $data = $db->get($first);
-		if ( scalar @{ $data } != 28 ) {
-			croak "Database first entry does not have 28 fields! Old database?";
+		if ( scalar @{ $data } != $ARRAY_SIZE ) {
+			croak "Database first entry does not have $ARRAY_SIZE fields! Old database?";
 		}
 	}
 	else {
@@ -85,7 +87,8 @@ sub new_entry {
 	else {
 		# make a new entry
 		# the project ID is always the first element in the array
-		my @data = ($project, map { q() } (1..27));
+		my @data = ( map { q() } (1 .. $ARRAY_SIZE) );
+		$data[0] = $project;
 		my $p = $self->{db}->put($project, \@data);
 		if ($p) {
 			return RepoEntry->new( $self->{db}->get($project) );
@@ -240,9 +243,9 @@ sub import_from_file {
 	my %import;
 	while (my $line = $fh->getline) {
 		my @data = split /\t/, $line;
-		unless (scalar @data == 28) {
+		unless (scalar @data == $ARRAY_SIZE) {
 			$i++;
-			croak " ! line $i does not have 28 fields!";
+			croak " ! line $i does not have $ARRAY_SIZE fields!";
 		}
 		chomp $data[-1];
 		my $id = $data[0];
@@ -573,6 +576,9 @@ use constant {
 	HIDDEN      => 25,    # unix timestamp for hiding
 	DELETED     => 26,    # unix timestamp for deleting
 	EMAILED     => 27,    # unix timestamp for emailing
+	AAUPLOAD    => 28,    # unix timestamp for Request AutoAnalysis upload
+	QCSCAN      => 29,    # unix timestamp for request QC folder scan
+	AAFOLD      => 30,    # Request AutoAnalysis folder name
 	DAY         => 86400, # 60 seconds * 60 minutes * 24 hours
 	KB          => 1024,  # binary size prefixes
 	MB          => 1048576,
@@ -889,6 +895,39 @@ sub emailed_datestamp {
 	return $self->{data}->[EMAILED] || 0;
 }
 
+sub autoanal_datestamp {
+	my $self = shift;
+	if (@_) {
+		$self->{data}->[AAUPLOAD] = $_[0];
+	}
+	return $self->{data}->[AAUPLOAD] || 0;
+}
+
+sub autoanal_age {
+	my $self = shift;
+	my $u = $self->autoanal_datestamp;
+	if ($u > 1) {
+		return sprintf("%.0f", (time - $u) / DAY);
+	}
+	return -1;
+}
+
+sub qc_scan_datestamp {
+	my $self = shift;
+	if (@_) {
+		$self->{data}->[QCSCAN] = $_[0];
+	}
+	return $self->{data}->[QCSCAN] || 0;
+}
+
+sub autoanal_folder {
+	my $self = shift;
+	if (@_) {
+		$self->{data}->[AAFOLD] = $_[0];
+	}
+	return $self->{data}->[AAFOLD];
+}
+
 sub project_url {
 	my $self = shift;
 	my $b = $self->{data}->[BUCKET];
@@ -929,19 +968,22 @@ sub print_string {
 		$self->genome || q(),
 		$self->size || q(),
 		$self->last_size || q(),
-		$self->youngest_age || q(),
-		$self->scan_datestamp || q(),
-		$self->upload_datestamp || q(),
-		$self->hidden_datestamp || q(),
-		$self->deleted_datestamp || q(),
-		$self->emailed_datestamp || q(),
+		$self->youngest_datestamp || 0,
+		$self->scan_datestamp || 0,
+		$self->upload_datestamp || 0,
+		$self->hidden_datestamp || 0,
+		$self->deleted_datestamp || 0,
+		$self->emailed_datestamp || 0,
+		$self->autoanal_datestamp || 0,
+		$self->qc_scan_datestamp || 0,
+		$self->autoanal_folder || q()
 	);
 	
 	# transform posix times as necessary
 	if ($transform) {
 		
 		# convert times from epoch to YYYYMMDD
-		for my $i (SCAN, UPLOAD, HIDDEN, DELETED, EMAILED) {
+		for my $i (SCAN, UPLOAD, HIDDEN, DELETED, EMAILED, AAUPLOAD, QCSCAN) {
 			next unless (defined $data[$i] and $data[$i]);
 			my @times = localtime($data[$i]);
 			if ($times[5] == 69 or $times[5] == 70) {
