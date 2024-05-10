@@ -9,7 +9,7 @@ use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
 use hciCore qw( generate_prefix generate_bucket );
 
-our $VERSION = 6.1;
+our $VERSION = 7.0;
 
 
 
@@ -22,6 +22,10 @@ my $default_database = 'GNomEx';
 my $default_permfile = File::Spec->catfile($ENV{HOME}, '.gnomex');
 my $default_year = 2018;
 
+# GNomEx database queries 
+# these are a bit painful, but I'm getting out what I want
+# currently they return all or nearly all projects, and then I subsequently filter
+# filtering could be opitimized
 my $anal_query = <<QUERY;
 SELECT Analysis.idAnalysis AnalysisNumber, 
 Analysis.name AnalysisName, 
@@ -304,6 +308,16 @@ sub fetch_analyses {
 						printf "    ! group changed after upload\n"
 					}
 				}
+			}
+			
+			# update analysis organism
+			if ( $row[11] ne $E->organism ) {
+				$E->organism($row[11]);
+				$u++;
+			}
+			if ( $row[12] ne $E->genome ) {
+				$E->organism($row[12]);
+				$u++;
 			}
 			
 			# add to return lists
