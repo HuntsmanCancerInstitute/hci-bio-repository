@@ -15,7 +15,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 6.1;
+our $VERSION = 7.0;
 
 
 ######## Documentation
@@ -71,12 +71,14 @@ OPTIONS
     --list_req_up             Print or work on Request IDs for upload to AWS
     --list_req_hide           Print or work on Request IDs for hiding
     --list_req_delete         Print or work on Request IDs for deletion
+    --list_aa_up              Print or work on AutoAnalysis Requests for upload
     --list_anal_up            Print or work on Analysis IDs for uploading to AWS
     --list_anal_hide          Print or work on Analysis IDs for hiding
     --list_anal_delete        Print or work on Analysis IDs for deletion
     --list_lab <pi_lastname>  Print or select based on PI last name
-    --list_req                Print or select all request catalog entries
-    --list_anal               Print or select all analysis catalog entries
+    --list_req                Print or select all Request catalog entries
+    --list_anal               Print or select all Analysis catalog entries
+    --list_aa                 Print or select all AutoAnalysis Request entries
     --list_all                Print or select all catalog entries
   
   Catalog selection modifiers:
@@ -93,6 +95,7 @@ OPTIONS
   Action on catalog entries (select one): 
     --status                  Print the status of listed projects
     --info                    Print basic information of listed projects
+    --aastat                  Print status of Request AutoAnalysis projects
     --path                    Print the local repository path of listed project
     --url                     Print the S3 URL of listed projects
     --print                   Print all the information of listed projects
@@ -100,8 +103,9 @@ OPTIONS
   
   Actions on projects:
     --scan                    Scan the project directory and write METADATA
-    --zip                     Zip archive Analysis files during scan
+    --zip                     Zip archive Analysis files
     --upload                  Upload projects to CORE lab AWS bucket
+    --aaupload                Upload projects, including AutoAnalysis folders
 
   Actions on project directories:
     --hide_zip                Hide the zipped files to _ZIPPED_FILES folder
@@ -168,6 +172,7 @@ my $cat_file;
 my $list_req_upload = 0;
 my $list_req_hide = 0;
 my $list_req_delete = 0;
+my $list_aa_upload = 0;
 my $list_anal_upload = 0;
 my $list_anal_hide = 0;
 my $list_anal_delete = 0;
@@ -175,6 +180,7 @@ my $list_pi = 0;
 my $list_file;
 my $list_all = 0;
 my $list_req = 0;
+my $list_aa = 0;
 my $list_anal = 0;
 my $year;
 my $include_core;
@@ -184,6 +190,7 @@ my $min_size;
 my $external;
 my $show_status = 0;
 my $show_info = 0;
+my $show_aa_status = 0;
 my $show_path = 0;
 my $show_url = 0;
 my $print_info = 0;
@@ -203,6 +210,7 @@ my $generate_s3_path;
 my $project_scan;
 my $project_upload;
 my $project_zip;
+my $project_aa_upload;
 my $move_zip_files;
 my $move_del_files;
 my $unhide_zip_files;
@@ -238,13 +246,15 @@ if (scalar(@ARGV) > 1) {
 		'c|catalog=s'           => \$cat_file,
 		'list_req_up!'          => \$list_req_upload,
 		'list_req_hide!'        => \$list_req_hide,
-		'list_req_delete'       => \$list_req_delete,
+		'list_req_delete!'      => \$list_req_delete,
+		'list_aa_up!'           => \$list_aa_upload,
 		'list_anal_up!'         => \$list_anal_upload,
 		'list_anal_hide!'       => \$list_anal_hide,
-		'list_anal_delete'      => \$list_anal_delete,
+		'list_anal_delete!'     => \$list_anal_delete,
 		'list_lab|list_pi=s'    => \$list_pi,
 		'list_all!'             => \$list_all,
 		'list_anal!'            => \$list_anal,
+		'list_aa!'              => \$list_aa,
 		'list_req!'             => \$list_req,
 		'list=s'                => \$list_file,
 		'core!'                 => \$include_core,
@@ -255,12 +265,14 @@ if (scalar(@ARGV) > 1) {
 		'external!'             => \$external,
 		'status!'               => \$show_status,
 		'info!'                 => \$show_info,
+		'aastatus!'             => \$show_aa_status,
 		'path!'                 => \$show_path,
 		'url!'                  => \$show_url,
 		'print!'                => \$print_info,
 		'delete_entry!'         => \$delete_entry,
 		'scan!'                 => \$project_scan,
 		'upload!'               => \$project_upload,
+		'aaupload!'             => \$project_aa_upload,
 		'zip!'                  => \$project_zip,
 		'hide_zip!'             => \$move_zip_files,
 		'hide_del!'             => \$move_del_files,
@@ -313,11 +325,11 @@ if ($help) {
 
 
 
-
 #### Main functions
 check_options();
+my @action_list;
 my $Catalog = open_import_catalog();
-my @action_list = generate_list();
+@action_list = generate_list();
 run_metadata_actions();
 run_project_actions();
 run_project_directory_actions();
@@ -328,7 +340,7 @@ if (@action_list) {
 }
 final_catalog_functions();
 
-
+exit 0;
 
 
 
@@ -348,7 +360,7 @@ sub check_options {
 	# search functions
 	my $sanity = $list_req_upload + $list_req_hide + $list_req_delete + 
 		$list_anal_upload + $list_anal_hide + $list_anal_delete + $list_all + 
-		$list_req + $list_anal + ($list_pi ? 1 : 0);
+		$list_req + $list_anal + $list_aa + $list_aa_upload + ($list_pi ? 1 : 0);
 	if ($sanity > 1) {
 		die "Only 1 Request search allowed at a time!\n";
 	}
@@ -359,7 +371,8 @@ sub check_options {
 	
 	# print function
 	$sanity = 0;
-	$sanity = $show_status + $show_info + $show_path + $show_url + $print_info;
+	$sanity = $show_status + $show_info + $show_aa_status + $show_path + $show_url + 
+		$print_info;
 	if ($sanity > 1) {
 		die "Only 1 printing function allowed at a time!\n";
 	}
@@ -391,15 +404,14 @@ sub check_options {
 	
 	# convert sizes
 	if ($min_size) {
-		# we're using base10 size rather than base2 for simplicity, too many rounding errors
 		if ($min_size =~ /^([\d]+)k$/i) {
-			$min_size = $1 * 1000;
+			$min_size = $1 * 1024;
 		}
 		elsif ($min_size =~ /^(\d+)m$/i) {
-			$min_size = $1 * 1000000;
+			$min_size = $1 * 1048576;
 		}
 		elsif ($min_size =~ /^(\d+)g$/i) {
-			$min_size = $1 * 1000000000;
+			$min_size = $1 * 1073741824;
 		}
 		elsif ($min_size =~ /^\d+$/) {
 			# this is ok, just a number
@@ -438,6 +450,8 @@ sub open_import_catalog {
 		else {
 			print " Import from file '$import_file' failed!\n";
 		}
+		
+		# exit immediately, do not do anything else. why? not sure
 		exit;
 	}
 	
@@ -474,20 +488,20 @@ sub open_import_catalog {
 			if ($scan_size_age) {
 				print " Updating project sizes and ages....\n";
 				foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
-					my $E = $Cat->entry($id);
-					my $path = $E->path;
+					my $Entry = $Cat->entry($id);
+					my $path  = $Entry->path;
 					if (-e $path) {
-						my $project = RepoProject->new($E->path);
-						if ($project) {
-							my ($size, $age) = $project->get_size_age;
+						my $Project = RepoProject->new($Entry->path);
+						if ($Project) {
+							my ($size, $age) = $Project->get_size_age;
 							if ($size) {
-								$E->size($size);
+								$Entry->size($size);
 							}
 							if ($age) {
-								$E->youngest_age($age);
+								$Entry->youngest_datestamp($age);
 							}
 							# print warnings if something seems amiss
-							if ($E->hidden_datestamp and $age > $E->hidden_datestamp) {
+							if ($Entry->hidden_datestamp and $age > $Entry->hidden_datestamp) {
 								print "  ! New files added to hidden project $id\n";
 							}
 						}
@@ -501,7 +515,30 @@ sub open_import_catalog {
 				$scan_size_age = 0;
 			}
 			else {
-				print " Don't forget to update file sizes and ages on the file server\n Run again with --update_size_age\n";
+				print <<MESSAGE;
+ Don't forget to update file sizes and ages on the file server.
+ Run again with option --update_size_age
+MESSAGE
+			}
+
+			# add project IDs to list for scanning
+			if ($project_scan) {
+				foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
+					my $Entry = $Cat->entry($id);
+					
+					if ( $Entry->size > 1048576 and 
+						( $Entry->scan_datestamp < 1 or 
+						( $Entry->youngest_datestamp - $Entry->scan_datestamp ) > 86400 )
+					) {
+						# has not been scanned yet or new files have been added 
+						# by at least a day since last scanned
+						if ($verbose) {
+							printf "  > will scan %s, age %s, last scanned %s days ago\n",
+								$id, $Entry->age, $Entry->scan_datestamp;
+						}
+						push @action_list, $id;
+					}
+				}
 			}
 			
 			# print report
@@ -522,21 +559,39 @@ sub open_import_catalog {
 			if ($scan_size_age) {
 				print " Updating project sizes and ages....\n";
 				foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
-					my $E = $Cat->entry($id);
-					my $path = $E->path;
+					my $Entry = $Cat->entry($id);
+					my $path = $Entry->path;
 					if (-e $path) {
-						my $project = RepoProject->new($E->path);
-						if ($project) {
-							my ($size, $age) = $project->get_size_age;
+						my $Project = RepoProject->new($Entry->path);
+						if ($Project) {
+							my ($size, $age) = $Project->get_size_age;
 							if ($size) {
-								$E->size($size);
+								$Entry->size($size);
 							}
 							if ($age) {
-								$E->youngest_age($age);
+								$Entry->youngest_datestamp($age);
 							}
 							# print warnings if something seems amiss
-							if ($E->hidden_datestamp and $age > $E->hidden_datestamp) {
+							if ($Entry->hidden_datestamp and 
+								$age > $Entry->hidden_datestamp
+							) {
 								print "  ! New files added to hidden project $id\n";
+							}
+							# AutoAnalysis folder
+							my $aa_folder = $Project->get_autoanal_folder;
+							
+							if ($aa_folder) {
+								if ($Entry->autoanal_folder ) {
+									if ( $aa_folder ne $Entry->autoanal_folder ) {
+										printf 
+										"  ! Changed AutoAnalysis folder for %s: %s\n",
+										$id, $aa_folder;
+										$Entry->autoanal_folder($aa_folder);
+									}
+								}
+								else {
+									$Entry->autoanal_folder($aa_folder);
+								}
 							}
 						}
 					}
@@ -546,57 +601,36 @@ sub open_import_catalog {
 				}
 			}
 			else {
-				print " Don't forget to update file sizes and ages on the file server\n Run again with --update_size_age\n";
+				print <<MESSAGE;
+ Don't forget to update file sizes and ages on the file server.
+ Run again with option --update_size_age
+MESSAGE
 			}
 			
-			# scan request projects
-			my @to_scan;
+			# add project IDs to list for scanning
 			if ($project_scan) {
 				foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
-					my $E = $Cat->entry($id);
-					if ($E->size and $E->size > 200000000) {
-						# at least 200 Mb in size
-						if (
-							# has not been scanned yet or new files have been added 
-							# by at least a day since last scanned
-							not $E->scan_datestamp or 
-							( $E->youngest_age and $E->scan_datestamp and
-							  ($E->youngest_age - $E->scan_datestamp) > 86400
-							)
-						) {
-							if ($verbose) {
-								printf "  > will scan %s, age %s, last scanned %s days ago\n",
-									$id, $E->age, $E->scan_datestamp ? 
-									sprintf("%.0f", (time - $E->scan_datestamp) / 86400)
-									: '-';
-							}
-							push @to_scan, $id;
+					my $Entry = $Cat->entry($id);
+					
+					if ( $Entry->size > 104857600 and 
+						( $Entry->scan_datestamp < 1 or 
+						( $Entry->youngest_datestamp - $Entry->scan_datestamp ) > 86400 )
+					) {
+						# has not been scanned yet or new files have been added 
+						# by at least a day since last scanned
+						if ($verbose) {
+							printf "  > will scan %s, age %s, last scanned %s days ago\n",
+								$id, $Entry->age, $Entry->scan_datestamp;
 						}
-					} 
-				}
-				if (@to_scan) {
-					printf " Scanning %d project files....\n\n", scalar(@to_scan);
-					my $command = sprintf "%s/process_request_project.pl --catalog %s --scan ",
-						$Bin, $cat_file;
-					$command .= '--verbose ' if $verbose;
-					foreach my $id (@to_scan) {
-						my $c = $command . $id;
-						print " Executing $c\n";
-						system($c);
+						push @action_list, $id;
 					}
 				}
-				
-				# reset the scan flag - don't need to do it again
-				$project_scan = 0;
 			}
 			
 			# print report
 			printf "\n Project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
 				$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
 				scalar(@{$new_list});
-			if (@to_scan) {
-				printf "  %d scanned\n", scalar(@to_scan);
-			}
 		}
 	
 	}
@@ -746,6 +780,26 @@ sub generate_list {
 		);
 	}
 	
+	# search for requests with autoanalysis folders
+	elsif ($list_aa) {
+		die "Can't find entries if list provided!\n" if @action_list;
+		return $Catalog->find_autoanal_req(
+			year     => $year,
+			age      => $min_age,
+			maxage   => $max_age,
+		);
+	}
+	
+	# search for requests with autoanalysis folders
+	elsif ($list_aa_upload) {
+		die "Can't find entries if list provided!\n" if @action_list;
+		return $Catalog->find_autoanal_to_upload(
+			year     => $year,
+			age      => $min_age,
+			maxage   => $max_age,
+		);
+	}
+	
 }
 
 
@@ -768,7 +822,7 @@ sub run_metadata_actions {
 				$Entry->size($size);
 			}
 			if ($age) {
-				$Entry->youngest_age($age);
+				$Entry->youngest_datestamp($age);
 			}
 			$count++;
 		}
@@ -1075,36 +1129,19 @@ sub run_project_actions {
 			
 			# generate the command for external utility
 			# these will be executed one at a time
-			my $command;
-			if ($id =~ /^A\d+$/) {
-				$command = "$Bin/process_analysis_project.pl";
-			}
-			elsif ($id =~ /^\d+R\d?$/) {
-				$command = "$Bin/process_request_project.pl";
-			}
-			else {
-				warn "unrecognized project id! skipping\n";
-				next;
-			}
-			$command .= sprintf(" --catalog %s --scan", $cat_file);
-			if ($project_zip and substr($id, 0, 1) eq 'A') {
-				$command .= " --zip";
-			}
+			my $command = sprintf
+				"%s/process_project.pl --catalog %s --project %s --scan", 
+				$Bin, $cat_file, $id;
 			if ($verbose) {
 				$command .= " --verbose";
 			}
-			$command .= " $id";
 			print " Executing $command\n";
 			system($command);
 		}
-		
-		# reset the actions already done
-		$move_del_files = 0;
-		$move_zip_files = 0 if $project_zip; # automatically done
 	}
 	
 	# upload the project
-	if ($project_upload) {
+	if ( $project_upload or $project_aa_upload ) {
 		print " Preparing projects for upload...\n";
 		unless (@action_list) {
 			die "No list provided to update division name!\n";
@@ -1140,7 +1177,7 @@ sub run_project_actions {
 				print " ! $id has not been scanned yet\n";
 				next;
 			}
-			unless ( $Entry->scan_datestamp > $Entry->youngest_age ) {
+			unless ( $Entry->scan_datestamp > $Entry->youngest_datestamp ) {
 				# this is not a fool proof test without initiating a real scan, 
 				# but it's better than nothing
 				# go ahead and proceed with a warning
@@ -1156,14 +1193,17 @@ sub run_project_actions {
 		foreach my $id (@upload_list) {
 			my $command = sprintf "%s/upload_repo_projects.pl --catalog %s --project %s",
 				$Bin, $cat_file, $id;
+			if ($project_aa_upload) {
+				$command .= ' --aa';
+			}
 			if ($verbose) {
-				$command .= " --verbose";
+				$command .= ' --verbose';
 			}
 			if ($mock) {
 				# Not the actual mock command, which goes through the entire forking
 				# and dryrun aws s3 commands. Instead just checks bucket and counts
 				# number of files to upload, which is what we really want here. 
-				$command .= " --check";
+				$command .= ' --check';
 			}
 			print "\n Executing $command\n";
 			system($command);
@@ -1177,228 +1217,249 @@ sub run_project_directory_actions {
 	
 	# Run any number of project management functions
 	# we group all of these together for convenience
-	if (
+	return unless (
 		$move_zip_files or $move_del_files or $unhide_zip_files or $unhide_del_files or 
 		$restore_zip_files or $delete_zip_files or $delete_del_files or $add_notice or 
-		$clean_project_files
-	) {
+		$clean_project_files or $project_zip);
+	
+	# remember current directory, as we will move around
+	my $current_dir = File::Spec->rel2abs( File::Spec->curdir() );
+	
+	# we will do all given functions at once for each project
+	foreach my $item (@action_list) {
+		my ($id, @rest) = split(m/\s+/, $item);
+		next unless (defined $id);
 		
-		# remember current directory, as we will move around
-		my $current_dir = File::Spec->rel2abs( File::Spec->curdir() );
-		
-		# we will do all given functions at once for each project
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
-			
-			# Collect project path
-			my $Entry = $Catalog->entry($id);
-			unless ($Entry) {
-				print " ! Identifier $id not in Catalog! skipping\n";
-				next;
-			}
-			my $Project = RepoProject->new($Entry->path, $verbose);
-			unless ($Project) { 
-				printf  " ! unable to initiate Repository Project for path %s! skipping\n", 
-					$Entry->path;
-				next;
-			}
-			
-			# Process accordingly
-			printf " > working on %s at %s\n", $Project->project, $Project->given_dir;
-			my $failure_count = 0;
-
-			# change to the given directory
-			unless (chdir $Project->given_dir) {
-				print "cannot change to given directory! $OS_ERROR\n";
-				next;
-			};
-	
-			# unhide files
-			if ($unhide_zip_files) {
-				if (-e $Project->zip_folder) {
-					printf " > unhiding %s zipped files from directory %s to %s\n",
-						$Project->project, $Project->zip_folder, $Project->given_dir;
-					$failure_count += $Project->unhide_zip_files;
-				}
-				else {
-					printf " ! Zip folder %s doesn't exist!\n", $Project->zip_folder;
-				}
-			}
-	
-			if ($unhide_del_files) {
-				if (-e $Project->delete_folder) {
-					printf " > unhiding %s deleted files from directory %s to %s\n",
-						$Project->project, $Project->delete_folder, $Project->given_dir;
-					my $failure = $Project->unhide_deleted_files;
-					if (not $failure) {
-						if ($Entry->hidden_datestamp) {
-							$Entry->hidden_datestamp(0);
-							print "    updated catalog hidden timestamp\n";
-						}
-					}
-					$failure_count += $failure;
-				}
-				else {
-					printf " ! Deleted folder %s doesn't exist!\n", $Project->delete_folder;
-				}
-			}
-	
-	
-			# hide the zipped files
-			if ($move_zip_files) {
-				if (-e $Project->ziplist_file) {
-					printf " > hiding %s zipped files to %s\n", $Project->project, 
-						$Project->zip_folder;
-					$failure_count += $Project->hide_zipped_files;
-				}
-				else {
-					printf " ! %s has no zipped files to move\n", $Project->project;
-				}
-			} 
-	
-	
-			# delete zipped files
-			if ($delete_zip_files) {
-				if (-e $Project->zip_folder) {
-					printf " > deleting %s zipped files in %s\n", $Project->project, 
-						$Project->zip_folder;
-					$failure_count += $Project->delete_zipped_files_folder;
-				}
-				else {
-					printf " ! %s zipped files not put into hidden zip folder, cannot delete!\n", 
-						$Project->project;
-				}
-			} 
-	
-	
-			# restore the zip archive
-			if ($restore_zip_files) {
-				if (-e $Project->zip_file) {
-					if (-e $Project->zip_folder) {
-						printf " ! %s hidden zip folder %s exists!\n", $Project->project, 
-							$Project->zip_folder;
-						print  "    Restore from the zip folder\n";
-						$failure_count++;
-					}
-					else {
-						printf " > Restoring %s files from zip archive %s\n", $Project->project,
-							$Project->zip_file;
-						chdir $Project->given_dir;
-						my $command = sprintf "unzip -n %s", $Project->zip_file;
-						print  "  > executing: $command\n";
-						my $result = system($command);
-						if ($result) {
-							print "     failed!\n";
-							$failure_count++;
-						}
-					}
-				}
-				else {
-					printf " ! %s Zip archive not present!\n", $Project->project;
-				}
-			}
-	
-	
-			# move the deleted files
-			if ($move_del_files) {
-				if (-e $Project->alt_remove_file) {
-					printf " > hiding %s deleted files to %s\n", $Project->project, 
-						$Project->delete_folder;
-					my $failure = $Project->hide_deleted_files;
-					if (not $failure) {
-						$Entry->hidden_datestamp(time);
-						print "    updated catalog hidden timestamp\n";
-					}
-					$failure_count += $failure;
-				}
-				else {
-					printf " ! %s has no deleted files to hide!\n", $Project->project;
-				}
-			} 
-	
-	
-			# actually delete the files
-			if ($delete_del_files) {
-				if (-e $Project->delete_folder and -e $Project->remove_file) {
-					printf " > deleting %s files in hidden delete folder %s\n", $Project->project, 
-						$Project->delete_folder;
-					my $failure = $Project->delete_hidden_deleted_files();
-					if (not $failure) {
-						$Entry->deleted_datestamp(time);
-						print "    updated catalog deleted timestamp\n";
-					}
-					$failure_count += $failure;
-				}
-				else  {
-					printf " > deleting %s files in %s\n", $Project->project, $Project->given_dir;
-					my $failure = $Project->delete_project_files();
-					if (not $failure) {
-						$Entry->deleted_datestamp(time);
-						print "    updated catalog deleted timestamp\n";
-					}
-					$failure_count += $failure;
-				}
-			}
-	
-	
-			# add notice file
-			if ($add_notice) {
-				printf " > Linking notice in %s\n", $Project->project;
-				$failure_count += $Project->add_notice_file;
-			}
-	
-	
-			# clean project files
-			if ($clean_project_files) {
-				printf " > Cleaning %s project files\n", $Project->project;
-	
-				# zip archive
-				if (-e $Project->zip_file) {
-					unlink $Project->zip_file;
-					printf "  ! Deleted %s\n", $Project->zip_file;
-				}
-	
-				# zip list
-				if (-e $Project->zip_folder) {
-					printf "  ! Zip folder still exists! Not removing %s\n", $Project->ziplist_file;
-					$failure_count++;
-				}
-				elsif (-e $Project->ziplist_file) {
-					unlink $Project->ziplist_file;
-					printf "  Deleted %s\n", $Project->ziplist_file;
-				}
-	
-				# remove lists
-				if (-e $Project->delete_folder) {
-					printf "  ! Hidden delete folder still exists! Not removing %s\n", $Project->remove_file;
-					$failure_count++;
-				}
-				elsif (-e $Project->remove_file) {
-					unlink $Project->remove_file;
-					printf "  Deleted %s\n", $Project->remove_file;
-				}
-				if (-e $Project->alt_remove_file) {
-					unlink $Project->alt_remove_file;
-					printf "  Deleted %s\n", $Project->alt_remove_file;
-				}
-	
-				# manifest
-				if (-e $Project->manifest_file) {
-					unlink $Project->manifest_file;
-					printf "  Deleted %s\n", $Project->manifest_file;
-				}
-			}
-	
-	
-			######## Finished
-			printf " > finished with %s with %d failures\n\n", $Project->project, $failure_count;
-	
+		# Collect project path
+		my $Entry = $Catalog->entry($id);
+		unless ($Entry) {
+			print " ! Identifier $id not in Catalog! skipping\n";
+			next;
+		}
+		my $Project = RepoProject->new($Entry->path, $verbose);
+		unless ($Project) { 
+			printf  " ! unable to initiate Repository Project for path %s! skipping\n", 
+				$Entry->path;
+			next;
 		}
 		
-		# change back
-		chdir $current_dir;
+		# Process accordingly
+		printf " > working on %s at %s\n", $Project->project, $Project->given_dir;
+		my $failure_count = 0;
+
+		# change to the given directory
+		unless (chdir $Project->given_dir) {
+			print "cannot change to given directory! $OS_ERROR\n";
+			next;
+		};
+
+		# zip files
+		if ($project_zip) {
+			if ( $Entry->scan_datestamp < $Entry->youngest_datestamp ) {
+				printf " ! %s has newer files since last scan\n", $id;
+				$failure_count++;
+			}
+			elsif ( -e $Project->zip_file) {
+				printf " ! %s has been archived, %s exists\n", $id, $Project->zip_file;
+				$failure_count++;
+			}
+			else {
+				$failure_count += $Project->zip_archive_files;
+				$move_zip_files = 0; # this should already be completed
+			}
+		}
+
+		# hide the zipped files
+		if ($move_zip_files) {
+			if (-e $Project->ziplist_file) {
+				printf " > hiding %s zipped files to %s\n", $Project->project, 
+					$Project->zip_folder;
+				$failure_count += $Project->hide_zipped_files;
+			}
+			else {
+				printf " ! %s has no zipped files to move\n", $Project->project;
+			}
+		} 
+
+		# unhide files
+		if ($unhide_zip_files) {
+			if (-e $Project->zip_folder) {
+				printf " > unhiding %s zipped files from directory %s to %s\n",
+					$Project->project, $Project->zip_folder, $Project->given_dir;
+				$failure_count += $Project->unhide_zip_files;
+			}
+			else {
+				printf " ! Zip folder %s doesn't exist!\n", $Project->zip_folder;
+			}
+		}
+
+		# restore hidden files
+		if ($unhide_del_files) {
+			if (-e $Project->delete_folder) {
+				printf " > unhiding %s deleted files from directory %s to %s\n",
+					$Project->project, $Project->delete_folder, $Project->given_dir;
+				my $failure = $Project->unhide_deleted_files;
+				if (not $failure) {
+					if ($Entry->hidden_datestamp) {
+						$Entry->hidden_datestamp(0);
+						print "    updated catalog hidden timestamp\n";
+					}
+				}
+				$failure_count += $failure;
+			}
+			else {
+				printf " ! Deleted folder %s doesn't exist!\n", $Project->delete_folder;
+			}
+		}
+
+		# delete zipped files
+		if ($delete_zip_files) {
+			if (-e $Project->zip_folder) {
+				printf " > deleting %s zipped files in %s\n", $Project->project, 
+					$Project->zip_folder;
+				$failure_count += $Project->delete_zipped_files_folder;
+			}
+			else {
+				printf " ! %s zipped files not put into hidden zip folder, cannot delete!\n", 
+					$Project->project;
+			}
+		} 
+
+
+		# restore the zip archive
+		if ($restore_zip_files) {
+			if (-e $Project->zip_file) {
+				if (-e $Project->zip_folder) {
+					printf " ! %s hidden zip folder %s exists!\n", $Project->project, 
+						$Project->zip_folder;
+					print  "    Restore from the zip folder\n";
+					$failure_count++;
+				}
+				else {
+					printf " > Restoring %s files from zip archive %s\n", $Project->project,
+						$Project->zip_file;
+					chdir $Project->given_dir;
+					my $command = sprintf "unzip -n %s", $Project->zip_file;
+					print  "  > executing: $command\n";
+					my $result = system($command);
+					if ($result) {
+						print "     failed!\n";
+						$failure_count++;
+					}
+				}
+			}
+			else {
+				printf " ! %s Zip archive not present!\n", $Project->project;
+			}
+		}
+
+
+		# move the deleted files
+		if ($move_del_files) {
+			if (-e $Project->alt_remove_file) {
+				printf " > hiding %s deleted files to %s\n", $Project->project, 
+					$Project->delete_folder;
+				my $failure = $Project->hide_deleted_files;
+				if (not $failure) {
+					$Entry->hidden_datestamp(time);
+					print "    updated catalog hidden timestamp\n";
+				}
+				$failure_count += $failure;
+			}
+			else {
+				printf " ! %s has no deleted files to hide!\n", $Project->project;
+			}
+		} 
+
+
+		# actually delete the files
+		if ($delete_del_files) {
+			if (-e $Project->delete_folder and -e $Project->remove_file) {
+				printf " > deleting %s files in hidden delete folder %s\n", $Project->project, 
+					$Project->delete_folder;
+				my $failure = $Project->delete_hidden_deleted_files();
+				if (not $failure) {
+					$Entry->deleted_datestamp(time);
+					print "    updated catalog deleted timestamp\n";
+				}
+				$failure_count += $failure;
+			}
+			else  {
+				printf " > deleting %s files in %s\n", $Project->project, $Project->given_dir;
+				my $failure = $Project->delete_project_files();
+				if (not $failure) {
+					$Entry->deleted_datestamp(time);
+					print "    updated catalog deleted timestamp\n";
+				}
+				$failure_count += $failure;
+			}
+			if (-e $Project->zip_folder) {
+				print " ! Hidden zip folder also exists, use option --del_zip\n";
+			}
+		}
+
+
+		# add notice file
+		if ($add_notice) {
+			printf " > Linking notice in %s\n", $Project->project;
+			$failure_count += $Project->add_notice_file;
+		}
+
+
+		# clean project files
+		if ($clean_project_files) {
+			printf " > Cleaning %s project files\n", $Project->project;
+
+			# zip archive
+			if (-e $Project->zip_file) {
+				unlink $Project->zip_file;
+				printf "  ! Deleted %s\n", $Project->zip_file;
+			}
+
+			# zip list
+			if (-e $Project->zip_folder) {
+				printf "  ! Zip folder still exists! Not removing %s\n", $Project->ziplist_file;
+				$failure_count++;
+			}
+			elsif (-e $Project->alt_ziplist_file) {
+				unlink $Project->alt_ziplist_file;
+				printf "  Deleted %s\n", $Project->alt_ziplist_file;
+			}
+			elsif (-e $Project->ziplist_file) {
+				unlink $Project->ziplist_file;
+				printf "  Deleted %s\n", $Project->ziplist_file;
+			}
+
+			# remove lists
+			if (-e $Project->delete_folder) {
+				printf "  ! Hidden delete folder still exists! Not removing %s\n", $Project->remove_file;
+				$failure_count++;
+			}
+			elsif (-e $Project->remove_file) {
+				unlink $Project->remove_file;
+				printf "  Deleted %s\n", $Project->remove_file;
+			}
+			if (-e $Project->alt_remove_file) {
+				unlink $Project->alt_remove_file;
+				printf "  Deleted %s\n", $Project->alt_remove_file;
+			}
+
+			# manifest
+			if (-e $Project->manifest_file) {
+				unlink $Project->manifest_file;
+				printf "  Deleted %s\n", $Project->manifest_file;
+				$Entry->scan_datestamp(0);
+			}
+		}
+
+
+		######## Finished
+		printf " > finished with %s with %d failures\n\n", $Project->project, $failure_count;
+
 	}
+	
+	# change back
+	chdir $current_dir;
 }
 
 
@@ -1510,40 +1571,23 @@ sub print_functions {
 			die "No list provided to show status!\n";
 		}
 
-		# binary sizes
-		my $KB = 1024;
-		my $MB = 1048576;
-		my $GB = 1073741824;
-		my $TB = 1099511627776;
 
+		# we have 67 print characters plus 7 tabs
+		printf "%-6s\t%-6s\t%-5s\t%-10s\t%-10s\t%-10s\t%-10s\t%-10s\n",
+			qw(ID Size Age Scan Upload Hide Delete CORELab);
 		# loop through items
-		printf "%-6s\t%-6s\t%-5s\t%-10s\t%-10s\t%-10s\t%-10s\t%-10s\n", qw(ID Size Age Scan Upload Hide Delete CORELab);
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split(m/\s+/, $item);
 			next unless (defined $id);
 			my $Entry = $Catalog->entry($id) or next;
 		
-			# size - work with decimal instead of binary for simplicity
+			# format size, use last given size instead of current size, so that we
+			# we know how big the project was
 			my $size = $Entry->size || 0;
 			if ( $Entry->last_size > $size ) {
 				$size = $Entry->last_size;
 			}
-			if ($size > $TB) {
-				$size = sprintf("%.1fT", $size / $TB);
-			}
-			elsif ($size > $GB) {
-				$size = sprintf("%.1fG", $size / $GB);
-			}
-			elsif ($size > $MB) {
-				$size = sprintf("%.1fM", $size / $MB);
-			}
-			elsif ($size > 1000) {
-				# avoid weird formatting situations of >1000 and < 1024 bytes
-				$size = sprintf("%.1fK", $size / $KB);
-			}
-			else {
-				$size = sprintf("%dB", $size);
-			}
+			$size = _format_size($size);
 		
 			# the datetime stamps are converted from epoch to YYYY-MM-DD
 			# if not set, just prints blanks
@@ -1570,15 +1614,67 @@ sub print_functions {
 			
 			# division
 			my $division = 'none'; # default
-			my $e = $Entry->external; # default is undefined
-			if (defined $e) {
-				$division = $e eq 'Y' ? 'external' : $Entry->core_lab || 'none';
+			my $ext = $Entry->external; # default is undefined
+			if (defined $ext) {
+				$division = $ext eq 'Y' ? 'external' : $Entry->core_lab || 'none';
 			}
 			
 			# print
 			printf "%-6s\t%-7s\t%-5s\t%s\t%s\t%s\t%s\t%s\n", $id, $size, 
 				$Entry->age || 0, $scan_day, $up_day, $hide_day, $delete_day, 
 				$division;
+		}
+	}
+
+	# print AutoAnalysis stats
+	elsif ($show_aa_status) {
+		unless (@action_list) {
+			die "No list provided to show status!\n";
+		}
+		# print header, we have 67 characters plus 6 tabs
+		printf "%-6s\t%-6s\t%-5s\t%-10s\t%-10s\t%-20s\t%-10s\n", 
+			qw(ID Size Age Scan AAUpload AAFolder CORELab);
+		# loop through items
+		foreach my $item (@action_list) {
+			my ($id, @rest) = split(m/\s+/, $item);
+			next unless (defined $id);
+			my $Entry = $Catalog->entry($id) or next;
+		
+			# format size, use last given size instead of current size, so that we
+			# we know how big the project was
+			# this is not specific to the AutoAnalysis folder
+			my $size = $Entry->size || 0;
+			if ( $Entry->last_size > $size ) {
+				$size = $Entry->last_size;
+			}
+			$size = _format_size($size);
+
+			# scan day
+			my $scan_day = q(          );
+			if ( $Entry->scan_datestamp > 1 ) {
+				my @scan = localtime($Entry->scan_datestamp);
+				$scan_day = sprintf("%04d-%02d-%02d", $scan[5] + 1900, $scan[4] + 1,
+					$scan[3]);
+			}
+
+			# upload day
+			my $up_day = q(          );
+			if ( $Entry->autoanal_datestamp > 1 ) {
+				my @scan = localtime($Entry->autoanal_datestamp);
+				$up_day = sprintf("%04d-%02d-%02d", $scan[5] + 1900, $scan[4] + 1,
+					$scan[3]);
+			}
+
+			# division
+			my $division = 'none'; # default
+			my $ext = $Entry->external; # default is undefined
+			if (defined $ext) {
+				$division = $ext eq 'Y' ? 'external' : $Entry->core_lab || 'none';
+			}
+
+			# print
+			printf "%-6s\t%-6s\t%-5s\t%-10s\t%-10s\t%-20s\t%-10s\n", $id, $size,
+				$Entry->age || 0, $scan_day, $up_day, $Entry->autoanal_folder, $division;
 		}
 	}
 	
@@ -1663,7 +1759,8 @@ sub print_functions {
 		(
 			$list_req_upload or $list_req_hide or $list_req_delete or
 			$list_anal_upload or $list_anal_hide or $list_anal_delete or 
-		 	$list_pi or ($list_all and 
+		 	$list_pi or $list_aa_upload or $list_aa or
+		 	( ( $list_all or $list_req or $list_anal ) and 
 		 		($year or $min_age or $max_age or $min_size or $external)
 			)
 		)
@@ -1693,3 +1790,23 @@ sub final_catalog_functions {
 }
 
 
+sub _format_size {
+	my $size = shift;
+	# using binary sizes here
+	if ($size > 1099511627776) {
+		return sprintf("%.1fT", $size / 1099511627776);
+	}
+	elsif ($size > 1073741824) {
+		return sprintf("%.1fG", $size / 1073741824);
+	}
+	elsif ($size > 1048576) {
+		return sprintf("%.1fM", $size / 1048576);
+	}
+	elsif ($size > 1000) {
+		# avoid weird formatting situations of >1000 and < 1024 bytes
+		return sprintf("%.1fK", $size / 1024);
+	}
+	else {
+		return sprintf("%dB", $size);
+	}
+}
