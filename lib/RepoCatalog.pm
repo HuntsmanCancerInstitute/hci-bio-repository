@@ -1181,15 +1181,112 @@ Provide a project ID to remove.
 
 Runs the L<DBM::Deep> C<optimize> function on the file.
 
-=item export
+=item export_to_file
 
 Provide a path where the database file entries will be written as 
-a tab-delimited text file. A header line is included.
+a tab-delimited text file. A header line is included. Provide a 
+second boolean value to transform date stamp values into human readable
+dates and sizes from bytes into short values with suffix (K, M, G, T).
+B<NOTE> that transformed files should not be used for import.
+
+=item import_from_file
+
+Import a tab-delimited text file into the database. Provide the path
+to the file as the first argument. The header line must exist and must
+match the internal header format. If the catalog database file is not 
+new, i.e. it contains data, then the file will not be loaded. A second,
+true boolean value must be provided to force the file to be loaded and
+overwrite any existing data. A warning will be given.
 
 =item header
 
 Returns the standard header line used in printing and exporting 
 files.
+
+=back
+
+=head2 Catalog search functions
+
+These are functions for searching for entries in the catalog database. 
+
+=over 4
+
+=item list_all
+
+A general function to list all projects. Pass an array of key value pairs 
+for filtering. Possible keys include
+
+=over 4
+
+=item year - include projects in this year or later
+
+=item core - boolean to include projects with a AWS CORE account
+
+=item age - minimum age in days to include
+
+=item maxage - exclude projects older than this in days
+
+=item external - boolean to include projects marked as external user
+
+=item size - minimum size of the project in bytes to include
+
+=back
+
+=item list_projects_for_pi
+
+List projects for a specific Principal Investigator. Pass an array of key
+value pairs in the same manner as L<list_all>. Include the last name of 
+the PI as the value to the C<name> key. Alternatively, just simply pass a 
+single value of the last name. The name matching is case insensitive.
+
+=item find_requests_to_upload
+
+Canned search function to find Experiment Request projects that are ready 
+to upload to AWS. Modified search values can be provided by passing an array
+of key value pairs as described in L<list_all>.
+
+=item find_requests_to_hide
+
+Canned search function to find Experiment Request projects that are ready 
+to hide. Modified search values can be provided by passing an array of
+key value pairs as described in L<list_all>.
+
+=item find_requests_to_delete
+
+Canned search function to find Experiment Request projects that are ready 
+to delete. Modified search values can be provided by passing an array of
+key value pairs as described in L<list_all>.
+
+=item find_analysis_to_upload
+
+Canned search function to find Analysis projects that are ready 
+to upload to AWS. Modified search values can be provided by passing an array
+of key value pairs as described in L<list_all>.
+
+=item find_analysis_to_hide
+
+Canned search function to find Experiment Request projects that are ready 
+to hide. Modified search values can be provided by passing an array of
+key value pairs as described in L<list_all>.
+
+=item find_analysis_to_delete
+
+Canned search function to find Experiment Request projects that are ready 
+to delete. Modified search values can be provided by passing an array of
+key value pairs as described in L<list_all>.
+
+=item find_autoanal_req
+
+Canned search function to find Experiment Requests that have an AutoAnalysis
+folder. Additional search values can be provided by passing an array of
+key value pairs as described in L<list_all>.
+
+=item find_autoanal_to_upload
+
+Canned search function to find Experiment Requests with an AutoAnalysis
+folder that needs to be uploaded to AWS prior to hiding. Modified search 
+values can be provided by passing an array of key value pairs as described 
+in L<list_all>.
 
 =back
 
@@ -1205,10 +1302,14 @@ what users interact with working with the catalog.
 =head1 FUNCTIONS
 
 Provides a number of get/set functions for the various fields for 
-a Repository project entry. 
+a Repository project entry. Most are self-explanatory. Call the function
+to return the value. Pass a value to set the field.
 
 The timestamp fields return Unix epoch time, which must be converted 
 to a human readable format. 
+
+The age functions return the difference in days between the current time
+and the recorded date time stamp.
 
 =over 4
 
@@ -1258,7 +1359,7 @@ to a human readable format.
 
 =item last_size
 
-=item youngest_age
+=item youngest_datestamp
 
 =item age
 
@@ -1271,6 +1372,14 @@ to a human readable format.
 =item deleted_datestamp
 
 =item emailed_datestamp
+
+=itme autoanal_datestamp
+
+=item autoanal_age
+
+=item qc_scan_datestamp
+
+=item autoanal_folder
 
 =back
 

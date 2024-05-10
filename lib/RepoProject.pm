@@ -837,15 +837,30 @@ Calculates the MD5 checksum on a file. Pass the file path.
 
     my $md5 = $Project->calculate_file_checksum($file);
 
-=item clean_empty_directories
+=back
 
-Executes an external C<find> command in a sub shell to recursively 
-search for and delete empty subdirectories. Pass the directory to 
-search. Returns the return status from the C<find> command.
+=head2 Project information
+
+These functions gather information about the project folder.
+
+=over 4
+
+=item get_size_age
+
+Returns two values: the total size in bytes and the highest posix age
+(youngest file) for the Project. The recursive search includes the 
+primary folder plus any hidden zipped file and hidden file folders. 
+
+=item get_autoanal_folder
+
+Searches for and returns the name of a Request project's AutoAnalysis
+folder. These have a date appended to the name, and therefore
+inconsistently named from project to project. Does not include the 
+full path.
 
 =back
 
-=head2 Repository functions
+=head2 Repository file functions
 
 These are functions to act on the files within a repository. 
 In all cases, the repository file must be scanned and list 
@@ -857,7 +872,21 @@ When L<verbose> is set to true, file names are printed to
 standard out as they are being moved or deleted. When failures
 occur, file names are printed to standard out. 
 
+B<IMPORTANT> These functions return a failure count. A return
+of zero is success. 
+
 =over 4
+
+=item zip_archive_files
+
+Generates a Zip archive of the project files using the external
+C<zip> utility, which must be in the environment C<PATH>. Only
+the files listed in the alternate zip list file will be included
+in the archive. The zip list is moved into the project folder.
+Both the zip list and zip archive file metadata are added to the
+manifest files. The Zip archive file is added to the alternate
+remove list file. If successful, the L<hide_zipped_files> 
+function is automatically subsequently run.
 
 =item hide_deleted_files
 
@@ -918,6 +947,12 @@ remove files; 0 is success.
 
 Inserts a symbolic link from the notice source file to the 
 notice file in the project folder.
+
+=item clean_empty_directories
+
+Executes an external C<find> command in a sub shell to recursively 
+search for and delete empty subdirectories. Pass the directory to 
+search. Returns the return status from the C<find> command.
 
 =back
 
