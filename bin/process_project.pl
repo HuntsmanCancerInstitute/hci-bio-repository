@@ -854,7 +854,7 @@ sub request_callback {
 	}
 	# multiple checksum file - with or without datetime stamp in front - ugh
 	elsif ($file =~ 
-m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (?: sum)? [\._] .* \. (?: txt | out ) $/x
+m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (?: sum)? .* \. (?: txt | out ) $/x
 	) {
 		my $fh = IO::File->new($file);
 		while (my $line = $fh->getline) {
