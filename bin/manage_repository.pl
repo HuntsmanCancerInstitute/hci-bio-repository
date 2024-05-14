@@ -329,7 +329,9 @@ if ($help) {
 check_options();
 my @action_list;
 my $Catalog = open_import_catalog();
-@action_list = generate_list();
+unless (@action_list) {
+	@action_list = generate_list();
+}
 run_metadata_actions();
 run_project_actions();
 run_project_directory_actions();
@@ -485,59 +487,49 @@ sub open_import_catalog {
 				scalar(@{$update_list}) + scalar(@{$new_list}) + scalar(@{$nochange_list});
 			
 			# update information from the repository file server
-			if ($scan_size_age) {
-				print " Updating project sizes and ages....\n";
-				foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
-					my $Entry = $Cat->entry($id);
-					my $path  = $Entry->path;
-					if (-e $path) {
-						my $Project = RepoProject->new($Entry->path);
-						if ($Project) {
-							my ($size, $age) = $Project->get_size_age;
-							if ($size) {
-								$Entry->size($size);
-							}
-							if ($age) {
-								$Entry->youngest_datestamp($age);
-							}
-							# print warnings if something seems amiss
-							if ($Entry->hidden_datestamp and $age > $Entry->hidden_datestamp) {
-								print "  ! New files added to hidden project $id\n";
-							}
+			print " Updating project sizes and ages....\n";
+			foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
+				my $Entry = $Cat->entry($id);
+				my $path  = $Entry->path;
+				if (-e $path) {
+					my $Project = RepoProject->new($Entry->path);
+					if ($Project) {
+						my ($size, $age) = $Project->get_size_age;
+						if ($size) {
+							$Entry->size($size);
 						}
-					}
-					else {
-						print "  ! Missing project file path: $path\n";
+						if ($age) {
+							$Entry->youngest_datestamp($age);
+						}
+						# print warnings if something seems amiss
+						if ($Entry->hidden_datestamp and $age > $Entry->hidden_datestamp) {
+							print "  ! New files added to hidden project $id\n";
+						}
+
+						# Check if needs to be scanned
+						if ($project_scan) {
+							my $do = 0;
+							if ( $Entry->scan_datestamp > 1 ) {
+								if ( $age - $Entry->scan_datestamp > 3600 ) {
+									$do = 1;
+								}
+							}
+							else {
+								$do = 1;
+							}
+							if ($do and $verbose) {
+								printf
+								"  > will scan %s, age %s, last scanned %s days ago\n",
+									$id, $Entry->age, $Entry->scan_datestamp ? 
+									sprintf("%.0f",
+									(time - $Entry->scan_datestamp) / 86400) : '-';
+							}
+							push @action_list, $id if $do;
+						}
 					}
 				}
-				
-				# reset flag as this is already done
-				$scan_size_age = 0;
-			}
-			else {
-				print <<MESSAGE;
- Don't forget to update file sizes and ages on the file server.
- Run again with option --update_size_age
-MESSAGE
-			}
-
-			# add project IDs to list for scanning
-			if ($project_scan) {
-				foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
-					my $Entry = $Cat->entry($id);
-					
-					if ( $Entry->size > 1048576 and 
-						( $Entry->scan_datestamp < 1 or 
-						( $Entry->youngest_datestamp - $Entry->scan_datestamp ) > 86400 )
-					) {
-						# has not been scanned yet or new files have been added 
-						# by at least a day since last scanned
-						if ($verbose) {
-							printf "  > will scan %s, age %s, last scanned %s days ago\n",
-								$id, $Entry->age, $Entry->scan_datestamp;
-						}
-						push @action_list, $id;
-					}
+				else {
+					print "  ! Missing project file path: $path\n";
 				}
 			}
 			
@@ -556,74 +548,68 @@ MESSAGE
 				scalar(@{$update_list}) + scalar(@{$new_list}) + scalar(@{$nochange_list});
 			
 			# update information from the repository file server
-			if ($scan_size_age) {
-				print " Updating project sizes and ages....\n";
-				foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
-					my $Entry = $Cat->entry($id);
-					my $path = $Entry->path;
-					if (-e $path) {
-						my $Project = RepoProject->new($Entry->path);
-						if ($Project) {
-							my ($size, $age) = $Project->get_size_age;
-							if ($size) {
-								$Entry->size($size);
-							}
-							if ($age) {
-								$Entry->youngest_datestamp($age);
-							}
-							# print warnings if something seems amiss
-							if ($Entry->hidden_datestamp and 
-								$age > $Entry->hidden_datestamp
-							) {
-								print "  ! New files added to hidden project $id\n";
-							}
-							# AutoAnalysis folder
-							my $aa_folder = $Project->get_autoanal_folder;
-							
-							if ($aa_folder) {
-								if ($Entry->autoanal_folder ) {
-									if ( $aa_folder ne $Entry->autoanal_folder ) {
-										printf 
-										"  ! Changed AutoAnalysis folder for %s: %s\n",
-										$id, $aa_folder;
-										$Entry->autoanal_folder($aa_folder);
-									}
-								}
-								else {
+			print " Updating project sizes and ages....\n";
+			foreach my $id ( @{$update_list}, @{$new_list}, @{$nochange_list} ) {
+				my $Entry = $Cat->entry($id);
+				my $path  = $Entry->path;
+				if (-e $path) {
+					my $Project = RepoProject->new($Entry->path);
+					if ($Project) {
+						my ($size, $age) = $Project->get_size_age;
+						if ($size) {
+							$Entry->size($size);
+						}
+						if ($age) {
+							$Entry->youngest_datestamp($age);
+						}
+						# print warnings if something seems amiss
+						if ($Entry->hidden_datestamp and 
+							$age > $Entry->hidden_datestamp
+						) {
+							print "  ! New files added to hidden project $id\n";
+						}
+
+						# AutoAnalysis folder
+						my $aa_folder = $Project->get_autoanal_folder;
+						if ($aa_folder) {
+							if ($Entry->autoanal_folder ) {
+								if ( $aa_folder ne $Entry->autoanal_folder ) {
+									printf 
+									"  ! Changed AutoAnalysis folder for %s: %s\n",
+									$id, $aa_folder;
 									$Entry->autoanal_folder($aa_folder);
 								}
 							}
+							else {
+								$Entry->autoanal_folder($aa_folder);
+							}
 						}
-					}
-					else {
-						print "  ! Missing project file path: $path\n";
+
+						# Check if needs to be scanned
+						if ( $project_scan and $Project->has_fastq ) {
+							my $do = 0;
+							if ( $Entry->scan_datestamp > 1 ) {
+								if ( $age - $Entry->scan_datestamp > 3600 ) {
+									# there is a younger file than last scan by 1 hour
+									$do = 1;
+								}
+							}
+							else {
+								$do = 1;
+							}
+							if ($do and $verbose) {
+								printf
+								"  > will scan %s, age %s, last scanned %s days ago\n",
+									$id, $Entry->age, $Entry->scan_datestamp ? 
+									sprintf("%.0f",
+									(time - $Entry->scan_datestamp) / 86400) : '-';
+							}
+							push @action_list, $id if $do;
+						}
 					}
 				}
-			}
-			else {
-				print <<MESSAGE;
- Don't forget to update file sizes and ages on the file server.
- Run again with option --update_size_age
-MESSAGE
-			}
-			
-			# add project IDs to list for scanning
-			if ($project_scan) {
-				foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
-					my $Entry = $Cat->entry($id);
-					
-					if ( $Entry->size > 104857600 and 
-						( $Entry->scan_datestamp < 1 or 
-						( $Entry->youngest_datestamp - $Entry->scan_datestamp ) > 86400 )
-					) {
-						# has not been scanned yet or new files have been added 
-						# by at least a day since last scanned
-						if ($verbose) {
-							printf "  > will scan %s, age %s, last scanned %s days ago\n",
-								$id, $Entry->age, $Entry->scan_datestamp;
-						}
-						push @action_list, $id;
-					}
+				else {
+					print "  ! Missing project file path: $path\n";
 				}
 			}
 			
@@ -632,8 +618,10 @@ MESSAGE
 				$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
 				scalar(@{$new_list});
 		}
-	
 	}
+
+	# reset flag as this is already done
+	$scan_size_age = 0;
 	
 	return $Cat;
 }
@@ -642,7 +630,7 @@ MESSAGE
 sub generate_list {
 	
 	# Go through possible ways of generating the list, only one allowed
-	
+
 	# command line
 	if (@ARGV) {
 		return @ARGV;
@@ -1124,8 +1112,8 @@ sub run_project_actions {
 			die "No list provided to update division name!\n";
 		}
 		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+			my ($id, @rest) = split m/\s+/, $item;
+			next unless ($id);
 			
 			# generate the command for external utility
 			# these will be executed one at a time
