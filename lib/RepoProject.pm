@@ -591,6 +591,12 @@ sub get_autoanal_folder {
 	return $aapath;
 }
 
+sub has_fastq {
+	my $self = shift;
+	return unless ($self->project =~ /^\d+R$/);
+	return -e sprintf("%s/Fastq", $self->given_dir);
+}
+
 
 #### Internal functions
 
@@ -857,6 +863,10 @@ Searches for and returns the name of a Request project's AutoAnalysis
 folder. These have a date appended to the name, and therefore
 inconsistently named from project to project. Does not include the 
 full path.
+
+=item has_fastq
+
+Returns true (1) or false (0) if a Request project as a Fastq folder.
 
 =back
 
