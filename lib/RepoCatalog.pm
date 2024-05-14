@@ -19,7 +19,7 @@ my $ARRAY_SIZE = 31;  # size of DB Entry array, see RepoEntry index list
 # default search values
 my $repo_epoch = 2005;
 my $internal_org = qr/(?: Bioinformatics \s Shared \s Resource | HTG \s Core \s Facility | SYSTEM )/x;
-my $req_up_min_size    = 104857600;  # minimum Request size to upload, 100 MB
+my $req_up_min_size    = 26214400;  # minimum Request size to upload, 25 MB
 my $req_up_min_age     = 0;  # minimum age for request upload
 my $req_up_max_age     = 180;  # maximum age for request upload
 my $req_hide_min_age   = 180;  # minimum age for hiding request
@@ -293,6 +293,7 @@ sub find_requests_to_upload {
 			$E->request_status eq 'COMPLETE' and
 			$E->core_lab and 
 			substr($E->date, 0, 4) >= $year and
+			$E->scan_datestamp > 1 and
 			$E->age >= $min_age and
 			$E->age <= $max_age and
 			not $E->hidden_datestamp
