@@ -688,7 +688,6 @@ sub _age_callback {
 	# skip specific files, including SB preparation files
 	return if -d $file;
 	return if -l $file;
-	return if substr($file,0,1) eq '.'; # dot files are usually hidden, backup, or OS stuff
 	return if $file eq $current_project->manifest_file;  
 	return if $file eq $current_project->zip_file;  
 	return if $file eq $current_project->ziplist_file;  
@@ -696,11 +695,9 @@ sub _age_callback {
 
 	# don't calculate anything if it appears to be a Request folder QC directory
 	# or checksum files, since these might be added since original scan
-	# also include AutoAnalysis folders since these are separate
-	return if $file =~ m/\.md5$/;
-	return if $file =~ m/^ md5.* \. (?: txt | out ) $/x; 
+	return if $file =~ m/md5/i;
 	if ($File::Find::name =~
-m/ \d+R \/ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | AutoAnalysis_\d+\w+ ) \/ /x
+m/ \d+R \/ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC ) \/ /x
 	) {
 		return;
 	}
