@@ -206,6 +206,10 @@ sub initialize {
 			print " ! Identifier $project_id not in Catalog! failing\n";
 			exit 1;
 		}
+		unless ($Entry->scan_datestamp > 1) {
+			print " ! Identifier $project_id has not been scanned\n";
+			exit 1;
+		}
 		$bucket_name  = $Entry->bucket;
 		$profile      = $Entry->profile;
 		$prefix       = $Entry->prefix;
@@ -225,10 +229,7 @@ sub initialize {
 		print " ! $project_id is not assigned a destination prefix\n";
 		exit 1;
 	}
-	unless ($manifest_file) {
-		print " ! $project_id has not been scanned or no manifest file provided\n";
-		exit 1;
-	}
+	# the manifest file is checked later once we initialize the project folder object
 
 	# Collect AWS credentials
 	my $Credentials = Config::Tiny->read($aws_cred_file) or
@@ -294,9 +295,11 @@ sub prepare_list {
 		die sprintf("cannot change to %s! $OS_ERROR\n", $project_path);
 
 	# check manifest file
-	my $manifest  = $Project->manifest_file;
-	unless ( -e $manifest ) {
-		printf " ! no manifest file %s\n", $manifest;
+	unless ($manifest_file) {
+		$manifest_file = $Project->manifest_file;
+	}
+	unless ( -e $manifest_file ) {
+		printf " ! no manifest file %s\n", $manifest_file;
 		exit 1;
 	}
 	
@@ -346,30 +349,30 @@ sub prepare_list {
 	
 
 	# manifest file itself
-	my @man_stat = stat $manifest;
-	if ( exists $existing{$manifest} ) {
+	my @man_stat = stat $manifest_file;
+	if ( exists $existing{$manifest_file} ) {
 		my $local_time  = $man_stat[9];
-		my $remote_time = str2time( $existing{$manifest} );
+		my $remote_time = str2time( $existing{$manifest_file} );
 		if ( $local_time > $remote_time ) {
-			push @upload_list, $manifest;
+			push @upload_list, $manifest_file;
 			$count++;
 			$size += $man_stat[7];
 			if ($verbose) {
-				print "   > including file $manifest\n";
+				print "   > including file $manifest_file\n";
 			}
 		}
 		else {
 			if ($verbose) {
-				print "   > skipping uploaded file $manifest\n";
+				print "   > skipping uploaded file $manifest_file\n";
 			}
 		}
 	}
 	else {
-		push @upload_list, $manifest;
+		push @upload_list, $manifest_file;
 		$count++;
 		$size += $man_stat[7];		
 		if ($verbose) {
-			print "   > including file $manifest\n";
+			print "   > including file $manifest_file\n";
 		}
 	}
 
@@ -405,8 +408,8 @@ sub prepare_list {
 	
 	# parse manifest
 	my $csv = Text::CSV->new();
-	my $fh  = IO::File->new($manifest) or
-		die " Cannot read manifest file '$manifest'! $OS_ERROR";
+	my $fh  = IO::File->new($manifest_file) or
+		die " Cannot read manifest file '$manifest_file'! $OS_ERROR";
 	my $header = $csv->getline($fh);
 	my $skip   = 0;
 	my $zipcnt = 0;
