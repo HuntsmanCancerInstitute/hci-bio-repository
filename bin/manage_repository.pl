@@ -1659,8 +1659,8 @@ sub print_functions {
 
 			# upload day
 			my $up_day = q(          );
-			if ( $Entry->autoanal_datestamp > 1 ) {
-				my @scan = localtime($Entry->autoanal_datestamp);
+			if ( $Entry->autoanal_up_datestamp > 1 ) {
+				my @scan = localtime($Entry->autoanal_up_datestamp);
 				$up_day = sprintf("%04d-%02d-%02d", $scan[5] + 1900, $scan[4] + 1,
 					$scan[3]);
 			}

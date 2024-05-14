@@ -616,11 +616,11 @@ sub find_autoanal_to_upload {
 			
 			# we have a candidate
 			# going to assume the autoanalysis folder, if it is present, is not empty
-			if ( $E->autoanal_datestamp > 1 ) {
+			if ( $E->autoanal_up_datestamp > 1 ) {
 				# it has been uploaded before? check the age
 				# this doesn't guarantee that the differences are in the autoanalysis
 				# folder, just that something is younger in the folder
-				if ( $E->autoanal_age > $E->age ) {
+				if ( $E->autoanal_upload_age > $E->age ) {
 					push @list, $key;
 				}
 			}
@@ -996,7 +996,7 @@ sub emailed_datestamp {
 	return $self->{data}->[EMAILED] || 0;
 }
 
-sub autoanal_datestamp {
+sub autoanal_up_datestamp {
 	my $self = shift;
 	if (@_) {
 		$self->{data}->[AAUPLOAD] = $_[0];
@@ -1004,9 +1004,9 @@ sub autoanal_datestamp {
 	return $self->{data}->[AAUPLOAD] || 0;
 }
 
-sub autoanal_age {
+sub autoanal_upload_age {
 	my $self = shift;
-	my $u = $self->autoanal_datestamp;
+	my $u = $self->autoanal_up_datestamp;
 	if ($u > 1) {
 		return sprintf("%.0f", (time - $u) / DAY);
 	}
@@ -1075,7 +1075,7 @@ sub print_string {
 		$self->hidden_datestamp || 0,
 		$self->deleted_datestamp || 0,
 		$self->emailed_datestamp || 0,
-		$self->autoanal_datestamp || 0,
+		$self->autoanal_up_datestamp || 0,
 		$self->qc_scan_datestamp || 0,
 		$self->autoanal_folder || q()
 	);
@@ -1373,9 +1373,9 @@ and the recorded date time stamp.
 
 =item emailed_datestamp
 
-=itme autoanal_datestamp
+=itme autoanal_up_datestamp
 
-=item autoanal_age
+=item autoanal_upload_age
 
 =item qc_scan_datestamp
 
