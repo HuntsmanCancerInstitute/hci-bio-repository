@@ -387,7 +387,7 @@ sub scan_directory {
 		
 		# fastq-specific values
 		my ($pair, $machine, $laneid);
-		if ( $paired_fastq and $filedata{$f}{Type} eq 'Fastq' ) {
+		if ( $paired_fastq and lc $filedata{$f}{Type} eq 'fastq' ) {
 			if ( exists $filedata{$f}{paired_end} ) {
 				$pair = $filedata{$f}{paired_end};
 			}
@@ -398,7 +398,7 @@ sub scan_directory {
 			$machine = $filedata{$f}{platform} || q(-);
 			$laneid  = $filedata{$f}{platform_unit_id} || q(-);
 		}
-		elsif ( $filedata{$f}{Type} eq 'Fastq' ) {
+		elsif ( lc $filedata{$f}{Type} eq 'fastq' ) {
 			$pair = '-';
 			$machine = $filedata{$f}{platform} || q(-);
 			$laneid  = $filedata{$f}{platform_unit_id} || q(-);
@@ -419,7 +419,7 @@ sub scan_directory {
 			$md5,
 			$filedata{$f}{sample_id},
 			$pair,
-			$machine,
+			sprintf( qq("%s"), $machine),
 			$laneid,
 		);
 		if ( $filedata{$f}{Archived} and $filedata{$f}{Archived} eq 'Y' ) {
@@ -458,7 +458,7 @@ sub scan_directory {
 		$Project->alt_remove_file;
 
 	# zip list
-	if ($do_zip) {
+	if ( $do_zip and scalar(@ziplist) ) {
 		$fh = IO::File->new($Project->alt_ziplist_file, 'w') or 
 			die sprintf("unable to write file %s: $OS_ERROR\n",
 			$Project->alt_ziplist_file);
