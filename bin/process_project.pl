@@ -105,6 +105,7 @@ my %machinelookup = (
 # keys: File Type sample_id platform platform_unit_id paired_end Size Date MD5 clean 
 # status = 1: from manifest, 2: from manifest verified, 3: new
 my %filedata;
+my %prev_rem;
 
 
 
@@ -293,13 +294,16 @@ sub scan_directory {
 			my %file         = mesh $header, $data;
 			my $name         = $file{File};
 			$file{ftime}     = str2time( $file{Date} );
-# 			printf "   => converted %s to effectively %s\n", $file{Date},
-# 				strftime( "%B %d, %Y %H:%M:%S", localtime( $file{ftime} ) );
 			$file{status}    = 1;
 			$filedata{$name} = \%file;
 		}
 		$fh->close;
 	}
+	if ( -e $Project->alt_remove_file ) {
+		my @list  = $Project->get_file_list( $Project->alt_remove_file );
+		%prev_rem = map { $_ => 1 } @list;
+	}
+	
 	
 	### search directory recursively using File::Find 
 	# remember that we are in the project directory, so we search current directory ./
@@ -554,24 +558,25 @@ sub callback {
 	
 	# check manifest hash
 	if ( exists $filedata{$clean_name} ) {
-		my $old_size = $filedata{$clean_name}{Size};
-		my $old_time = $filedata{$clean_name}{ftime};
+		my $old_size = $filedata{$clean_name}{Size} || 0;
+		my $old_time = $filedata{$clean_name}{ftime} || 0;
 		my ($cur_time, $cur_size) = get_file_stats($file);
 
 		# check the file date and size
 		# this may have issues with standard / daylight savings time conversions
 		# tolerate a delta of 3600 seconds or 1 hour
 		my $diff = abs( $cur_time - $old_time );
-# 		printf "   => difference in time is %s, in size %s\n", $cur_time - $old_time, $cur_size - $old_size;
 		if ( $diff == 0 and $cur_size == $old_size ) {
 			# files are equivalent
 			$filedata{$clean_name}{status} = 2;
+			push @removelist, $clean_name if exists $prev_rem{ $clean_name };
 			print "   > using pre-existing manifest entry $clean_name\n" if $verbose;
 			return;
 		}
 		elsif ( $diff < 3601 and $cur_size == $old_size ) {
 			# file time within one hour tolerance
 			$filedata{$clean_name}{status} = 2;
+			push @removelist, $clean_name if exists $prev_rem{ $clean_name };
 			print "   > using pre-existing manifest entry $clean_name\n" if $verbose;
 			return;
 		}
