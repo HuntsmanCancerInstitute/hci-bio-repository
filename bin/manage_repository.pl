@@ -1147,7 +1147,7 @@ sub run_project_actions {
 	if ($project_scan) {
 		print " Scanning projects...\n";
 		unless (@action_list) {
-			die "No list provided to update division name!\n";
+			die "No list provided to scan projects!\n";
 		}
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split m/\s+/, $item;
@@ -1156,7 +1156,7 @@ sub run_project_actions {
 			# generate the command for external utility
 			# these will be executed one at a time
 			my $command = sprintf
-				"%s/process_project.pl --catalog %s --project %s --scan", 
+				"%s/process_project.pl --catalog %s --project %s --scan",
 				$Bin, $cat_file, $id;
 			if ($verbose) {
 				$command .= " --verbose";
