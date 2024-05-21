@@ -355,8 +355,16 @@ exit 0;
 sub check_options {
 	
 	# a catalog file is essential!
-	unless ($cat_file) {
-		die "No catalog file provided!\n";
+	
+	if ($cat_file) {
+		if ($cat_file !~ m|^/|) {
+			# catalog file path is not from root
+			$cat_file = File::Spec->catfile( File::Spec->rel2abs(), $cat_file);
+		}
+	}
+	else {
+		print "FATAL: No catalog file provided!\n";
+		exit 1;
 	}
 	
 	# search functions
