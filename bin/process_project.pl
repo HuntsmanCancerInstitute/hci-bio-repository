@@ -555,6 +555,11 @@ sub callback {
 		}
 		return;
 	}
+	elsif ( $file eq 'RUNME' and $clean_name =~ /^ AutoAnalysis_\w+ \/ /x ) {
+		# temporary AutoAnalysis run script
+		# ignore for now, it should be cleaned up automatically
+		return;
+	}
 	
 	# check manifest hash
 	if ( exists $filedata{$clean_name} ) {
@@ -613,7 +618,9 @@ sub request_callback {
 	my ($type, $sample, $machineID, $laneID, $pairedID);
 	
 	# check file
-	if ($clean_name =~ m/^ (?: bioanalysis | Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC ) \/ /x) {
+	if ($clean_name =~ 
+m/^ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) \/ /x
+	) {
 		# these are QC samples in a bioanalysis or Sample of Library QC folder
 		# directly under the main project 
 		print "   > skipping QC file $clean_name\n" if $verbose;
@@ -1032,7 +1039,9 @@ sub analysis_callback {
 	elsif ($file =~ /\. (?: fq | fastq ) (?: \.gz)? $/xi) {
 		# fastq file
 		if ($file =~ /^ \d{4,6} X \d{1,3} _/x) {
-			print "   ! Possible HCI Fastq file detected! $clean_name\n";
+			if ($file !~ /_umi \.fastq \.gz $/x) {
+				print "   ! Possible HCI Fastq file detected! $clean_name\n";
+			}
 		}
 		$filetype = 'Fastq';
 		if ($file !~ /\.gz$/i) {
@@ -1186,7 +1195,7 @@ sub analysis_callback {
 		$filetype = 'Results';
 		$zip = 0;
 	}
-	elsif ($file =~ /\. (?: tar |tar\.gz | tar\.bz2 | zip ) $/xi) {
+	elsif ($file =~ /\. (?: zip | tar | tar\.gz | tar\.bz2 | tgz ) $/xi) {
 		$filetype = 'Archive';
 		if ($file =~ /fastqc \.zip $/x) {
 			# no need keeping fastqc zip files separate
