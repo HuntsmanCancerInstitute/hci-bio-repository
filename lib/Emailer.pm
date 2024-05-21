@@ -10,7 +10,7 @@ use Email::Sender::Transport::SMTP;
 my $default_from_email = 'Timothy Parnell <timothy.parnell@hci.utah.edu>';
 my $default_smtp = 'smtp.utah.edu';
 
-our $VERSION = 6.0;
+our $VERSION = 7.0;
 
 
 sub new {
@@ -52,7 +52,7 @@ Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, has been uploa
 
 The standard bucket lifecycle policies will archive the Fastq files to Deep Glacier within 3 days, unless the bucket is configured otherwise. This is meant for long-term storage (>6 months) at the lowest cost available (currently \$0.001 per GB per month). Archived files will need to be temporarily restored before they can be viewed or downloaded; this will incur a small fee per standard AWS cost policies. 
 
-Your files may remain on GNomEx for your convenience as space allows (a few months). A manifest of the files will always remain on GNomEx, as well as the record of your sequencing request and samples in the GNomEx database.
+Your files will continue to remain on GNomEx for your convenience as space allows (about six months) before being silently removed. A manifest of the files will always remain on GNomEx, as well as the record of your sequencing request and samples in the GNomEx database.
 
 For more information, see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage.  
 
@@ -102,7 +102,9 @@ sub send_request_deletion_email {
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED. Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files, especially Fastq files.
+Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED.
+
+Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files, especially Fastq files.
 
 Files will be removed in one week.
 
@@ -132,7 +134,9 @@ sub send_analysis_deletion_email {
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED. Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files, especially Fastq files.
+Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED.
+
+Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files, especially Fastq files.
 
 Files will be removed in one week.
 
