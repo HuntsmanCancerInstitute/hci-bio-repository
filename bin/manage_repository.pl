@@ -520,15 +520,17 @@ sub open_import_catalog {
 				if (-e $path) {
 					my $Project = RepoProject->new($Entry->path);
 					if ($Project) {
-						my ($size, $age) = $Project->get_size_age;
+						my ($size, $datestamp) = $Project->get_size_age;
 						if ($size) {
 							$Entry->size($size);
 						}
-						if ($age) {
-							$Entry->youngest_datestamp($age);
+						if ($datestamp) {
+							$Entry->youngest_datestamp($datestamp);
 						}
 						# print warnings if something seems amiss
-						if ($Entry->hidden_datestamp and $age > $Entry->hidden_datestamp) {
+						if ( $Entry->hidden_datestamp > 1 and
+							$datestamp > $Entry->hidden_datestamp
+						) {
 							print "  ! New files added to hidden project $id\n";
 						}
 
@@ -540,10 +542,13 @@ sub open_import_catalog {
 									$do = 1;
 								}
 							}
-							else {
+							elsif ( $Entry->age > 14 ) {
+								# otherwise wait for project to "settle" for at least
+								# two weeks before scanning
 								$do = 1;
 							}
-							if ($do and $verbose) {
+
+							# print verbose message
 								printf
 								"  > will scan %s, age %s, last scanned %s days ago\n",
 									$id, $Entry->age, $Entry->scan_datestamp ? 
@@ -581,16 +586,16 @@ sub open_import_catalog {
 				if (-e $path) {
 					my $Project = RepoProject->new($Entry->path);
 					if ($Project) {
-						my ($size, $age) = $Project->get_size_age;
+						my ($size, $datestamp) = $Project->get_size_age;
 						if ($size) {
 							$Entry->size($size);
 						}
-						if ($age) {
-							$Entry->youngest_datestamp($age);
+						if ($datestamp) {
+							$Entry->youngest_datestamp($datestamp);
 						}
 						# print warnings if something seems amiss
 						if ($Entry->hidden_datestamp and 
-							$age > $Entry->hidden_datestamp
+							$datestamp > $Entry->hidden_datestamp
 						) {
 							print "  ! New files added to hidden project $id\n";
 						}
@@ -615,7 +620,7 @@ sub open_import_catalog {
 						if ( $project_scan and $Project->has_fastq ) {
 							my $do = 0;
 							if ( $Entry->scan_datestamp > 1 ) {
-								if ( $age - $Entry->scan_datestamp > 3600 ) {
+								if ( $datestamp - $Entry->scan_datestamp > 3600 ) {
 									# there is a younger file than last scan by 1 hour
 									$do = 1;
 								}
