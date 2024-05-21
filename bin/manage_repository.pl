@@ -372,11 +372,19 @@ sub check_options {
 		$list_anal_upload + $list_anal_hide + $list_anal_delete + $list_all + 
 		$list_req + $list_anal + $list_aa + $list_aa_upload + ($list_pi ? 1 : 0);
 	if ($sanity > 1) {
-		die "Only 1 Request search allowed at a time!\n";
+		print "FATAL: Only 1 Request search allowed at a time!\n";
+		exit 1;
 	}
 	elsif ($sanity == 1) {
-		die "No search functions allowed if exporting!\n" if $dump_file;
-		die "No search functions allowed if importing!\n" if $import_file;
+		if ($dump_file) {
+			print "FATAL: No search functions allowed if exporting!\n" ;
+			exit 1;
+		}
+		if ($import_file) {
+			print "No search functions allowed if importing!\n";
+			exit;
+		}
+		
 	}
 	
 	# print function
@@ -384,19 +392,22 @@ sub check_options {
 	$sanity = $show_status + $show_info + $show_aa_status + $show_path + $show_url + 
 		$print_info;
 	if ($sanity > 1) {
-		die "Only 1 printing function allowed at a time!\n";
+		print "FATAL: Only 1 printing function allowed at a time!\n";
+		exit 1;
 	}
 	
 	# email function
 	$sanity = 0;
 	$sanity = $email_anal_del + $email_anal_up + $email_req_del + $email_req_up;
 	if ($sanity > 1) {
-		die "Only 1 email function allowed at a time!\n";
+		print "FATAL: Only 1 email function allowed at a time!\n";
+		exit 1;
 	}
 	
 	# year
 	if ($year and $year !~ /\d{4}/) {
-		die "year must be four digits!\n";
+		print "FATAL: year must be four digits!\n";
+		exit 1;
 	}
 	if (($fetch_analysis or $fetch_request) and not $year) {
 		# set default year based on a calculation
@@ -427,20 +438,27 @@ sub check_options {
 			# this is ok, just a number
 		}
 		else {
-			die "Minimum size filter must be integer! K, M, and G suffix is allowed\n"
+			print
+			"FATAL: Minimum size filter must be integer! K, M, and G suffix is allowed\n";
+			exit 1;
 		}
 	}
 	
 	# file manipulations
 	if ($unhide_zip_files or $unhide_del_files) {
-		die "can't do anything else if unhiding files!\n" if ($move_del_files or 
-			$move_zip_files or $delete_del_files or $delete_zip_files);
+		if ( $move_del_files or $move_zip_files or $delete_del_files or
+			$delete_zip_files
+		) {
+			print "FATAL: Can't do anything else if unhiding files!\n";
+			exit 1;
+		}
 	}
 	
 	# contradictory metadata options
 	if ( $generate_s3_path and ( $update_bucket or $update_prefix ) ) {
-		die 
-" Cannot specify --generate_s3 with --update_bucket or --update_prefix options\n";
+		print 
+"FATAL: Cannot specify --generate_s3 with --update_bucket or --update_prefix options\n";
+		exit 1;
 	}
 }
 
