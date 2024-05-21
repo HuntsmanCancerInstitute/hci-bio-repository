@@ -537,8 +537,15 @@ sub open_import_catalog {
 						# Check if needs to be scanned
 						if ($project_scan) {
 							my $do = 0;
-							if ( $Entry->scan_datestamp > 1 ) {
-								if ( $age - $Entry->scan_datestamp > 3600 ) {
+							if ( $Entry->hidden_datestamp > 1 or
+								$Entry->deleted_datestamp > 1
+							) {
+								# do absolutely nothing with these
+								$do = 0;
+							}
+							elsif ( $Entry->scan_datestamp > 1 ) {
+								if ( time - $Entry->scan_datestamp > 86400 ) {
+									# previously scanned at least 1 day old
 									$do = 1;
 								}
 							}
