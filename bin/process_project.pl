@@ -1122,7 +1122,7 @@ sub analysis_callback {
 		$filedata{$clean_name}{platform}         = q(-);
 		$filedata{$clean_name}{sample_id}        = q(-);
 	}
-	elsif ($file =~ /\. (?: fa | fasta | fai | ffn | dict ) (?: \.gz )? $/xi) {
+	elsif ($file =~ /\. (?: fa | fasta | ffn ) (?: \.gz )? $/xi) {
 		# sequence file of some sort
 		$filetype = 'Sequence';
 		if ($file !~ /\.gz$/i and $size > 1048576 ) {
@@ -1151,6 +1151,11 @@ sub analysis_callback {
 			$zip = 1;
 		}
 	}
+	elsif ($file =~ /\. (?: fai | dict ) (?: \.gz )? $/xi) {
+		# sequence index, do not need to keep
+		push @removelist, $clean_name;
+		return;
+	}
 	elsif ($file =~ /\. (?: bed | bed\d+ | gtf | gff | gff\d | narrowpeak | broadpeak | gappedpeak | refflat | genepred | ucsc) (?:\.gz)? $/xi) {
 		$filetype = 'Annotation';
 		if ($file =~ /\.gz$/ and $size > 10485760) {
@@ -1161,7 +1166,7 @@ sub analysis_callback {
 			$zip = 1;
 		}
 	}
-	elsif ($file =~ /\. (?: sh | pl | py | pyc | r | rmd | rscript | awk | sm | sing ) $/xi) {
+	elsif ($file =~ /\. (?: sh | pl | py | r | rmd | rscript | awk | sm | sing ) $/xi) {
 		$filetype = 'Script';
 		$zip = 1;
 	}
@@ -1196,9 +1201,13 @@ sub analysis_callback {
 		$filetype = 'Image';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. (?: xlsx | h5 | hd5 | hdf5 ) $/xi) {
+	elsif ($file =~ /\. (?: xlsx | h5 | hd5 | hdf5 | h5ad ) $/xi) {
 		# leave out certain result files from zip archive just to be nice
 		$filetype = 'Results';
+		$zip = 0;
+	}
+	elsif ($file =~ /\. bismark \. cov \.gz $/xi) {
+		$filetype = 'Analysis';
 		$zip = 0;
 	}
 	elsif ($file =~ /\. (?: zip | tar | tar\.gz | tar\.bz2 | tgz ) $/xi) {
@@ -1217,9 +1226,10 @@ sub analysis_callback {
 			$zip = 0; 
 		}
 	}
-	elsif ($file =~ /\. (?: bt2 | amb | ann | bwt | pac | nix | novoindex | index ) $/x) {
+	elsif ($file =~ /\. (?: \d\.bt2 | fa\.amb | fa\.ann | fa\.bwt | fa\.pac | nix | novoindex | index | fa\.0123 | fa\.bwt\.2bit\.64 ) $/x) {
+		# alignment indexes can be rebuilt - discard
 		$filetype = 'AlignmentIndex';
-		$zip = 1; # zip I guess?
+		push @removelist, $clean_name;
 	}
 	elsif ($file =~ / \.vcf \.idx $/xi) {
 		# a GATK-style index for non-tabix, uncompressed VCF files
@@ -1227,6 +1237,16 @@ sub analysis_callback {
 		# and it will auto-recreate anyway, so toss
 		push @removelist, $clean_name;
 		return;
+	}
+	elsif ($file =~ /\.pyc$/i) {
+		# compiled python file!!?
+		push @removelist, $clean_name;
+		return;
+	}
+	elsif ($file =~ /\.sif$/i) {
+		# singularity container file
+		$filetype = 'SingularityFile';
+		$zip = 0;
 	}
 	else {
 		# catchall
