@@ -83,7 +83,7 @@ my @ten_x_crap;
 my %checksums;
 my $failure_count     = 0;
 my $runfolder_warning = 0; # Gigantic Illumina RunFolder present
-my $autoanal_warning  = 0; # Auto Analysis folder present
+my $upload_warning    = 0; # GNomEx upload folder
 my $post_zip_size     = 0;
 my $max_zip_size      = 200000000; # 200 MB
 my $start_time        = time;
@@ -491,6 +491,12 @@ sub callback {
 		if ( $file =~ /^\./ and $file ne '.' ) {
 			# hidden directory, this cannot be good
 			print "   ! hidden directory $clean_name\n";
+		}
+		if ( $file eq 'upload_staging' or $file eq 'upload_in_progress' ) {
+			unless ($upload_warning) {
+				print "   ! $file directory exists\n";
+				$upload_warning = 1;
+			}
 		}
 		print "   > skipping directory $clean_name\n" if $verbose;
 		return;
