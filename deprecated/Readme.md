@@ -64,3 +64,18 @@ Primary script for preparing Request and Analysis project folders for Seven Brid
 uploading through Snowballs. Handles zip archiving, hiding, unhiding, and deleting 
 files in projects. Writes manifest text files.
 
+- `process_analysis_project.pl`
+
+Old script for processing GNomEx Analysis project folders. Identifies most common 
+bioinformatic file types, classifies them, and collects file size, date stamp, and MD5 
+checksum attributes, and writes these to a project `MANIFEST.csv` file. Optionally 
+gzip compress large text files or archive into a single bulk Zip archive for data 
+storage efficiency. 
+
+- `process_request_project.pl`
+
+Old script for processing GNomEx Experiment Request project folders. Collects essential 
+sequencing metadata from Fastq files, including sample ID, platform, lane, paired-end 
+status, and MD5 checksum. Metadata is written to a `MANIFEST.csv` file. 
+
+

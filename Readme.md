@@ -27,19 +27,13 @@ The primary script for working with the GNomEx repository projects and file dire
 This is a comprehensive application for cataloging, managing, processing, and uploading
 GNomEx projects. All functions revolve around a local Catalog database file.
 
-- `process_analysis_project.pl`
+- `process_project.pl`
 
-Script for processing GNomEx Analysis project folders. Identifies most common 
-bioinformatic file types, classifies them, and collects file size, date stamp, and MD5 
-checksum attributes, and writes these to a project `MANIFEST.csv` file. Optionally 
-gzip compress large text files or archive into a single bulk Zip archive for data 
-storage efficiency. 
-
-- `process_request_project.pl`
-
-Script for processing GNomEx Experiment Request project folders. Collects essential 
-sequencing metadata from Fastq files, including sample ID, platform, lane, paired-end 
-status, and MD5 checksum. Metadata is written to a `MANIFEST.csv` file. 
+General unified script for processing both GNomEx Experiment Request and Analysis 
+projects in the repository. Writes a unified structure project `MANIFEST.csv` file
+with the metadata of the files, including file type, size, date stamp, MD5 checksum,
+and sequencing information (for Fastq files only). Writes zip archive and remove file
+list files in parent directory and hidden from the GNomEx web application.
 
 - `upload_repo_projects.pl`
 

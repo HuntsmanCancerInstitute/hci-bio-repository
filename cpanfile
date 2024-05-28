@@ -3,6 +3,7 @@ requires Date::Parse;
 requires DBI;
 requires DBD::ODBC;
 requires DBM::Deep;
+requires Digest::MD5
 requires Email::Simple;
 requires Email::Sender;
 requires Forks::Super;
