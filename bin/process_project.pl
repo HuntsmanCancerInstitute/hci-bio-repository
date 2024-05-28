@@ -16,7 +16,7 @@ use lib "$Bin/../lib";
 use RepoCatalog;
 use RepoProject;
 
-our $VERSION = 7.0;
+our $VERSION = 7.1;
 
 
 
@@ -90,14 +90,14 @@ my $start_time        = time;
 
 # our sequence machine IDs to platform technology lookup
 my %machinelookup = (
-	'D00550'  => 'Illumina HiSeq 2500',
-	'D00294'  => 'Illumina HiSeq 2500',
-	'A00421'  => 'Illumina NovaSeq 6000',
-	'M05774'  => 'Illumina MiSeq',
-	'M00736'  => 'Illumina MiSeq',
-	'DQNZZQ1' => 'Illumina HiSeq 2000',
+	'D00550'     => 'Illumina HiSeq 2500',
+	'D00294'     => 'Illumina HiSeq 2500',
+	'A00421'     => 'Illumina NovaSeq 6000',
+	'M05774'     => 'Illumina MiSeq',
+	'M00736'     => 'Illumina MiSeq',
+	'DQNZZQ1'    => 'Illumina HiSeq 2000',
 	'HWI-ST1117' => 'Illumina HiSeq 2000',
-	'LH00227' => 'Illumina NovaSeq X',
+	'LH00227'    => 'Illumina NovaSeq X',
 );
 
 # hash of files and data collected from scanning
@@ -105,7 +105,6 @@ my %machinelookup = (
 # keys: File Type sample_id platform platform_unit_id paired_end Size Date MD5 clean 
 # status = 1: from manifest, 2: from manifest verified, 3: new
 my %filedata;
-my %prev_rem;
 
 
 
@@ -294,14 +293,10 @@ sub scan_directory {
 			my %file         = mesh $header, $data;
 			my $name         = $file{File};
 			$file{ftime}     = str2time( $file{Date} );
-			$file{status}    = 1;
+			$file{status}    = 1;  # default status is to remove
 			$filedata{$name} = \%file;
 		}
 		$fh->close;
-	}
-	if ( -e $Project->alt_remove_file ) {
-		my @list  = $Project->get_file_list( $Project->alt_remove_file );
-		%prev_rem = map { $_ => 1 } @list;
 	}
 	
 	
@@ -318,6 +313,15 @@ sub scan_directory {
 	# confirm
 	if (not scalar keys %filedata) {
 		print "  > nothing found!\n";
+		if (-e $Project->manifest_file) {
+			unlink $Project->manifest_file;
+		}
+		if (-e $Project->alt_remove_file) {
+			unlink $Project->alt_remove_file;
+		}
+		if (-e $Project->alt_ziplist_file) {
+			unlink $Project->alt_ziplist_file;
+		}
 		return;
 	}
 
@@ -363,6 +367,7 @@ sub scan_directory {
 		my $md5 = $filedata{$f}{MD5} || q();
 		if (not $md5) {
 			# we don't have a checksum for this file yet
+			# this happens with Fastq files because it's usually already calculated
 			# check in the checksums hash for the file name without the path
 			my (undef, undef, $filename) = File::Spec->splitpath($f);
 			if (exists $checksums{$filename}) {
@@ -444,26 +449,37 @@ sub scan_directory {
 	
 	### Write files
 	# manifest
-	my $fh = IO::File->new($Project->manifest_file, 'w') or 
-		die sprintf("unable to write file %s: $OS_ERROR\n", $Project->manifest_file);
-	foreach (@manifest) {
-		$fh->printf("%s\n", $_);
+	if (scalar @manifest) {
+		my $fh = IO::File->new($Project->manifest_file, 'w') or 
+			die sprintf("unable to write file %s: $OS_ERROR\n", $Project->manifest_file);
+		foreach (@manifest) {
+			$fh->printf("%s\n", $_);
+		}
+		$fh->close;
 	}
-	$fh->close;
+	elsif (-e $Project->manifest_file) {
+		unlink $Project->manifest_file;
+	}
 	
 	# remove list
-	$fh = IO::File->new($Project->alt_remove_file, 'w') or 
-		die sprintf("unable to write file %s: $OS_ERROR\n", $Project->alt_remove_file);
-	foreach (@removelist) {
-		$fh->printf("%s\n", $_);
+	if (scalar @removelist) {
+		my $fh = IO::File->new($Project->alt_remove_file, 'w') or 
+			die sprintf("unable to write file %s: $OS_ERROR\n",
+			$Project->alt_remove_file);
+		foreach (@removelist) {
+			$fh->printf("%s\n", $_);
+		}
+		$fh->close;
+		printf "  > wrote %d files to remove list %s\n", scalar(@removelist), 
+			$Project->alt_remove_file;
 	}
-	$fh->close;
-	printf "  > wrote %d files to remove list %s\n", scalar(@removelist), 
-		$Project->alt_remove_file;
+	elsif (-e $Project->alt_remove_file) {
+		unlink $Project->alt_remove_file;
+	}
 
 	# zip list
 	if ( $do_zip and scalar(@ziplist) ) {
-		$fh = IO::File->new($Project->alt_ziplist_file, 'w') or 
+		my $fh = IO::File->new($Project->alt_ziplist_file, 'w') or 
 			die sprintf("unable to write file %s: $OS_ERROR\n",
 			$Project->alt_ziplist_file);
 		foreach (@ziplist) {
@@ -472,7 +488,10 @@ sub scan_directory {
 		$fh->close;
 		printf "  > wrote %d files to zip list %s\n", scalar(@ziplist), 
 			$Project->alt_ziplist_file;
-	}	
+	}
+	elsif (-e $Project->alt_ziplist_file) {
+		unlink $Project->alt_ziplist_file;
+	}
 
 	return 1;
 }
@@ -565,38 +584,6 @@ sub callback {
 		# temporary AutoAnalysis run script
 		# ignore for now, it should be cleaned up automatically
 		return;
-	}
-	
-	# check manifest hash
-	if ( exists $filedata{$clean_name} ) {
-		my $old_size = $filedata{$clean_name}{Size} || 0;
-		my $old_time = $filedata{$clean_name}{ftime} || 0;
-		my ($cur_time, $cur_size) = get_file_stats($file);
-
-		# check the file date and size
-		# this may have issues with standard / daylight savings time conversions
-		# tolerate a delta of 3600 seconds or 1 hour
-		my $diff = abs( $cur_time - $old_time );
-		if ( $diff == 0 and $cur_size == $old_size ) {
-			# files are equivalent
-			$filedata{$clean_name}{status} = 2;
-			push @removelist, $clean_name if exists $prev_rem{ $clean_name };
-			print "   > using pre-existing manifest entry $clean_name\n" if $verbose;
-			return;
-		}
-		elsif ( $diff < 3601 and $cur_size == $old_size ) {
-			# file time within one hour tolerance
-			$filedata{$clean_name}{status} = 2;
-			push @removelist, $clean_name if exists $prev_rem{ $clean_name };
-			print "   > using pre-existing manifest entry $clean_name\n" if $verbose;
-			return;
-		}
-		elsif ( $cur_size == $old_size ) {
-			print "   ! same size, time delta $diff for file $clean_name\n";
-		}
-		else {
-			print "   > re-processing updated file $clean_name\n" if $verbose;
-		}
 	}
 	
 	# continue processing based on project type
@@ -911,11 +898,23 @@ m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (?: sum)? .* \. (
 	$sample =~ s/P/X/;
 	
 	### Record the collected file information
+	my $status = 3;
+	if ( exists $filedata{$clean_name} ) {
+		# check if the files are unchanged
+		my $old_size = $filedata{$clean_name}{Size} || 0;
+		my $old_time = $filedata{$clean_name}{ftime} || 0;
+		my $diff = abs( $date - $old_time );
+		if ( $diff < 3601 and $size == $old_size ) {
+			# files are equivalent taking into account a possible one hour difference
+			$status = 2;
+		}
+	}
 	$filedata{$clean_name}{Type}             = $type;
 	$filedata{$clean_name}{ftime}            = $date;
 	$filedata{$clean_name}{Size}             = $size;
 	$filedata{$clean_name}{Archive}          = 'N';
-	$filedata{$clean_name}{status}           = 3;
+	$filedata{$clean_name}{status}           = $status;
+	$filedata{$clean_name}{MD5}              = q();
 	if ($type eq 'Fastq') {
 		$filedata{$clean_name}{sample_id}        = $sample || q(-);
 		$filedata{$clean_name}{platform}         = $machinelookup{$machineID} || q(-);
@@ -1266,12 +1265,25 @@ sub analysis_callback {
 	}
 	
 	### Record the collected file information
+	my $status = 3;
+	if ( exists $filedata{$clean_name} ) {
+		# check if the files are unchanged
+		my $old_size = $filedata{$clean_name}{Size} || 0;
+		my $old_time = $filedata{$clean_name}{ftime} || 0;
+		my $diff = abs( $date - $old_time );
+		if ( $diff < 3601 and $size == $old_size ) {
+			# files are equivalent taking into account a possible one hour difference
+			$status = 2;
+		}
+	}
 	$filedata{$clean_name}{Type}     = $filetype;
-	$filedata{$clean_name}{MD5}      = $Project->calculate_file_checksum($file);
 	$filedata{$clean_name}{ftime}    = $date;
 	$filedata{$clean_name}{Size}     = $size;
 	$filedata{$clean_name}{Archived} = $zip ? 'Y' : 'N';
-	$filedata{$clean_name}{status}   = 3;
+	$filedata{$clean_name}{status}   = $status;
+	if ($status == 3) {
+		$filedata{$clean_name}{MD5}  = $Project->calculate_file_checksum($file);
+	}
 	
 	# Check for sample ID
 	if ( $clean_name =~ / (\d{4,6}X\d{1,3}) [\.\-_\/] /x ) {
