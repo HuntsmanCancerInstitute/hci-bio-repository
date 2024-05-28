@@ -5,7 +5,7 @@ Bio-Repository file server, particularly with respect in preparation and migrati
 GNomEx data to AWS Buckets (and formerly Seven Bridges).
 
 Main scripts are in the `bin` directory. Modules required for execution are in the `lib` 
-directory. Old stuff are placed in the `deprecated` directory for posterity only.
+directory. 
 
 Current operation is predicated around collecting disparate bits of information, 
 including metadata from the GNomEx database, metadata for each GNomEx project directory 
@@ -40,7 +40,16 @@ list files in parent directory and hidden from the GNomEx web application.
 Manifest-based, multi-threaded, file uploader of GNomEx repository projects to AWS
 buckets. 
 
-- Seven Bridges scripts
+- other
+
+There are a few other sundry scripts for various one-off purposes and such. 
+
+### Special folders
+
+Special purpose scripts and modules, mostly retired, are moved into separate folders
+for sanity purposes.
+
+- Seven Bridges
 
 There are multiple scripts for working with the 
 [Seven Bridges](https://www.sevenbridges.com) platform (now part of
@@ -50,25 +59,41 @@ There are multiple scripts for working with the
 and exporting files), `sbg_vol_manager.pl` (manager for mounted AWS buckets),
 `sbg_async_folder_copy.pl` (bulk, recursive, asynchronous file copy within or between 
 projects), `check_divisions.pl` (list projects, members, tasks, and more), and others.
-These are mostly retired.
+These are mostly retired. These are in the [sevenbridges](sevenbridges) directory.
 
-- other
+Perl libraries that wrap around the Seven Bridges API have been moved to a private 
+repository, [Net::SB](https://github.com/tjparnell/Net-SB). The code was originally
+part of this package but split off to make it more generally accessible. It is 
+currently not on CPAN and must be installed manually.
 
-There are a few other sundry scripts for data migration, various one-off purposes,
-and such. These also include scripts for the bulk migration from Seven Bridges to
-AWS buckets. 
+- Migration
+
+Several scripts used in the Great Data Migration from the Seven Bridges platform to 
+private AWS buckets. These include `generate_project_export_prefixes.pl` for automatic
+generation of destination buckets and prefixes for manual inspection,
+`select_sbg_project_files_to_delete.pl` for finding and removing unwanted files from 
+Seven Bridges projects, `generate_bulk_export_commands.pl` for generating the actual 
+shell scripts for managing and executing the transfer, and `verify_transfers.pl` for
+directly comparing the paths and sizes between Seven Bridges projects and AWS buckets
+for confirmation of successful file transfer. These are in the [migration](migration)
+directory.
+
+- Deprecation
+
+Old scripts and stuff are placed in the [deprecated](deprecated/Readme.md) directory for
+posterity only. See its dedicated page for more information.
 
 
 ### Modules
 
 There are specific Perl library modules for working with the Catalog database 
 file, Repository project folders on the file server, and GNomEx. These are fairly 
-specific to the scripts here and unlikely of general interest.
+specific to the scripts here and unlikely to be of general interest. 
 
-
-### Deprecated Stuff
-
-These are bunch of old, deprecated scripts. See its dedicated page for more information.
+**NOTE**: These are not installed by a package manager. All of the applications in the
+`script` folder will look for the `lib` folder in the parent directory. Downloading
+the package as-is and running in place should work. Otherwise, they can be manually
+placed in your `PERL5LIB` path.
 
 
 ## Requirements
@@ -80,10 +105,8 @@ the included `cpanfile`.
 
 	cpanm --installdeps .
 
-The [Net::SB](https://github.com/tjparnell/Net-SB) library module is the Perl wrapper 
-around the Seven Bridges API. The code was originally part of this package but split 
-off to make it more generally accessible. It is currently not on CPAN and must be 
-installed manually.
+The [Net::SB](https://github.com/tjparnell/Net-SB) module is not currently on CPAN and
+must be installed manually.
 
 
 ### Compiling single executables
@@ -95,9 +118,9 @@ work across different systems, e.g. Linux distributions.
     pp -c -o executables/script bin/script.pl
 
 For some scripts that use runtime loader modules, you will have to actually execute 
-the script with real arguments (no, simple `--help` doesn’t cut it).
+the script with real arguments (no, simple `--help` won’t cut it).
 
-    pp -x --xargs " " -o executables/script bin/script.pl
+    pp -x --xargs " --option foo --bar" -o executables/script bin/script.pl
 
 
 # License
