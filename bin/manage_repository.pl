@@ -541,28 +541,33 @@ sub open_import_catalog {
 								$Entry->deleted_datestamp > 1
 							) {
 								# do absolutely nothing with these
+								# even if new files are added
+								# hopefully warning above will suffice!
 								$do = 0;
 							}
-							elsif ( $Entry->scan_datestamp > 1 ) {
-								if ( time - $Entry->scan_datestamp > 86400 ) {
-									# previously scanned at least 1 day old
-									$do = 1;
-								}
+							elsif ( $Entry->scan_datestamp > 1 and
+								( $datestamp - $Entry->scan_datestamp ) > 86400 and
+								( time - $Entry->scan_datestamp ) > 86400
+							) {
+								# previously scanned at least 1 day ago and
+								# younger files exist by at least 1 day
+								$do = 1;
 							}
-							elsif ( $Entry->age > 14 ) {
+							elsif ( $Entry->scan_datestamp == 0 and $Entry->age > 14 ) {
 								# otherwise wait for project to "settle" for at least
 								# two weeks before scanning
 								$do = 1;
 							}
 
 							# print verbose message
+							if ($do) {
 								printf
 								"  > will scan %s, age %s, last scanned %s days ago\n",
 									$id, $Entry->age, $Entry->scan_datestamp ? 
 									sprintf("%.0f",
 									(time - $Entry->scan_datestamp) / 86400) : '-';
+								push @action_list, $id;
 							}
-							push @action_list, $id if $do;
 						}
 					}
 				}
@@ -572,7 +577,8 @@ sub open_import_catalog {
 			}
 			
 			# print report
-			printf "\n Project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
+			printf
+"\n Analysis project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
 				$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
 				scalar(@{$new_list});
 		}
@@ -635,7 +641,8 @@ sub open_import_catalog {
 							else {
 								$do = 1;
 							}
-							if ($do and $verbose) {
+							# if ($do and $verbose) {
+							if ($do) {
 								printf
 								"  > will scan %s, age %s, last scanned %s days ago\n",
 									$id, $Entry->age, $Entry->scan_datestamp ? 
@@ -652,10 +659,16 @@ sub open_import_catalog {
 			}
 			
 			# print report
-			printf "\n Project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
+			printf
+"\n Request project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
 				$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
 				scalar(@{$new_list});
 		}
+	}
+
+	# print number of project to scan as final report
+	if (@action_list) {
+		printf "  %d to scan\n", scalar @action_list;
 	}
 
 	# reset flag as this is already done
