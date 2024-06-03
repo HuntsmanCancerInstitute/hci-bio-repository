@@ -917,9 +917,14 @@ m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (?: sum)? .* \. (
 	$filedata{$clean_name}{MD5}              = q();
 	if ($type eq 'Fastq') {
 		$filedata{$clean_name}{sample_id}        = $sample || q(-);
-		$filedata{$clean_name}{platform}         = $machinelookup{$machineID} || q(-);
 		$filedata{$clean_name}{platform_unit_id} = $laneID || q(-);
 		$filedata{$clean_name}{paired_end}       = $pairedID || q(-);
+		if ( $machineID and exists $machinelookup{$machineID} ) {
+			$filedata{$clean_name}{platform}     = $machinelookup{$machineID};
+		}
+		else {
+			$filedata{$clean_name}{platform}     = q(?);
+		}
 	}
 	push @removelist, $clean_name;  # by default we remove all request files  
 
