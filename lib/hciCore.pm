@@ -28,6 +28,9 @@ sub generate_bucket {
 	if ( $group =~ /^ (?: experiment s? | project s? ) \s for \s ([\w\-]+) \s ([\w\-\s]+)$/xi ) {
 		$group = sprintf "%s-%s", $1, $2;
 	}
+	elsif ( $group =~ /^ (?: experiment s? | project s? ) \s for \s ([\w\-]+)$/xi ) {
+		$group = $1;
+	}
 	elsif ( $group =~ /^Request s? \s submitted \s by \s ([\w\-]+) \s ([\w\-\s]+)$/xi ) {
 		$group = sprintf "%s-%s", $1, $2;
 	}
