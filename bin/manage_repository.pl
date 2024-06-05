@@ -15,7 +15,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 7.0;
+our $VERSION = 7.1;
 
 
 ######## Documentation
@@ -155,6 +155,8 @@ OPTIONS
                                 Default is ~/.aws/credentials. 
 
   General:
+    --transform               When exporting transform to human conventions
+    --biggest                 Print the biggest size in status (current or previous)
     --mock                    For email and upload functions only,
                                  print output but not actual work
     -v --verbose              Print additional output for some functions
@@ -229,6 +231,7 @@ my $fetch_analysis;
 my $fetch_request;
 my $dump_file;
 my $transform = 0;
+my $biggest_size;
 my $import_file;
 my $run_optimize;
 my $force;
@@ -307,6 +310,7 @@ if (scalar(@ARGV) > 1) {
 		'force!'                => \$force,
 		'transform!'            => \$transform,
 		'optimize!'             => \$run_optimize,
+		'biggest!'              => \$biggest_size,
 		'cred=s'                => \$cred_path,
 		'labinfo=s'             => \$labinfo_path,
 		'v|verbose!'            => \$verbose,
@@ -1620,10 +1624,12 @@ sub print_functions {
 			next unless (defined $id);
 			my $Entry = $Catalog->entry($id) or next;
 		
-			# format size, use last given size instead of current size, so that we
+			# get and format the current size to human readable sizes
 			# we know how big the project was
 			my $size = $Entry->size || 0;
-			if ( $Entry->last_size > $size ) {
+			if ( $biggest_size and $Entry->last_size > $size ) {
+				# take whatever was largest, previous or current size
+				# the previous size may not be a guarantee of the biggest size
 				$size = $Entry->last_size;
 			}
 			$size = _format_size($size);
@@ -1683,7 +1689,9 @@ sub print_functions {
 			# we know how big the project was
 			# this is not specific to the AutoAnalysis folder
 			my $size = $Entry->size || 0;
-			if ( $Entry->last_size > $size ) {
+			if ( $biggest_size and $Entry->last_size > $size ) {
+				# take whatever was largest, previous or current size
+				# the previous size may not be a guarantee of the biggest size
 				$size = $Entry->last_size;
 			}
 			$size = _format_size($size);
