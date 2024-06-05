@@ -535,38 +535,50 @@ sub callback {
 	elsif ($file =~ /libsnappyjava\.so$/xi) {
 		# devil java spawn, delete!!!!
 		print "   ! deleting java file $clean_name\n";
-		unlink $file;
+		unless (unlink $file) {
+			push @removelist, $clean_name;
+		}
 		return;
 	}
 	elsif ($file =~ m/(?: fdt | fdtCommandLine ) \.jar $/x) {
 		# fdt files, don't need
 		print "   ! deleting java file $clean_name\n";
-		unlink $file;
+		unless (unlink $file) {
+			push @removelist, $clean_name;
+		}
 		return;
 	}
 	elsif ($file eq '.DS_Store' or $file eq 'Thumbs.db') {
 		# Windows and Mac file browser devil spawn, delete these immediately
 		print "   ! deleting unnecessary file $clean_name\n" if $verbose;
-		unlink $file;
+		unless (unlink $file) {
+			push @removelist, $clean_name;
+		}
 		return;
 	}
 	elsif ($file eq '.snakemake_timestamp') {
 		# Auto Analysis snakemake droppings
 		print "   ! deleting unnecessary file $clean_name\n" if $verbose;
-		unlink $file;
+		unless (unlink $file) {
+			push @removelist, $clean_name;
+		}
 		return;
 	}
 	elsif ( $file =~ /~$/ ) {
 		# files ending in ~ are typically backup copies of an edited text file
 		# these can be safely deleted
 		print "   ! deleting backup file $clean_name\n";
-		unlink $file;
+		unless (unlink $file) {
+			push @removelist, $clean_name;
+		}
 		return;
 	}
 	elsif ( $file =~ /^\./ ) {
 		# hidden files
 		print "   ! deleting hidden file $clean_name\n";
-		unlink $file;
+		unless (unlink $file) {
+			push @removelist, $clean_name;
+		}
 		return;
 	}
 	elsif ( -l $file  ) {
