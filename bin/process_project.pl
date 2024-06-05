@@ -1321,8 +1321,14 @@ sub analysis_callback {
 	}
 	
 	# removed everything except for any browser tracks
-	if (not $zip and $filetype ne 'BrowserTrack') {
-		push @removelist, $clean_name;
+	if (not $zip) {
+		if ($filetype eq 'BrowserTrack') {
+			# we only keep browser tracks for Analysis projects, not Request projects
+			push @removelist, $clean_name if $request;
+		}
+		else {
+			push @removelist, $clean_name;
+		}
 	}
 
 	print "     processed $filetype file\n" if $verbose;
