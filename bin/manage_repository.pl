@@ -145,7 +145,6 @@ OPTIONS
   
   Actions on catalog file:
     --export <path>           Dump the contents to tab-delimited text file
-    --transform               When exporting transform to human conventions
     --import_file <path>      Import an exported table, requires non-transformed
     --optimize                Run the db file optimize routine (!?)
   
@@ -456,6 +455,12 @@ sub check_options {
 			print "FATAL: Can't do anything else if unhiding files!\n";
 			exit 1;
 		}
+	}
+	
+	# contradictory zip and upload
+	if ( $project_zip and ( $project_upload or $project_aa_upload ) ) {
+		print "FATAL: Zip projects first before uploading\n";
+		exit 1;
 	}
 	
 	# contradictory metadata options
@@ -1177,6 +1182,10 @@ sub run_project_actions {
 				$Bin, $cat_file, $id;
 			if ($verbose) {
 				$command .= " --verbose";
+			}
+			if (defined $project_zip and not $project_zip) {
+				# special situation to negate writing a zip list file, default is true
+				$command .= " --nozip";
 			}
 			print " Executing $command\n";
 			system($command);
