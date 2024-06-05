@@ -78,7 +78,7 @@ directly comparing the paths and sizes between Seven Bridges projects and AWS bu
 for confirmation of successful file transfer. These are in the [migration](migration)
 directory.
 
-- Deprecation
+- Deprecated
 
 Old scripts and stuff are placed in the [deprecated](deprecated/Readme.md) directory for
 posterity only. See its dedicated page for more information.
@@ -101,7 +101,7 @@ placed in your `PERL5LIB` path.
 The scripts are written in Perl and can be executed under the system Perl. Additional 
 Perl modules are required for execution. These may be installed with a Perl package 
 manager, such as [CPANminus](https://metacpan.org/pod/App::cpanminus) or CPAN, using
-the included `cpanfile`.
+the included `cpanfile`, or if you're brave, your Linux OS package manager.
 
 	cpanm --installdeps .
 
@@ -113,7 +113,7 @@ must be installed manually.
 
 To ease distribution to other servers, single file executables can be generated using
 [PAR-Packer](https://metacpan.org/pod/pp). Note that this is not perfect, and may not 
-work across different systems, e.g. Linux distributions.
+work across different systems, e.g. Linux distributions with different kernels.
 
     pp -c -o executables/script bin/script.pl
 
