@@ -7,7 +7,7 @@ use Carp;
 use IO::File;
 use DBM::Deep;
 
-our $VERSION = 7.0;
+our $VERSION = 7.1;
 
 
 # General private values
@@ -27,7 +27,7 @@ my $req_hide_max_age   = 100000;  # maximum age for hiding request
 my $req_del_min_age    = 30;  # minimum age to delete hidden request
 my $anal_up_min_age    = 360;  # minimum age for analysis upload
 my $anal_up_max_age    = 100000;  # maximum age for analysis upload
-my $anal_up_min_size   = 104857600;  # minimum Analysis size to upload, 100 MB
+my $anal_up_min_size   = 1024;  # minimum Analysis size to upload, 1 Kb
 my $anal_hide_min_age  = 360;  # minimum age to hide analysis
 my $anal_hide_max_age  = 100000;  # maximum age to hide analysis
 my $anal_del_min_age   = 60;  # minimum age to delete hidden analysis
@@ -288,15 +288,15 @@ sub find_requests_to_upload {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ $internal_org and
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and
 			$E->core_lab and 
-			substr($E->date, 0, 4) >= $year and
 			$E->scan_datestamp > 1 and
+			$E->hidden_datestamp == 0 and
 			$E->age >= $min_age and
 			$E->age <= $max_age and
-			not $E->hidden_datestamp
+			$E->lab_last !~ $internal_org and
+			substr($E->date, 0, 4) >= $year
 		) {
 			# we have a candidate
 			# we could try to filter on application type, but there are so many 
@@ -349,14 +349,15 @@ sub find_requests_to_hide {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ $internal_org and
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and        # finished
-			$E->hidden_datestamp < 1 and                # not hidden yet
+			$E->scan_datestamp > 1 and                  # scanned
+			$E->hidden_datestamp == 0 and               # not hidden yet
 			$E->size > $min_size and                    # size > minimum size
-			substr($E->date, 0, 4) >= $year and         # current year
-			$E->age >= $min_age and              # older than 6 months
-			$E->age <= $max_age
+			$E->age >= $min_age and                     # older than minimum age
+			$E->age <= $max_age and                     # less than maximum age
+			$E->lab_last !~ $internal_org and           # not internal lab
+			substr($E->date, 0, 4) >= $year             # older than start
 		) {
 			# we have a possible candidate
 			if (defined $core) {
@@ -389,7 +390,6 @@ sub find_requests_to_delete {
 	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} :
 		$req_hide_max_age;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
-	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
 	
 	# scan through list
 	my @list;
@@ -397,15 +397,13 @@ sub find_requests_to_delete {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ $internal_org and
 			$E->is_request and
 			$E->request_status eq 'COMPLETE' and        # finished
 			$E->hidden_datestamp > 1 and                # hidden
 			$E->deleted_datestamp < 1 and               # not yet deleted
-			$E->hidden_age >= $min_age and              # older than 60 days
-			substr($E->date, 0, 4) >= $year and         # current year
-			$E->hidden_age <= $max_age and
-			$E->size > $min_size
+			$E->hidden_age >= $min_age and              # hidden for minimum time
+			$E->lab_last !~ $internal_org and           # not internal lab
+			substr($E->date, 0, 4) >= $year             # current year
 		) {
 			# we have a possible candidate
 			if (defined $core) {
@@ -444,14 +442,14 @@ sub find_analysis_to_upload {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ $internal_org and
 			not $E->is_request and
 			$E->core_lab and                            # has division
-			$E->hidden_datestamp < 1 and                # not already hidden
+			$E->hidden_datestamp == 0 and               # not already hidden
 			$E->size > $min_size and                    # size > minimum
-			$E->age >= $min_age and                     # older than 9 months
-			substr($E->date, 0, 4) >= $year and         # current year
-			$E->age <= $max_age
+			$E->age >= $min_age and                     # older than min age
+			$E->age <= $max_age and                     # less than max age
+			$E->lab_last !~ $internal_org and           # not internal lab
+			substr($E->date, 0, 4) >= $year             # current year
 		) {
 			# we have a candidate
 			push @list, $key;
@@ -482,13 +480,13 @@ sub find_analysis_to_hide {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ $internal_org and
 			not $E->is_request and
 			$E->hidden_datestamp < 1 and                # not already hidden
 			$E->size > $min_size and                    # size > minimum
-			$E->age >= $min_age and                     # older than 9 months
+			$E->age >= $min_age and                     # older than min age
+			$E->age <= $max_age	and                     # less than max age
 			substr($E->date, 0, 4) >= $year and         # current year
-			$E->age <= $max_age		
+			$E->lab_last !~ $internal_org               # not internal lab
 		) {
 			# we have a possible candidate
 			if (defined $core) {
@@ -529,14 +527,13 @@ sub find_analysis_to_delete {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ $internal_org and
 			not $E->is_request and
 			$E->hidden_datestamp > 1 and                # hidden
-			$E->deleted_datestamp < 1 and               # not yet deleted
-			$E->hidden_age >= $min_age and              # older than 60 days
-			substr($E->date, 0, 4) >= $year and         # current year
-			$E->hidden_age <= $max_age and
-			$E->size >= $min_size
+			$E->deleted_datestamp == 0 and              # not yet deleted
+			$E->hidden_age >= $min_age and              # hidden for min number days
+			$E->hidden_age <= $max_age and              # hidden for max number days
+			$E->lab_last !~ $internal_org and           # not hidden lab
+			substr($E->date, 0, 4) >= $year             # current year
 		) {
 			# we have a possible candidate
 			if (defined $core) {
@@ -573,13 +570,13 @@ sub find_autoanal_req {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ $internal_org and
 			$E->is_request and
 			$E->autoanal_folder and
-			substr($E->date, 0, 4) >= $year and
+			$E->hidden_datestamp == 0 and 
 			$E->age >= $min_age and
 			$E->age <= $max_age and
-			not $E->hidden_datestamp 
+			substr($E->date, 0, 4) >= $year and
+			$E->lab_last !~ $internal_org
 		) {
 			push @list, $key;
 		}
@@ -604,15 +601,15 @@ sub find_autoanal_to_upload {
 	while ($key) {
 		my $E = $self->entry($key);
 		if (
-			$E->lab_last !~ $internal_org and
 			$E->is_request and
-			$E->autoanal_folder and
 			$E->request_status eq 'COMPLETE' and
+			$E->autoanal_folder and
 			$E->core_lab and 
-			substr($E->date, 0, 4) >= $year and
+			$E->hidden_datestamp == 0 and
 			$E->age >= $min_age and
 			$E->age <= $max_age and
-			not $E->hidden_datestamp 
+			$E->lab_last !~ $internal_org and
+			substr($E->date, 0, 4) >= $year
 		) {
 			
 			# we have a candidate
@@ -892,7 +889,7 @@ sub size {
 	my $self = shift;
 	if (@_) {
 		my $newsize = $_[0];
-		my $cursize = $self->{data}->[SIZE];
+		my $cursize = $self->{data}->[SIZE] || 0;
 		if ($cursize) {
 			my $delta = abs($cursize - $newsize);
 			if ($delta > 25_000_000 or ($delta / $cursize) > 0.1) {
