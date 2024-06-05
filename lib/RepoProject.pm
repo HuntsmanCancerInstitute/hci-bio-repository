@@ -12,7 +12,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 7.0;
+our $VERSION = 7.1;
 
 ### Initialize
 
@@ -553,22 +553,6 @@ sub get_size_age {
 		  }, $self->given_dir
 	);
 	
-	# add hidden directories too
-	if (-e $self->zip_folder) {
-		find( {
-				follow => 0, # do not follow symlinks
-				wanted => \&_age_callback,
-			  }, $self->zip_folder
-		);
-	}
-	if (-e $self->delete_folder) {
-		find( {
-				follow => 0, # do not follow symlinks
-				wanted => \&_age_callback,
-			  }, $self->delete_folder
-		);
-	}
-	
 	# return size in bytes and oldest posix age (youngest file)
 	return ($project_size, $project_age);
 }
@@ -692,30 +676,35 @@ sub _age_callback {
 	return if $file eq $current_project->zip_file;  
 	return if $file eq $current_project->ziplist_file;  
 	return if $file eq $current_project->remove_file;  
+	return if $file =~ m/md5/i;   # too small and variable to make a difference
 
-	# don't calculate anything if it appears to be a Request folder QC directory
-	# or checksum files, since these might be added since original scan
-	return if $file =~ m/md5/i;
+	# don't calculate date if it appears to be a QC or AutoAnalysis folder 
+	# within a Request project, since these are considered supplementary and can
+	# be updated anytime
+	# however we can include the size - since the QC files are generally small
+	my $include_age = 1;
 	if ($File::Find::name =~
-m/ \d+R \/ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC ) \/ /x
+m/ \d+R \/ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | AutoAnalysis_\w+) \/ /x
 	) {
-		return;
+		$include_age = 0;
 	}
 	
-	# get file size and time
+	# get file size and time date stamp
 	my ($size, $age) = (stat($file))[7,9];
 	
 	# add to running total of file sizes
 	$project_size += $size;
 	
-	# check age	
-	if ($project_age == 0) {
-		# first file! seed with current data
-		$project_age = $age;
-	}
-	elsif ($age > $project_age) {
-		# file is younger, so take this time
-		$project_age = $age;
+	# check age
+	if ($include_age) {
+		if ($project_age == 0) {
+			# first file! seed with current timestamp
+			$project_age = $age;
+		}
+		elsif ($age > $project_age) {
+			# file is younger, so take this timestamp
+			$project_age = $age;
+		}
 	}
 }
 
@@ -852,7 +841,10 @@ These functions gather information about the project folder.
 
 Returns two values: the total size in bytes and the highest posix age
 (youngest file) for the Project. The recursive search includes the 
-primary folder plus any hidden zipped file and hidden file folders. 
+primary folder. For Request projects, the file age is not considered
+for files in various QC folders or AutoAnalysis folder – these are 
+considered secondary, subject to change, and not considered for project
+expiration.
 
 =item get_autoanal_folder
 
