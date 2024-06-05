@@ -900,11 +900,21 @@ sub run_metadata_actions {
 	}
 	
 	# update the metadata scan date
-	if (defined $update_scan_date and $update_scan_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
-		my $time = timelocal(0, 0, 12, $3, $2 - 1, $1);
-		print " Setting scan time ($update_scan_date) to $time\n";
+	if (defined $update_scan_date) {
+		my $time;
+		if ($update_scan_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
+			$time = timelocal(0, 0, 12, $3, $2 - 1, $1);
+			print " Setting scan date ($update_scan_date) to $time\n";
+		}
+		elsif ($update_scan_date == 0) {
+			$time = 0;
+			print " Clearing scan date\n";
+		}
+		else {
+			die "unrecognizable scan date '$update_scan_date'\n";
+		}
 		unless (@action_list) {
-			die "No list provided to update scan times!\n";
+			die "No list provided to update scan dates!\n";
 		}
 		my $count = 0;
 		foreach my $item (@action_list) {
@@ -918,11 +928,21 @@ sub run_metadata_actions {
 	}
 
 	# update the metadata upload date
-	if (defined $update_upload_date and $update_upload_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
-		my $time = timelocal(0, 0, 12, $3, $2 - 1, $1);
-		print " Setting upload time ($update_upload_date) to $time\n";
+	if (defined $update_upload_date) {
+		my $time;
+		if ($update_upload_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
+			$time = timelocal(0, 0, 12, $3, $2 - 1, $1);
+			print " Setting upload date ($update_upload_date) to $time\n";
+		}
+		elsif ($update_upload_date == 0) {
+			$time = 0;
+			print " Clearing upload date\n";
+		}
+		else {
+			die "unrecognizable upload date '$update_upload_date'\n";
+		}
 		unless (@action_list) {
-			die "No list provided to update upload times!\n";
+			die "No list provided to update upload dates!\n";
 		}
 		my $count = 0;
 		foreach my $item (@action_list) {
@@ -936,11 +956,21 @@ sub run_metadata_actions {
 	}
 
 	# update the metadata hide date
-	if (defined $update_hide_date and $update_hide_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
-		my $time = timelocal(0, 0, 12, $3, $2 - 1, $1);
-		print " Setting hide time ($update_hide_date) to $time\n";
+	if (defined $update_hide_date) {
+		my $time;
+		if ($update_hide_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
+			$time = timelocal(0, 0, 12, $3, $2 - 1, $1);
+			print " Setting hide time ($update_hide_date) to $time\n";
+		}
+		elsif ($update_upload_date == 0) {
+			$time = 0;
+			print " Clearing hide date\n";
+		}
+		else {
+			die "unrecognizable hide date '$update_hide_date'\n";
+		}
 		unless (@action_list) {
-			die "No list provided to update hide times!\n";
+			die "No list provided to update hide dates!\n";
 		}
 		my $count = 0;
 		foreach my $item (@action_list) {
@@ -954,11 +984,21 @@ sub run_metadata_actions {
 	}
 
 	# update the metadata deletion date
-	if (defined $update_delete_date and $update_delete_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
-		my $time = timelocal(0, 0, 12, $3, $2 - 1, $1);
-		print " Setting delete time ($update_delete_date) to $time\n";
+	if (defined $update_delete_date) {
+		my $time;
+		if ($update_delete_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
+			$time = timelocal(0, 0, 12, $3, $2 - 1, $1);
+			print " Setting hide date ($update_delete_date) to $time\n";
+		}
+		elsif ($update_delete_date == 0) {
+			$time = 0;
+			print " Clearing delete date\n";
+		}
+		else {
+			die "unrecognizable delete date '$update_delete_date'\n";
+		}
 		unless (@action_list) {
-			die "No list provided to update delete times!\n";
+			die "No list provided to update delete dates!\n";
 		}
 		my $count = 0;
 		foreach my $item (@action_list) {
@@ -972,11 +1012,21 @@ sub run_metadata_actions {
 	}
 
 	# update the metadata email date
-	if (defined $update_email_date and $update_email_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
-		my $time = timelocal(0, 0, 12, $3, $2 - 1, $1);
-		print " Setting email time ($update_email_date) to $time\n";
+	if (defined $update_email_date) {
+		my $time;
+		if ($update_email_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
+			$time = timelocal(0, 0, 12, $3, $2 - 1, $1);
+			print " Setting email date ($update_email_date) to $time\n";
+		}
+		elsif ($update_email_date == 0) {
+			$time = 0;
+			print " Clearing email date\n";
+		}
+		else {
+			die "unrecognizable email date '$update_email_date'\n";
+		}
 		unless (@action_list) {
-			die "No list provided to update email times!\n";
+			die "No list provided to update email dates!\n";
 		}
 		my $count = 0;
 		foreach my $item (@action_list) {
