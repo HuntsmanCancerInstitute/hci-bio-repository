@@ -16,7 +16,7 @@ use lib "$Bin/../lib";
 use RepoCatalog;
 use RepoProject;
 
-our $VERSION = 7.1;
+our $VERSION = 7.2;
 
 
 
@@ -619,6 +619,11 @@ m/^ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) 
 		print "   > skipping QC file $clean_name\n" if $verbose;
 		return;
 	}
+	elsif ($clean_name =~ /^ Depreciated_AutoAnalysis/x) {
+		# unwanted depreciated AutoAnalysis? Why not just delete it?
+		push @removelist, $clean_name;
+		return;
+	}
 	elsif ($clean_name =~ /^ RunFolder/x) {
 		# a few external requesters want the entire original RunFolder 
 		# these folders typically have over 100K files!!!!
@@ -1041,8 +1046,13 @@ sub analysis_callback {
 		}
 		$filetype = 'Variant';
 	}
-	elsif ($file =~ /\. [cv] loupe$/xi) {
+	elsif ($file =~ /\. [cv] loupe $/xi) {
 		# 10X genomics loupe file
+		$filetype = 'Analysis';
+		$zip = 0;
+	}
+	elsif ($file =~ /\. loom $/xi) {
+		# Velocyto loom file
 		$filetype = 'Analysis';
 		$zip = 0;
 	}
