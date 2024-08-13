@@ -6,6 +6,7 @@ use English qw(-no_match_vars);
 use IO::File;
 use File::Find;
 use File::Spec;
+use File::Copy qw(move);
 use POSIX qw(strftime);
 use Date::Parse;
 use Text::CSV;
@@ -597,6 +598,13 @@ sub callback {
 		# ignore for now, it should be cleaned up automatically
 		return;
 	}
+	elsif ( $file eq 'COMPLETE' and $clean_name =~ /^ AutoAnalysis_\w+ \/ /x ) {
+		# an AutoAnalysis control file
+		unless (unlink $file) {
+			push @removelist, $clean_name;
+		}
+		return;
+	}
 	
 	# continue processing based on project type
 	if ($request) {
@@ -943,6 +951,12 @@ m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (?: sum)? .* \. (
 			$filedata{$clean_name}{platform}     = q(?);
 		}
 	}
+	else {
+		$filedata{$clean_name}{sample_id}        = q();
+		$filedata{$clean_name}{platform_unit_id} = q();
+		$filedata{$clean_name}{paired_end}       = q();
+		$filedata{$clean_name}{platform}         = q();
+	}
 	push @removelist, $clean_name;  # by default we remove all request files  
 
 	print "   > processed $type file $clean_name\n" if $verbose;
@@ -1116,6 +1130,31 @@ sub analysis_callback {
 		# unmapped fastq from STAR - seriously, does anyone clean up their droppings?
 		$filetype = 'Fastq';
 		my $paired = $1;
+		if ($file !~ /\. (?: fq | fastq )/x) {
+			# no proper fastq extension? then rename
+			my $new_file  = $file;
+			my $new_clean = $clean_name;
+			if ($file =~ /\.gz$/) {
+				$new_file  =~ s/gz$/fastq.gz/;
+				$new_clean =~ s/gz$/fastq.gz/;
+			}
+			else {
+				$new_file  .= '.fastq';
+				$new_clean .= '.fastq';
+			}
+			if ( move($file, $new_file) ) {
+				$file = $new_file;
+				if ( exists $filedata{$clean_name} ) {
+					$filedata{$new_clean} = $filedata{$clean_name};
+					delete $filedata{$clean_name};
+				}
+				$clean_name = $new_clean;
+				print "   > renamed '$file' to '$new_file'\n";
+			}
+			else {
+				print "   ! failed to rename '$clean_name': $OS_ERROR\n";
+			}
+		}
 		if ($file !~ /\.gz$/i) {
 			# file not compressed!!!????? let's compress it
 			my $command = sprintf "%s \"%s\"", $gzipper, $file;
@@ -1278,10 +1317,13 @@ sub analysis_callback {
 		# catchall
 		$filetype = 'Other';
 		if ($size > $max_zip_size) {
-			# it's pretty big
+			# it's too big to zip
 			printf "   ! Large unknown file $clean_name at %.1fG\n", $size / 1073741824;
+			$zip = 0;
 		}
-		$zip = 1;
+		else {
+			$zip = 1;
+		}
 	}
 	
 	
