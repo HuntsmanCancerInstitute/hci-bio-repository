@@ -15,7 +15,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 7.1;
+our $VERSION = 7.2;
 
 
 ######## Documentation
@@ -106,6 +106,7 @@ OPTIONS
     --zip                     Zip archive Analysis files
     --upload                  Upload projects to CORE lab AWS bucket
     --aaupload                Upload projects, including AutoAnalysis folders
+    --forks <int>             Number of parallel forks for uploads
 
   Actions on project directories:
     --hide_zip                Hide the zipped files to _ZIPPED_FILES folder
@@ -234,6 +235,7 @@ my $biggest_size;
 my $import_file;
 my $run_optimize;
 my $force;
+my $forks;
 my $labinfo_path;
 my $cred_path;
 my $verbose;
@@ -307,6 +309,7 @@ if (scalar(@ARGV) > 1) {
 		'export_file=s'         => \$dump_file,
 		'import_file=s'         => \$import_file,
 		'force!'                => \$force,
+		'forks=i'               => \$forks,
 		'transform!'            => \$transform,
 		'optimize!'             => \$run_optimize,
 		'biggest!'              => \$biggest_size,
@@ -1233,9 +1236,25 @@ sub run_project_actions {
 			if ($verbose) {
 				$command .= " --verbose";
 			}
-			if (defined $project_zip and not $project_zip) {
+			if (defined $project_zip) {
 				# special situation to negate writing a zip list file, default is true
-				$command .= " --nozip";
+				if ($project_zip) {
+					$command .= " --zip";   # technically redundant since default true
+				}
+				else {
+					$command .= " --nozip";
+				}
+			}
+			else {
+				# determine empirically based on CORE status
+				# we should not be generating an ARCHIVE list if we will never use it
+				my $Entry = $Catalog->entry($id) or next;
+				if ( $Entry->core_lab ) {
+					$command .= " --zip";   # technically redundant since default true
+				}
+				else {
+					$command .= " --nozip";
+				}
 			}
 			print " Executing $command\n";
 			system($command);
@@ -1297,6 +1316,9 @@ sub run_project_actions {
 				$Bin, $cat_file, $id;
 			if ($project_aa_upload) {
 				$command .= ' --aa';
+			}
+			if ($forks) {
+				$command .= sprintf " --forks %d", $forks;
 			}
 			if ($verbose) {
 				$command .= ' --verbose';
