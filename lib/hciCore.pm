@@ -10,7 +10,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw( generate_bucket generate_prefix cleanup );
 
-our $VERSION = 7.0;
+our $VERSION = 7.1;
 my  $net_loaded = 0;
 
 sub generate_bucket {
@@ -101,10 +101,6 @@ sub cleanup {
 	# underscore replacement
 	$name =~ s/[ \s _ , ]+ /_/gxx;
 
-	# stray beginning and ending characters
-	$name =~ s/^[ \s \- _ ]+//xx;
-	$name =~ s/[ \s \- _ ]+ $//xx;
-
 	## use critic
 
 	# weird combinations
@@ -133,6 +129,13 @@ sub cleanup {
 			}
 		}
 	}
+
+	# finally clean up stray beginning and ending characters
+	## no critic - it doesn't understand xx modifiers?
+	$name =~ s/^[ \s \- _ \. ]+//xx;
+	$name =~ s/[ \s \- _ \. ]+ $//xx;
+	## use critic
+
 	return $name;
 }
 
