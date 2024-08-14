@@ -1082,6 +1082,76 @@ sub analysis_callback {
 		$filetype = 'Analysis';
 		$zip = 0;
 	}
+	elsif ($file =~ /^ Unmapped \.out \.mate ([12]) /xi) {
+		# unmapped fastq from STAR - may need to be renamed and/or compressed
+		my $paired = $1;
+		if ($file =~ /\. (?: fq | fastq ) \.gz $/x) {
+			# perfect, has extension and is compressed, nothing to do
+			$filetype = 'Fastq';
+		}
+		elsif ($file =~ /\. (?: fq | fastq ) $/x) {
+			# right extension, not compressed
+			$filetype = 'Fastq';
+			my $command = sprintf "%s \"%s\"", $gzipper, $file;
+			if (system($command)) {
+				print "   ! failed to automatically compress '$clean_name': $OS_ERROR\n";
+				$zip = 1; 
+			}
+			else {
+				# succesfull compression! update values
+				print "   > automatically gzip compressed $clean_name\n";
+				$file  .= '.gz';
+				$clean_name .= '.gz';
+				($date, $size) = get_file_stats($file);
+			}
+		}
+		elsif ($file =~ /\.mate [12] $/xi) {
+			# no extension but likely fastq, not compressed
+			$filetype = 'Fastq';
+			my $new_file  = $file . '.fastq';
+			my $new_clean = $clean_name . '.fastq';
+			if ( move($file, $new_file) ) {
+				my $command = sprintf "%s \"%s\"", $gzipper, $new_file;
+				if (system($command)) {
+					print "   ! failed to automatically compress '$new_clean': $OS_ERROR\n";
+					$zip = 1; 
+				}
+				else {
+					$new_file  .= '.gz';
+					$new_clean .= '.gz';
+					print "   > automatically gzip compressed '$clean_name' to '$new_file'\n";
+					$file       = $new_file;
+					$clean_name = $new_clean;
+					($date, $size) = get_file_stats($file);
+				}
+			}
+			else {
+				print "   ! failed to rename and compress '$clean_name': $OS_ERROR\n";
+			}
+			
+		}
+		else {
+			# something else? ok, whatever
+		}
+		
+		# check the size
+		if ($size > 1048576) {
+			# Bigger than 1 MB, leave it out
+			$zip = 0;
+		}
+		else {
+			# otherwise we'll include it in the zip archive
+			$zip = 1;
+		}
+		
+		# set fastq specific data
+		if ($filetype eq 'Fastq') {
+			$filedata{$clean_name}{paired_end}       = $paired;
+			$filedata{$clean_name}{platform_unit_id} = q(-);
+			$filedata{$clean_name}{platform}         = q(-);
+			$filedata{$clean_name}{sample_id}        = q(-);
+		}
+	}
 	elsif ($file =~ /\. (?: fq | fastq ) (?: \.gz)? $/xi) {
 		# fastq file
 		if ($file =~ /^ \d{4,6} X \d{1,3} _/x) {
@@ -1118,70 +1188,9 @@ sub analysis_callback {
 		
 		# set fastq specific data, look for paired state
 		my $paired = q(-);
-		if ( $file =~ /r? ([12]) \./xi ) {
+		if ( $file =~ / [\.\-_] r? ([12]) [\.\-_] /xi ) {
 			$paired = $1;
 		}
-		$filedata{$clean_name}{paired_end}       = $paired;
-		$filedata{$clean_name}{platform_unit_id} = q(-);
-		$filedata{$clean_name}{platform}         = q(-);
-		$filedata{$clean_name}{sample_id}        = q(-);
-	}
-	elsif ($file =~ /^Unmapped \.out \.mate ([12]) .*$/xi) {
-		# unmapped fastq from STAR - seriously, does anyone clean up their droppings?
-		$filetype = 'Fastq';
-		my $paired = $1;
-		if ($file !~ /\. (?: fq | fastq )/x) {
-			# no proper fastq extension? then rename
-			my $new_file  = $file;
-			my $new_clean = $clean_name;
-			if ($file =~ /\.gz$/) {
-				$new_file  =~ s/gz$/fastq.gz/;
-				$new_clean =~ s/gz$/fastq.gz/;
-			}
-			else {
-				$new_file  .= '.fastq';
-				$new_clean .= '.fastq';
-			}
-			if ( move($file, $new_file) ) {
-				$file = $new_file;
-				if ( exists $filedata{$clean_name} ) {
-					$filedata{$new_clean} = $filedata{$clean_name};
-					delete $filedata{$clean_name};
-				}
-				$clean_name = $new_clean;
-				print "   > renamed '$file' to '$new_file'\n";
-			}
-			else {
-				print "   ! failed to rename '$clean_name': $OS_ERROR\n";
-			}
-		}
-		if ($file !~ /\.gz$/i) {
-			# file not compressed!!!????? let's compress it
-			my $command = sprintf "%s \"%s\"", $gzipper, $file;
-			if (system($command)) {
-				print "   ! failed to automatically compress '$clean_name': $OS_ERROR\n";
-				$zip = 1; 
-			}
-			else {
-				# succesfull compression! update values
-				print "   > automatically gzip compressed $clean_name\n";
-				$file  .= '.gz';
-				$clean_name .= '.gz';
-				($date, $size) = get_file_stats($file);
-			}
-		}
-		
-		# check the size
-		if ($size > 1048576) {
-			# Bigger than 1 MB, leave it out
-			$zip = 0;
-		}
-		else {
-			# otherwise we'll include it in the zip archive
-			$zip = 1;
-		}
-		
-		# set fastq specific data
 		$filedata{$clean_name}{paired_end}       = $paired;
 		$filedata{$clean_name}{platform_unit_id} = q(-);
 		$filedata{$clean_name}{platform}         = q(-);
