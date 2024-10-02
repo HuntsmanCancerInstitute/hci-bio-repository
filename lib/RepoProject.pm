@@ -12,7 +12,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 7.1;
+our $VERSION = 7.2;
 
 ### Initialize
 
@@ -45,6 +45,7 @@ sub new {
 
 	# extract the project ID
 	my $project;
+	my $parent_dir;
 	my @dirs = File::Spec->splitdir($path);
 		# if path is full from root, the first element will be null
 	if (
@@ -66,15 +67,19 @@ sub new {
 			# huh? just take last directory then
 			$project = $dirs[-1];
 		}
+		$parent_dir = File::Spec->catdir(@dirs[0..$#dirs-1]);
 	}
 	else {
-		# non-canonical path, take the last given directory
+		# non-canonical path
+		# set the project to the last given directory
+		# set the parent directory to the same directory if parent is not writable
 		$project = @dirs[-1];
+		$parent_dir = File::Spec->catdir(@dirs[0..$#dirs-1]);
+		unless ( -w $parent_dir ) {
+			undef $parent_dir;
+		}
 	}
 
-	# check directory 
-	my $parent_dir = File::Spec->catdir(@dirs[0..$#dirs-1]);
-	
 	# initiate project
 	my $self = {
 		given_dir   => $path,
@@ -91,12 +96,21 @@ sub new {
 	$self->{notice}   = "where_are_my_files.txt";
 
 	# hidden file names in parent directory
-	$self->{alt_remove}    = File::Spec->catfile($parent_dir, $project . "_REMOVE_LIST.txt");
-	$self->{alt_zip}       = File::Spec->catfile($parent_dir, $project . "_ARCHIVE.zip");
-	$self->{alt_ziplist}   = File::Spec->catfile($parent_dir, $project . "_ARCHIVE_LIST.txt");
-	$self->{zipfolder}     = File::Spec->catfile($parent_dir, $project . "_ZIPPED_FILES");
-	$self->{delfolder}     = File::Spec->catfile($parent_dir, $project . "_DELETED_FILES");
-	
+	if ($parent_dir) {
+		$self->{alt_remove}  = File::Spec->catfile($parent_dir, $project . "_REMOVE_LIST.txt");
+		$self->{alt_zip}     = File::Spec->catfile($parent_dir, $project . "_ARCHIVE.zip");
+		$self->{alt_ziplist} = File::Spec->catfile($parent_dir, $project . "_ARCHIVE_LIST.txt");
+		$self->{zipfolder}   = File::Spec->catfile($parent_dir, $project . "_ZIPPED_FILES");
+		$self->{delfolder}   = File::Spec->catfile($parent_dir, $project . "_DELETED_FILES");
+	}
+	else {
+		$self->{alt_remove}  = $self->{remove};
+		$self->{alt_zip}     = $self->{zip};
+		$self->{alt_ziplist} = $self->{ziplist};
+		$self->{zipfolder}   = undef;
+		$self->{delfolder}   = undef;
+	}
+
 	# notification file
 	if ($parent_dir =~ /MicroarrayData/) {
 		$self->{notice_source} = "/Repository/MicroarrayData/missing_file_notice.txt";
