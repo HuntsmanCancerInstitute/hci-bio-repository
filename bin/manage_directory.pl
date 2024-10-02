@@ -9,7 +9,7 @@ use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use RepoProject;
 
-our $VERSION = 6;
+our $VERSION = 7;
 
 
 
@@ -40,6 +40,8 @@ Options:
     --list <file>   File list of project paths, assumes header
  
  Mode
+    --zip           Generate the ARCHIVE.zip file using the ARCHIVE_LIST.txt
+                      assumes --mvzip by default
     --mvzip         Hide the zipped files by moving to hidden folder 
     --mvdel         Hide the to-delete files by moving to hidden folder
     --showzip       Unhide files from _ZIPPED_FILES folder
@@ -59,6 +61,7 @@ END
 ######## Process command line options
 my @projects;
 my $list_file;
+my $zip_files;
 my $move_zip_files;
 my $move_del_files;
 my $unhide_files;
@@ -73,6 +76,7 @@ my $verbose = 0;
 if (scalar(@ARGV) > 1) {
 	GetOptions(
 		'list=s'      => \$list_file,
+		'zip!'        => \$zip_files,
 		'mvzip!'      => \$move_zip_files,
 		'mvdel!'      => \$move_del_files,
 		'unhide!'     => \$unhide_files,
@@ -171,6 +175,19 @@ foreach my $identifier (@projects) {
 	#### Main operations 
 	
 	my $failure_count = 0;
+	
+	# generate zip archive
+	if ($zip_files) {
+		if ( -e $Project->zip_file) {
+			printf " ! directory has been archived, %s exists\n", $Project->zip_file;
+			$failure_count++;
+		}
+		else {
+			$failure_count += $Project->zip_archive_files;
+			$move_zip_files = 0; # this should already be completed
+		}
+	
+	}
 	
 	# unhide files
 	if ($unhide_zip_files) {
