@@ -8,6 +8,7 @@ requires "Email::Simple";
 requires "Email::Sender";
 requires "Forks::Super";
 requires "List::Util";
+requires "LWP::Protocol::https";
 requires "Net::Amazon::S3";
 requires "Text::CSV";
 requires "Text::Levenshtein::Flexible";
