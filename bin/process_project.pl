@@ -17,7 +17,7 @@ use lib "$Bin/../lib";
 use RepoCatalog;
 use RepoProject;
 
-our $VERSION = 7.2;
+our $VERSION = 7.3;
 
 
 
@@ -27,9 +27,16 @@ my $doc = <<END;
 A general script to process and inventory GNomEx project folders, both
 Analysis and Experiment Request types.
 
-It will recursively scan a project folder and generate a manifest CSV
-file of the fastq files including file and sequencing metadata. 
+It will recursively scan a project folder and generate a MANIFEST.csv
+file of the contents. Path, file size, file date, and MD5 checksum is
+included in the manifest. Fastq metadata, when available, are also 
+included.
+ 
+An ARCHIVE_LIST.txt and REMOVE_LIST.txt files will also be written to
+the parent directory, if or when appropriate. 
 
+This is intended to be run on GNomEx project folders only, although
+it can be run on custom directories if given a path.
 
 Version: $VERSION
 
@@ -42,9 +49,17 @@ Required:
     -p --project <text>    GNomEx ID to the project
 
 Options:
-    --nozip                Do not generate zip archive list file
-    --nodelete             Do not generate remove list file
+    --zip --nozip          Do or do not generate zip archive list file
+    --delete --nodelete    Do or do not generate remove list file
     --verbose              Tell me everything!
+ 
+
+Manual inventory of a custom directory:
+    --path <path>          Scan the given custom directory. Best if 
+                             provided a full path. Do not set --catalog
+                             and --project. It will be treated as an
+                             Analysis project.
+                             
  
 END
 
@@ -53,15 +68,17 @@ END
 ######## Process command line options
 my $cat_file;
 my $id;
+my $path;
 my $do_scan = 1;
-my $do_zip  = 1;
-my $do_del  = 1;
+my $do_zip;
+my $do_del;
 my $verbose;
 
 if (scalar(@ARGV) > 1) {
 	GetOptions(
 		'c|catalog=s'   => \$cat_file,
 		'p|project=s'   => \$id,
+		'path=s'        => \$path,
 		'scan!'         => \$do_scan,
 		'zip!'          => \$do_zip,
 		'delete!'       => \$do_del,
@@ -76,7 +93,6 @@ else {
 
 ######## Global variables
 # these are needed since the File::Find callback doesn't accept pass through variables
-my $path;
 my $request;
 my @removelist;
 my @ziplist;
@@ -132,6 +148,29 @@ if ($cat_file and $id) {
 			die "No Catalog entry for $id\n";
 	$path = $Entry->path;
 	$request = $Entry->is_request;
+	
+	# set default options
+	unless (defined $do_zip) {
+		if ($Entry->core_lab) {
+			$do_zip = 1;
+		}
+		else {
+			$do_zip = 0;
+		}
+	}
+	unless (defined $do_del) {
+		$do_del = 1;
+	}
+}
+elsif ($path) {
+	# we have a non-canonical non-repository directory
+	$request = 0;
+	unless (defined $do_zip) {
+		$do_zip = 0;
+	}
+	unless (defined $do_del) {
+		$do_del = 0;
+	}
 }
 else {
 	print " ! A catalog file and project ID is required\n";
@@ -463,16 +502,19 @@ sub scan_directory {
 	}
 	
 	# remove list
-	if (scalar @removelist) {
-		my $fh = IO::File->new($Project->alt_remove_file, 'w') or 
-			die sprintf("unable to write file %s: $OS_ERROR\n",
-			$Project->alt_remove_file);
-		foreach (@removelist) {
-			$fh->printf("%s\n", $_);
+	if ( $do_del and scalar @removelist) {
+		my $alt_file = $Project->alt_remove_file;
+		if ($alt_file) {
+			my $fh = IO::File->new($alt_file, 'w') or 
+				die sprintf("unable to write file %s: $OS_ERROR\n",
+				$alt_file);
+			foreach (@removelist) {
+				$fh->printf("%s\n", $_);
+			}
+			$fh->close;
+			printf "  > wrote %d files to remove list %s\n", scalar(@removelist), 
+				$alt_file;
 		}
-		$fh->close;
-		printf "  > wrote %d files to remove list %s\n", scalar(@removelist), 
-			$Project->alt_remove_file;
 	}
 	elsif (-e $Project->alt_remove_file) {
 		unlink $Project->alt_remove_file;
@@ -480,15 +522,18 @@ sub scan_directory {
 
 	# zip list
 	if ( $do_zip and scalar(@ziplist) ) {
-		my $fh = IO::File->new($Project->alt_ziplist_file, 'w') or 
-			die sprintf("unable to write file %s: $OS_ERROR\n",
-			$Project->alt_ziplist_file);
-		foreach (@ziplist) {
-			$fh->printf("%s\n", $_);
+		my $zip_file = $Project->alt_ziplist_file;
+		if ($zip_file) {
+			my $fh = IO::File->new($zip_file, 'w') or 
+				die sprintf("unable to write file %s: $OS_ERROR\n",
+				$zip_file);
+			foreach (@ziplist) {
+				$fh->printf("%s\n", $_);
+			}
+			$fh->close;
+			printf "  > wrote %d files to zip list %s\n", scalar(@ziplist), 
+				$zip_file;
 		}
-		$fh->close;
-		printf "  > wrote %d files to zip list %s\n", scalar(@ziplist), 
-			$Project->alt_ziplist_file;
 	}
 	elsif (-e $Project->alt_ziplist_file) {
 		unlink $Project->alt_ziplist_file;
