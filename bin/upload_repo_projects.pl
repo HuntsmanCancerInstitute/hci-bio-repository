@@ -4,6 +4,7 @@ use warnings;
 use strict;
 use English qw(-no_match_vars);
 use Getopt::Long;
+use File::Spec;
 use IO::File;
 use IO::Handle;
 use Text::CSV;
@@ -19,24 +20,26 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 0.5;
+our $VERSION = 0.6;
 
 my $doc = <<END;
 
 A script to prepare and upload a GNomEx Repository Project to its
 corresponding CORE Lab account AWS bucket.
 
-It will identify candidate files to upload from a given GNomEx Repository
-project, either Request and Analysis. The Project Manifest file is used to
-generate the list of candidate files, so the Project must already be
-scanned; see corresponding process_analysis_project.pl and
-process_request_project.pl applications. If the project was previously
-uploaded and the bucket/prefix exists, then it will be recursively listed
-and compared with the manifest file to determine which file(s) need to be
-uploaded. 
+It will identify candidate files to upload from a given GNomEx
+Repository project, either Request and Analysis. The Project Manifest
+file is used to generate the list of candidate files, so the Project
+must already be scanned; see corresponding process_project.pl
+application. If the project was previously uploaded and the
+bucket/prefix exists, then it will be recursively listed and compared
+with the manifest file to determine which file(s) need to be uploaded.
+
 
 The target AWS bucket and prefix are determined from a Project catalog
-database. See the manage_repository.pl application.
+database. See the manage_repository.pl application. It is possible to
+upload a standalone directory if given a manifest file, bucket URI,
+prefix, and AWS profile; see usage below.
 
 If the AWS bucket does not exist, then a warning will be issued and the 
 program will exit; it will not create a bucket for you. Existing buckets
@@ -56,7 +59,7 @@ USAGE:
   
   upload_repo_projects.pl -c <catalog> -p <project>
   
-  upload_repo_projects.pl --manifest <file> --bucket <name> --prefix <text> --profile <text>
+  upload_repo_projects.pl --path <path> --bucket <name> --prefix <text> --profile <text>
 
 
 OPTIONS:
@@ -66,7 +69,7 @@ OPTIONS:
     -p --project <text>     Project identifier
   
   Or manually specify project information:
-    --manifest <file>       CSV file of local relative file paths to upload
+    --path <path>           Path of directory containing files and x_MANIFEST.csv
     --bucket <text>         Remote AWS bucket name
     --prefix <text>         Prefix for destination objects
     --profile <text>        AWS profile name in credentials file
@@ -92,7 +95,6 @@ END
 # Command line options
 my $cat_file;
 my $project_id;
-my $manifest_file;
 my $project_path;
 my $bucket_name;
 my $prefix;
@@ -103,6 +105,7 @@ my $storage_class;
 my $dryrun;
 my $cpu = 2;
 my $aws_cred_file = sprintf "%s/.aws/credentials", $ENV{HOME};
+my $aws_cli;
 my $verbose;
 my $help;
 
@@ -110,7 +113,7 @@ if (@ARGV) {
 	GetOptions(
 		'c|catalog=s'           => \$cat_file,
 		'p|project=s'           => \$project_id,
-		'manifest=s'            => \$manifest_file,
+		'path=s'                => \$project_path,
 		'bucket=s'              => \$bucket_name,
 		'prefix=s'              => \$prefix,
 		'profile=s'             => \$profile,
@@ -120,6 +123,7 @@ if (@ARGV) {
 		'dryrun!'               => \$dryrun,
 		'f|forks=i'             => \$cpu,
 		'cred=s'                => \$aws_cred_file,
+		'aws=s'                 => \$aws_cli,
 		'v|verbose!'            => \$verbose,
 		'h|help!'               => \$help,
 	) or die " bad options! Please check\n $doc\n";
@@ -132,6 +136,7 @@ else {
 
 # global variables
 my $Entry;
+my $upload_date;
 my $Project;
 my $aws;
 my $using_flat_req;
@@ -172,8 +177,19 @@ sub check_options {
 			exit 1;
 		}
 	}
-	elsif ( $manifest_file and $bucket_name and $prefix and $profile ) {
-		print " Using provided manifest, bucket, prefix, and profile\n";
+	elsif ( $project_path and $bucket_name and $prefix and $profile ) {
+		print " Using provided project path, bucket, prefix, and profile\n";
+
+		# clean bucket
+		$bucket_name =~ s|^s3://||;
+		if ($bucket_name =~ m|/|) {
+			print " Bucket name should not include / characters! Use prefix\n";
+			exit 1;
+		}
+
+		# generate required information
+		my @bits = split m|/|, $project_path;
+		$project_id = $bits[-1];
 	}
 	else {
 		print " Not enough source or destination specifications provided! See help\n";
@@ -189,6 +205,24 @@ sub check_options {
 		) {
 			print " Unrecognized storage class – see `aws s3 cp help`\n";
 			exit 1;
+		}
+	}
+	# check external aws command
+	if ($aws_cli) {
+		unless ( -e $aws_cli and -x _ ) {
+			printf " Provided AWS CLI program '%s' not available!\n", $aws_cli;
+			exit 1;
+		}
+	}
+	else {
+		$aws_cli = qx(which aws);
+		chomp $aws_cli;
+		if ($aws_cli) {
+			printf " Using %s to upload\n", $aws_cli;
+		}
+		else {
+			print " No AWS CLI program available in PATH!\n";
+			exit;
 		}
 	}
 }
@@ -214,6 +248,7 @@ sub initialize {
 		$profile      = $Entry->profile;
 		$prefix       = $Entry->prefix;
 		$project_path = $Entry->path;
+		$upload_date  = $Entry->upload_datestamp;
 	}
 
 	# check if project is eligible
@@ -267,8 +302,14 @@ sub prepare_list {
 		}
 	}
 	else {
-		printf " ! Bucket '%s' in '%s' for %s does not exist\n", $bucket_name,
-			$Entry ? $Entry->core_lab : '???', $project_id;
+		if ($Entry) {
+			printf " ! Bucket '%s' in '%s' for %s does not exist\n", $bucket_name,
+				$Entry->core_lab, $project_id;
+		}
+		else {
+			printf " ! Bucket '%s' under profile '%s' for %s does not exist\n",
+				$bucket_name, $profile, $project_id;
+		}
 		my $TL = Text::Levenshtein::Flexible->new($max_dist, $cost_ins, $cost_del,
 			$cost_sub);
 		my @names = grep { !/logs$/ } map { $_->name } @buckets;
@@ -295,11 +336,9 @@ sub prepare_list {
 		die sprintf("cannot change to %s! $OS_ERROR\n", $project_path);
 
 	# check manifest file
-	unless ($manifest_file) {
-		$manifest_file = $Project->manifest_file;
-	}
+	my $manifest_file = $Project->manifest_file;
 	unless ( -e $manifest_file ) {
-		printf " ! no manifest file %s\n", $manifest_file;
+		printf " ! No project manifest file '%s' generated\n", $manifest_file;
 		exit 1;
 	}
 	
@@ -341,9 +380,9 @@ sub prepare_list {
 			printf "  > found %d objects in %s/%s\n", scalar keys %existing,
 				$bucket_name, $prefix;
 		}
-		if (%existing and not $Entry->upload_datestamp) {
+		if (%existing and not $upload_date) {
 			printf " ! Project %s has contents in %s/%s but no upload date\n",
-				$Entry->id, $bucket_name, $prefix;
+				$project_id, $bucket_name, $prefix;
 		}
 	}
 	
@@ -598,8 +637,8 @@ sub child_super_callback {
 				$alt =~ s/^Fastq\///;
 				$remote_path = sprintf "s3://%s/%s/%s", $bucket_name, $prefix, $alt;
 			}
-			my $command = sprintf qq(aws s3 cp '%s' '%s' --profile %s --no-progress),
-				$file, $remote_path, $profile;
+			my $command = sprintf qq(%s s3 cp '%s' '%s' --profile %s --no-progress),
+				$aws_cli, $file, $remote_path, $profile;
 			if ($storage_class) {
 				$command .= sprintf(" --storage-class %s", $storage_class);
 			}
