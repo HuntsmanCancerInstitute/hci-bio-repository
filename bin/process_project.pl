@@ -217,8 +217,8 @@ my ($gzipper, $bgzipper);
 my $Project = RepoProject->new($path, $verbose) or 
 	die "unable to initiate Repository Project!\n";
 
-printf " > working on %s at %s\n", $Project->id, $Project->given_dir;
-printf "   using parent directory %s\n", $Project->parent_dir if $verbose;
+printf " > Working on %s at %s\n", $Project->id, $Project->given_dir;
+printf "   Using parent directory %s\n", $Project->parent_dir if $verbose;
 
 
 
@@ -235,7 +235,7 @@ if ($verbose) {
 # removed file hidden folder
 if (-e $Project->delete_folder) {
 	if ($do_scan) {
-		print "! cannot re-scan if deleted files hidden folder exists!\n";
+		print "! Cannot re-scan if deleted files hidden folder exists!\n";
 		$do_scan = 0;
 		$failure_count++;
 	}
@@ -244,7 +244,7 @@ if (-e $Project->delete_folder) {
 # zipped file hidden folder
 if ( -e $Project->zip_folder or -e $Project->zip_file ) {
 	if ($do_scan) {
-		print " ! cannot re-scan if zipped file or hidden folder exists!\n";
+		print " ! Cannot re-scan if zipped file or hidden folder exists!\n";
 		$do_scan = 0;
 		$failure_count++;
 	}
@@ -257,7 +257,7 @@ if ( -e $Project->zip_folder or -e $Project->zip_file ) {
 ######## Main functions
 
 # change to the given directory
-printf " > changing to %s\n", $Project->given_dir if $verbose;
+printf " > Changing to %s\n", $Project->given_dir if $verbose;
 chdir $Project->given_dir or die sprintf("cannot change to %s!\n", $Project->given_dir);
 
 # check for files that shouldn't be here
@@ -282,7 +282,7 @@ if ( -e $Project->remove_file ) {
 if ($do_scan) {
 
 	# scan the directory
-	printf " > scanning %s in directory %s\n", $Project->id, $Project->parent_dir;
+	printf " > Scanning...\n";
 	scan_directory();
 	
 	# update scan time stamp
@@ -291,7 +291,7 @@ if ($do_scan) {
 		if ( $Catalog ) {
 			my $Entry = $Catalog->entry($Project->id) ;
 			$Entry->scan_datestamp(time);
-			print " > updated Catalog scan date stamp\n";
+			print " > Updated Catalog scan date stamp\n";
 		}
 	}
 }
@@ -301,12 +301,12 @@ if ($do_scan) {
 
 ######## Finished
 if ($failure_count) {
-	printf " ! finished with %s with %d failures in %.1f minutes\n\n", $Project->id,
+	printf " ! Finished with %s with %d failures in %.1f minutes\n\n", $Project->id,
 		$failure_count, (time - $start_time)/60;
 	
 }
 else {
-	printf " > finished with %s in %.1f minutes\n\n", $Project->id, 
+	printf " > Finished with %s in %.1f minutes\n\n", $Project->id, 
 		(time - $start_time)/60;
 }
 
