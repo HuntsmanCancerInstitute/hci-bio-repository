@@ -592,7 +592,13 @@ sub get_autoanal_folder {
 sub has_fastq {
 	my $self = shift;
 	return unless ($self->project =~ /^\d+R$/);
-	return -e sprintf("%s/Fastq", $self->given_dir);
+	my @results = glob( sprintf("%s/Fastq/*.fastq.gz", $self->given_dir) );
+	if (@results) {
+		return 1;
+	}
+	else {
+		return 0;
+	}
 }
 
 
