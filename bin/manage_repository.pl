@@ -1142,14 +1142,15 @@ sub run_metadata_actions {
 		my $Entry = $Catalog->entry($id);
 		if ($Entry) {
 			if ( not $Entry->core_lab ) {
-				print "  Project $id is not assigned to a CORE lab\n";
+				print " ! Project $id is not assigned to a CORE lab\n";
 			}
 			elsif ( $Entry->upload_datestamp > 1000 ) {
-				print "  Project $id has already been uploaded\n";
+				print " ! Project $id has already been uploaded, cannot change\n";
 			}
 			else {
+				# must be ok
 				$Entry->prefix($update_prefix);
-				print "  Project $id is not assigned to a CORE lab\n";
+				print "  updated prefix for $id\n";
 			}
 		}
 		else {
@@ -1578,7 +1579,13 @@ sub run_project_directory_actions {
 
 
 		######## Finished
-		printf " > finished with %s with %d failures\n\n", $Project->project, $failure_count;
+		if ($failure_count) {
+			printf " ! finished with %s with %d failures\n\n", $Project->project,
+				$failure_count;
+		}
+		else {
+			printf " > finished with %s with 0 failures\n\n", $Project->project;
+		}
 
 	}
 	
