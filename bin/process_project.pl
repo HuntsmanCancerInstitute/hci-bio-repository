@@ -100,6 +100,7 @@ my @ten_x_crap;
 my %checksums;
 my $failure_count     = 0;
 my $runfolder_warning = 0; # Gigantic Illumina RunFolder present
+my $autoanal_warning  = 0; # warnings about AutoAnalysis folders
 my $upload_warning    = 0; # GNomEx upload folder
 my $post_zip_size     = 0;
 my $max_zip_size      = 200000000; # 200 MB
@@ -684,10 +685,22 @@ m/^ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) 
 		print "   > skipping QC file $clean_name\n" if $verbose;
 		return;
 	}
-	elsif ($clean_name =~ /^ Depreciated_AutoAnalysis/x) {
-		# unwanted depreciated AutoAnalysis? Why not just delete it?
-		push @removelist, $clean_name;
-		return;
+	elsif ($clean_name =~ /^ \w+ _AutoAnalysis _ \w+/x) {
+		# usually an unwanted or depreciated AutoAnalysis
+		# david puts 'depreciated' or 'DontUse' or some other prefix
+		# print a warning, but only once
+		# the warning only works for the first weird AutoAnalysis folder, subsequent ones
+		# do not get another warning, but hopefully that's ok??
+		if ($autoanal_warning) {
+			push @removelist, $clean_name;
+			return;
+		}
+		elsif ($clean_name =~ /^ ( \w+ _ AutoAnalysis  _ \w+ ) /x) {
+			print " ! marking contents in $1 for deletion\n";
+			$autoanal_warning = 1;
+			push @removelist, $clean_name;
+			return;
+		}
 	}
 	elsif ($clean_name =~ /^ RunFolder/x) {
 		# a few external requesters want the entire original RunFolder 
