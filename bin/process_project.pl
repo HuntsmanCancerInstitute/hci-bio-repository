@@ -17,7 +17,7 @@ use lib "$Bin/../lib";
 use RepoCatalog;
 use RepoProject;
 
-our $VERSION = 7.3;
+our $VERSION = 7.4;
 
 
 
@@ -1051,6 +1051,55 @@ sub analysis_callback {
 		push @removelist, $clean_name;
 		return;
 	}
+	elsif ( $file =~ /^ \d{4,6} X \d{1,3} \. [12] \. fq $/x ) {
+		# an uncompressed temporary fastq file from a hciR pipeline
+		# these should be automatically deleted unless the pipeline failed
+		# attempt to delete immediately because we don't want these taking up space
+		if (unlink $file) {
+			printf "   ! deleted temp fastq %s\n", $clean_name;
+		}
+		else {
+			printf "   ! mark to delete temp fastq %s\n", $clean_name;
+			push @removelist, $clean_name;
+		}
+		return;
+	}
+	elsif ( $file eq 'Aligned.sortedByCoord.out.bam' ) {
+		# STAR output bam file, normally removed by hciR alignment pipeline
+		printf "   ! mark to delete temp STAR bam %s\n", $clean_name;
+		push @removelist, $clean_name;
+		return;
+	}
+	elsif ( $file eq 'Aligned.toTranscriptome.out.bam' ) {
+		# STAR output bam file, normally removed by hciR alignment pipeline
+		printf "   ! mark to delete temp STAR bam %s\n", $clean_name;
+		push @removelist, $clean_name;
+		return;
+	}
+	elsif ( $file eq 'Signal.Unique.str1.out.bg' ) {
+		# STAR output bedgraph file, normally removed by hciR alignment pipeline
+		printf "   ! mark to delete temp STAR bedgraph %s\n", $clean_name;
+		push @removelist, $clean_name;
+		return;
+	}
+	elsif ( $file eq 'Signal.UniqueMultiple.str1.out.bg' ) {
+		# STAR output bedgraph file, normally removed by hciR alignment pipeline
+		printf "   ! mark to delete temp STAR bedgraph %s\n", $clean_name;
+		push @removelist, $clean_name;
+		return;
+	}
+	elsif ( $file eq 'uniq.bg' ) {
+		# STAR output bedgraph file, normally removed by hciR alignment pipeline
+		printf "   ! mark to delete temp bedgraph %s\n", $clean_name;
+		push @removelist, $clean_name;
+		return;
+	}
+	elsif ( $file eq 'mult.bg' ) {
+		# STAR output bedgraph file, normally removed by hciR alignment pipeline
+		printf "   ! mark to delete temp bedgraph %s\n", $clean_name;
+		push @removelist, $clean_name;
+		return;
+	}
 	
 	### metadata and stats on the file
 	my ($filetype, $zip);
@@ -1337,6 +1386,22 @@ sub analysis_callback {
 		# leave out certain result files from zip archive just to be nice
 		$filetype = 'Results';
 		$zip = 0;
+	}
+	elsif ($file =~ /\. bismark \. cov $/xi) {
+		$filetype = 'Analysis';
+		my $command = sprintf "%s \"%s\"", $gzipper, $file;
+		if (system($command)) {
+			print "   ! failed to automatically compress '$clean_name': $OS_ERROR\n";
+			$zip = 1; 
+		}
+		else {
+			# succesfull compression! update values
+			print "   > automatically gzip compressed $clean_name\n";
+			$file  .= '.gz';
+			$clean_name .= '.gz';
+			($date, $size) = get_file_stats($file);
+			$zip = 0;
+		}
 	}
 	elsif ($file =~ /\. bismark \. cov \.gz $/xi) {
 		$filetype = 'Analysis';
