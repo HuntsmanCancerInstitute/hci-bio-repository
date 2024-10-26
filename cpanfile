@@ -1,5 +1,5 @@
 requires "Config::Tiny";
-requires "Date::Parse";
+requires "TimeDate";
 requires "DBI";
 requires "DBD::ODBC";
 requires "DBM::Deep";
