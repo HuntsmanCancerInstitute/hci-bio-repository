@@ -20,7 +20,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 0.6;
+our $VERSION = 0.7;
 
 my $doc = <<END;
 
@@ -415,36 +415,6 @@ sub prepare_list {
 		}
 	}
 
-	# zip list file - this is not in the manifest, but the zip file is
-	if ($ziplist) {
-		my @zip_stat = stat $ziplist;
-		if ( exists $existing{$ziplist} ) {
-			my $local_time  = $zip_stat[9];
-			my $remote_time = str2time( $existing{$ziplist} );
-			if ( $local_time > $remote_time ) {
-				push @upload_list, $ziplist;
-				$count++;
-				$size += $zip_stat[7];
-				if ($verbose) {
-					print "   > including file $ziplist\n";
-				}
-			}
-			else {
-				if ($verbose) {
-					print "   > skipping uploaded file $ziplist\n";
-				}
-			}
-		}
-		else {
-			push @upload_list, $ziplist;
-			$count++;
-			$size += $zip_stat[7];		
-			if ($verbose) {
-				print "   > including file $ziplist\n";
-			}
-		}
-	}
-	
 	# parse manifest
 	my $csv = Text::CSV->new();
 	my $fh  = IO::File->new($manifest_file) or
