@@ -20,7 +20,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 0.7;
+our $VERSION = 0.8;
 
 my $doc = <<END;
 
@@ -587,7 +587,7 @@ sub upload_files_super {
 		if ($Entry) {
 			$Entry->upload_datestamp(time);
 			if ($include_autoanal) {
-				$Entry->autoanal_datestamp(time);
+				$Entry->autoanal_up_datestamp(time);
 			}
 		}
 	}
