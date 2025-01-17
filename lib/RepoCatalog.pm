@@ -140,7 +140,7 @@ sub list_all {
 		if (
 			substr($E->date, 0, 4) >= $year and
 			$E->age >= $min_age and
-			( $max_age ? ($E->age <= $max_age) ? 1 : 0 : 1) and
+			( $max_age ? ($E->age < $max_age) ? 1 : 0 : 1) and
 			( $min_size ? ($E->size >= $min_size) ? 1 : 0 : 1)
 		) {
 			# we have a possible candidate
@@ -300,8 +300,8 @@ sub find_requests_to_upload {
 			$E->core_lab and 
 			$E->scan_datestamp > 1 and
 			$E->hidden_datestamp == 0 and
-			$E->age >= $min_age and
-			$E->age <= $max_age and
+			$E->age > $min_age and
+			$E->age < $max_age and
 			$E->lab_last !~ $internal_org and
 			substr($E->date, 0, 4) >= $year
 		) {
@@ -361,8 +361,8 @@ sub find_requests_to_hide {
 			$E->scan_datestamp > 1 and                  # scanned
 			$E->hidden_datestamp == 0 and               # not hidden yet
 			$E->size > $min_size and                    # size > minimum size
-			$E->age >= $min_age and                     # older than minimum age
-			$E->age <= $max_age and                     # less than maximum age
+			$E->age > $min_age and                      # older than minimum age
+			$E->age < $max_age and                      # less than maximum age
 			$E->lab_last !~ $internal_org and           # not internal lab
 			substr($E->date, 0, 4) >= $year             # older than start
 		) {
@@ -408,7 +408,7 @@ sub find_requests_to_delete {
 			$E->request_status eq 'COMPLETE' and        # finished
 			$E->hidden_datestamp > 1 and                # hidden
 			$E->deleted_datestamp < 1 and               # not yet deleted
-			$E->hidden_age >= $min_age and              # hidden for minimum time
+			$E->hidden_age > $min_age and               # hidden for minimum time
 			$E->lab_last !~ $internal_org and           # not internal lab
 			substr($E->date, 0, 4) >= $year             # current year
 		) {
@@ -453,8 +453,8 @@ sub find_analysis_to_upload {
 			$E->core_lab and                            # has division
 			$E->hidden_datestamp == 0 and               # not already hidden
 			$E->size > $min_size and                    # size > minimum
-			$E->age >= $min_age and                     # older than min age
-			$E->age <= $max_age and                     # less than max age
+			$E->age > $min_age and                      # older than min age
+			$E->age < $max_age and                      # less than max age
 			$E->lab_last !~ $internal_org and           # not internal lab
 			substr($E->date, 0, 4) >= $year             # current year
 		) {
@@ -490,8 +490,8 @@ sub find_analysis_to_hide {
 			not $E->is_request and
 			$E->hidden_datestamp < 1 and                # not already hidden
 			$E->size > $min_size and                    # size > minimum
-			$E->age >= $min_age and                     # older than min age
-			$E->age <= $max_age	and                     # less than max age
+			$E->age > $min_age and                      # older than min age
+			$E->age < $max_age	and                     # less than max age
 			substr($E->date, 0, 4) >= $year and         # current year
 			$E->lab_last !~ $internal_org               # not internal lab
 		) {
@@ -537,8 +537,8 @@ sub find_analysis_to_delete {
 			not $E->is_request and
 			$E->hidden_datestamp > 1 and                # hidden
 			$E->deleted_datestamp == 0 and              # not yet deleted
-			$E->hidden_age >= $min_age and              # hidden for min number days
-			$E->hidden_age <= $max_age and              # hidden for max number days
+			$E->hidden_age > $min_age and               # hidden for min number days
+			$E->hidden_age < $max_age and               # hidden for max number days
 			$E->lab_last !~ $internal_org and           # not hidden lab
 			substr($E->date, 0, 4) >= $year             # current year
 		) {
@@ -580,8 +580,8 @@ sub find_autoanal_req {
 			$E->is_request and
 			$E->autoanal_folder and
 			$E->hidden_datestamp == 0 and 
-			$E->age >= $min_age and
-			$E->age <= $max_age and
+			$E->age > $min_age and
+			$E->age < $max_age and
 			substr($E->date, 0, 4) >= $year and
 			$E->lab_last !~ $internal_org
 		) {
@@ -613,8 +613,8 @@ sub find_autoanal_to_upload {
 			$E->autoanal_folder and
 			$E->core_lab and 
 			$E->hidden_datestamp == 0 and
-			$E->age >= $min_age and
-			$E->age <= $max_age and
+			$E->age > $min_age and
+			$E->age < $max_age and
 			$E->lab_last !~ $internal_org and
 			substr($E->date, 0, 4) >= $year
 		) {
