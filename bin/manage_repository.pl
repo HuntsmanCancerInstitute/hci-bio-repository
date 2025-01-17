@@ -1497,7 +1497,7 @@ sub run_project_directory_actions {
 				$failure_count += $Project->delete_zipped_files_folder;
 			}
 			else {
-				printf " ! %s zipped files not put into hidden zip folder, cannot delete!\n", 
+				printf " ! no hidden zip folder for %s to delete\n", 
 					$Project->project;
 			}
 		} 
