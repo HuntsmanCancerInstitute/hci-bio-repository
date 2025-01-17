@@ -139,6 +139,7 @@ OPTIONS
     --update_up <date>        Update project upload timestamp
     --update_aa_up <date>     Update project AutoAnalysis upload timestamp
     --update_em <date>        Update project email timestamp
+    --update_size --update_age Update project size and age from file server
                                 ignores QC and AutoAnalysis folders
     --update_core <text>      Update CORE lab name. Use 'none' to clear.
     --update_profile <text>   Update the AWS IAM profile
@@ -199,7 +200,7 @@ my $show_path = 0;
 my $show_url = 0;
 my $print_info = 0;
 my $delete_entry = 0;
-my $scan_size_age;
+my $scan_size_age = 0;
 my $import_sizes = 0;
 my $update_scan_date;
 my $update_hide_date;
@@ -309,7 +310,7 @@ if (scalar(@ARGV) > 1) {
 		'update_bucket=s'       => \$update_bucket,
 		'update_prefix=s'       => \$update_prefix,
 		'generate_s3!'          => \$generate_s3_path,
-		'update_size_age|update_size|update_age!' => \$scan_size_age,
+		'update_size|update_age!' => \$scan_size_age,
 		'export_file=s'         => \$dump_file,
 		'import_file=s'         => \$import_file,
 		'force!'                => \$force,
@@ -680,16 +681,17 @@ sub open_import_catalog {
 				$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
 				scalar(@{$new_list});
 		}
+
+		# reset flag as this is already done
+		$scan_size_age = 0;
+
+		# print number of project to scan as final report
+		if (@action_list) {
+			printf "  %d to scan\n", scalar @action_list;
+		}
+
 	}
 
-	# print number of project to scan as final report
-	if (@action_list) {
-		printf "  %d to scan\n", scalar @action_list;
-	}
-
-	# reset flag as this is already done
-	$scan_size_age = 0;
-	
 	return $Cat;
 }
 
