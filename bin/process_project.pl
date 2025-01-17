@@ -17,7 +17,7 @@ use lib "$Bin/../lib";
 use RepoCatalog;
 use RepoProject;
 
-our $VERSION = 7.4;
+our $VERSION = 7.5;
 
 
 
@@ -635,7 +635,7 @@ sub callback {
 		}
 		else {
 			print "   ! marking to delete symbolic link $clean_name\n";
-			push @removelist, $file;
+			push @removelist, $clean_name;
 		}
 		return;
 	}
