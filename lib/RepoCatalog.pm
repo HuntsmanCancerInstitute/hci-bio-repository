@@ -159,8 +159,8 @@ sub list_all {
 		}
 		$key = $self->{db}->next_key($key);
 	}
-	@list = sort {$a cmp $b} @list;
-	return wantarray ? @list : \@list;
+	my $sorted = $self->sort_list(\@list);
+	return wantarray ? @{ $sorted } : $sorted;
 }
 
 sub list_projects_for_pi {
@@ -206,8 +206,8 @@ sub list_projects_for_pi {
 		}
 		$key = $self->{db}->next_key($key);
 	}
-	@list = sort {$a cmp $b} @list;
-	return wantarray ? @list : \@list;
+	my $sorted = $self->sort_list(\@list);
+	return wantarray ? @{ $sorted } : $sorted;
 }
 
 sub export_to_file {
@@ -219,13 +219,20 @@ sub export_to_file {
 	$fh->binmode(':utf8');
 	$fh->print($HEADER);
 	
-	# iterate and export as a tab-delimited file
+	# generate list and sort
+	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
+		push @list, $key;
+		$key = $self->{db}->next_key($key);
+	}
+	my $sorted = $self->sort_list(\@list);
+	
+	# iterate and export as a tab-delimited file
+	foreach my $key ( @{$sorted} ) {
 		my $E = $self->entry($key);
 		my $string = $E->print_string($transform);
 		$fh->print($string);
-		$key = $self->{db}->next_key($key);
 	}
 	$fh->close;
 	return 1;
@@ -332,8 +339,8 @@ sub find_requests_to_upload {
 		}
 		$key = $self->{db}->next_key($key);
 	}
-	@list = sort {$a cmp $b} @list;
-	return wantarray ? @list : \@list;
+	my $sorted = $self->sort_list(\@list);
+	return wantarray ? @{ $sorted } : $sorted;
 }
 
 
@@ -382,8 +389,8 @@ sub find_requests_to_hide {
 		}
 		$key = $self->{db}->next_key($key);
 	}
-	@list = sort {$a cmp $b} @list;
-	return wantarray ? @list : \@list;
+	my $sorted = $self->sort_list(\@list);
+	return wantarray ? @{ $sorted } : $sorted;
 }
 
 
@@ -428,8 +435,8 @@ sub find_requests_to_delete {
 		}
 		$key = $self->{db}->next_key($key);
 	}
-	@list = sort {$a cmp $b} @list;
-	return wantarray ? @list : \@list;
+	my $sorted = $self->sort_list(\@list);
+	return wantarray ? @{ $sorted } : $sorted;
 }
 
 sub find_analysis_to_upload {
@@ -463,8 +470,8 @@ sub find_analysis_to_upload {
 		}
 		$key = $self->{db}->next_key($key);
 	}
-	@list = sort {$a cmp $b} @list;
-	return wantarray ? @list : \@list;
+	my $sorted = $self->sort_list(\@list);
+	return wantarray ? @{ $sorted } : $sorted;
 }
 
 
@@ -511,8 +518,8 @@ sub find_analysis_to_hide {
 		}
 		$key = $self->{db}->next_key($key);
 	}
-	@list = sort {$a cmp $b} @list;
-	return wantarray ? @list : \@list;
+	my $sorted = $self->sort_list(\@list);
+	return wantarray ? @{ $sorted } : $sorted;
 }
 
 
@@ -558,8 +565,8 @@ sub find_analysis_to_delete {
 		}
 		$key = $self->{db}->next_key($key);
 	}
-	@list = sort {$a cmp $b} @list;
-	return wantarray ? @list : \@list;
+	my $sorted = $self->sort_list(\@list);
+	return wantarray ? @{ $sorted } : $sorted;
 }
 
 sub find_autoanal_req {
@@ -589,8 +596,8 @@ sub find_autoanal_req {
 		}
 		$key = $self->{db}->next_key($key);
 	}
-	@list = sort {$a cmp $b} @list;
-	return wantarray ? @list : \@list;
+	my $sorted = $self->sort_list(\@list);
+	return wantarray ? @{ $sorted } : $sorted;
 }
 
 sub find_autoanal_to_upload {
@@ -636,12 +643,35 @@ sub find_autoanal_to_upload {
 		}
 		$key = $self->{db}->next_key($key);
 	}
-	@list = sort {$a cmp $b} @list;
-	return wantarray ? @list : \@list;
+	my $sorted = $self->sort_list(\@list);
+	return wantarray ? @{ $sorted } : $sorted;
 }
 
 sub header {
 	return $HEADER;
+}
+
+sub sort_list {
+	my ($self, $unsorted) = @_;
+	my @list;
+	foreach my $i ( @{ $unsorted } ) {
+		if ($i =~ /(\d+)R/) {
+			push @list, [ 'R', $1, $i ];
+		}
+		elsif ($i =~ /A(\d+)/) {
+			push @list, [ 'A', $1, $i ];
+		}
+		elsif ($i =~ /(\d+)/) {
+			push @list, [ 'X', $1, $i ];
+		}
+		else {
+			push @list, [ 'Z', 0, $i ];
+		}
+	}
+	my @s = map { $_->[2] }
+			sort { $a->[0] cmp $b->[0] or $a->[1] <=> $b->[1] or $a->[2] cmp $b->[2] }
+			@list;
+	return \@s;
 }
 
 # search for other things? projects to upload, hide, delete?
