@@ -7,7 +7,7 @@ use Carp;
 use IO::File;
 use DBM::Deep;
 
-our $VERSION = 7.1;
+our $VERSION = 7.2;
 
 
 # General private values
@@ -928,7 +928,7 @@ sub age {
 	if (defined $a and $a > 1) {
 		return sprintf("%.0f", (time - $a) / DAY);
 	}
-	return -1;
+	return;
 }
 
 
@@ -938,7 +938,7 @@ sub upload_age {
 	if ($u > 1) {
 		return sprintf("%.0f", (time - $u) / DAY);
 	}
-	return -1;
+	return;
 }
 
 sub scan_datestamp {
@@ -1008,7 +1008,7 @@ sub autoanal_upload_age {
 	if ($u > 1) {
 		return sprintf("%.0f", (time - $u) / DAY);
 	}
-	return -1;
+	return;
 }
 
 sub qc_scan_datestamp {
