@@ -188,12 +188,19 @@ sub list_projects_for_pi {
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
+		my $size; 
+		{
+			# use the biggest size available for checking
+			my $a = $E->size || 0;
+			my $b = $E->last_size || 0;
+			$size = $a > $b ? $a : $b;
+		}
 		if (
 			lc $E->lab_last eq $name and
 			substr($E->date, 0, 4) >= $year and
 			$E->age >= $min_age and
-			( $max_age ? ($E->age and $E->age <= $max_age) ? 1 : 0 : 1) and
-			( $min_size ? ($E->size and $E->size >= $min_size) ? 1 : 0 : 1)
+			( $max_age  ? $E->age < $max_age ? 1 : 0 : 1) and
+			( $min_size ? $size >= $min_size  ? 1 : 0 : 1)
 		) {
 			push @list, $key;
 		}
