@@ -15,7 +15,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 7.2;
+our $VERSION = 7.3;
 
 
 ######## Documentation
@@ -131,12 +131,14 @@ OPTIONS
     --import_req              Fetch and update Request projects from GNomEx DB
   
   Actions to update catalog entries:
-    --update_scan <YYYYMMDD>  Update project scan timestamp
-    --update_del <YYYYMMDD>   Update project deletion timestamp
-    --update_hide <YYYYMMDD>  Update project hide timestamp
-    --update_up <YYYYMMDD>    Update project upload timestamp
-    --update_em <YYYYMMDD>    Update project email timestamp
-    --update_size             Update project size and age from file server
+       For the <date> value, use 'YYYYMMDD' for specific date, 'now'
+       for the current time and date, or '0' to clear.
+    --update_scan <date>      Update project scan timestamp
+    --update_del <date>       Update project deletion timestamp
+    --update_hide <date>      Update project hide timestamp
+    --update_up <date>        Update project upload timestamp
+    --update_aa_up <date>     Update project AutoAnalysis upload timestamp
+    --update_em <date>        Update project email timestamp
                                 ignores QC and AutoAnalysis folders
     --update_core <text>      Update CORE lab name. Use 'none' to clear.
     --update_profile <text>   Update the AWS IAM profile
@@ -202,6 +204,7 @@ my $import_sizes = 0;
 my $update_scan_date;
 my $update_hide_date;
 my $update_upload_date;
+my $update_aa_upload_date;
 my $update_delete_date;
 my $update_email_date;
 my $update_core_lab;
@@ -295,11 +298,12 @@ if (scalar(@ARGV) > 1) {
 		'import_anal!'          => \$fetch_analysis,
 		'import_req!'           => \$fetch_request,
 		'import_size!'          => \$import_sizes,
-		'update_scan=i'         => \$update_scan_date,
-		'update_hide=i'         => \$update_hide_date,
-		'update_up=i'           => \$update_upload_date,
-		'update_del=i'          => \$update_delete_date,
-		'update_email=i'        => \$update_email_date,
+		'update_scan=s'         => \$update_scan_date,
+		'update_hide=s'         => \$update_hide_date,
+		'update_up=s'           => \$update_upload_date,
+		'update_aa_up=s'        => \$update_aa_upload_date,
+		'update_del=s'          => \$update_delete_date,
+		'update_email=s'        => \$update_email_date,
 		'update_core=s'         => \$update_core_lab,
 		'update_profile=s'      => \$update_profile,
 		'update_bucket=s'       => \$update_bucket,
@@ -909,7 +913,10 @@ sub run_metadata_actions {
 			$time = timelocal(0, 0, 12, $3, $2 - 1, $1);
 			print " Setting scan date ($update_scan_date) to $time\n";
 		}
-		elsif ($update_scan_date == 0) {
+		elsif ($update_scan_date eq 'now') {
+			$time = time;
+		}
+		elsif ($update_scan_date eq '0') {
 			$time = 0;
 			print " Clearing scan date\n";
 		}
@@ -937,7 +944,10 @@ sub run_metadata_actions {
 			$time = timelocal(0, 0, 12, $3, $2 - 1, $1);
 			print " Setting upload date ($update_upload_date) to $time\n";
 		}
-		elsif ($update_upload_date == 0) {
+		elsif ($update_upload_date eq 'now') {
+			$time = time;
+		}
+		elsif ($update_upload_date eq '0') {
 			$time = 0;
 			print " Clearing upload date\n";
 		}
@@ -958,6 +968,37 @@ sub run_metadata_actions {
 		print "  updated upload date for $count entries\n";
 	}
 
+	# update the metadata autoanalysis upload date
+	if (defined $update_aa_upload_date) {
+		my $time;
+		if ($update_aa_upload_date =~ /(\d{4}) (\d{2}) (\d{2}) /x) {
+			$time = timelocal(0, 0, 12, $3, $2 - 1, $1);
+			print " Setting upload date ($update_aa_upload_date) to $time\n";
+		}
+		elsif ($update_aa_upload_date eq 'now') {
+			$time = time;
+		}
+		elsif ($update_aa_upload_date eq '0') {
+			$time = 0;
+			print " Clearing upload date\n";
+		}
+		else {
+			die "unrecognizable upload date '$update_aa_upload_date'\n";
+		}
+		unless (@action_list) {
+			die "No list provided to update upload dates!\n";
+		}
+		my $count = 0;
+		foreach my $item (@action_list) {
+			my ($id, @rest) = split(m/\s+/, $item);
+			next unless (defined $id);
+			my $Entry = $Catalog->entry($id) or next;
+			$Entry->autoanal_up_datestamp($time);
+			$count++;
+		}
+		print "  updated autoanal upload date for $count entries\n";
+	}
+
 	# update the metadata hide date
 	if (defined $update_hide_date) {
 		my $time;
@@ -965,7 +1006,10 @@ sub run_metadata_actions {
 			$time = timelocal(0, 0, 12, $3, $2 - 1, $1);
 			print " Setting hide time ($update_hide_date) to $time\n";
 		}
-		elsif ($update_upload_date == 0) {
+		elsif ($update_hide_date eq 'now') {
+			$time = time;
+		}
+		elsif ($update_hide_date eq '0') {
 			$time = 0;
 			print " Clearing hide date\n";
 		}
@@ -993,7 +1037,10 @@ sub run_metadata_actions {
 			$time = timelocal(0, 0, 12, $3, $2 - 1, $1);
 			print " Setting hide date ($update_delete_date) to $time\n";
 		}
-		elsif ($update_delete_date == 0) {
+		elsif ($update_delete_date eq 'now') {
+			$time = time;
+		}
+		elsif ($update_delete_date eq '0') {
 			$time = 0;
 			print " Clearing delete date\n";
 		}
@@ -1021,7 +1068,10 @@ sub run_metadata_actions {
 			$time = timelocal(0, 0, 12, $3, $2 - 1, $1);
 			print " Setting email date ($update_email_date) to $time\n";
 		}
-		elsif ($update_email_date == 0) {
+		elsif ($update_email_date eq 'now') {
+			$time = time;
+		}
+		elsif ($update_email_date eq '0') {
 			$time = 0;
 			print " Clearing email date\n";
 		}
