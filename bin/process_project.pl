@@ -1189,7 +1189,7 @@ sub analysis_callback {
 		$filetype = 'Analysis';
 		$zip = 0;
 	}
-	elsif ($file =~ /^ Unmapped \.out \.mate ([12]) /xi) {
+	elsif ($file =~ /^ unmapped \.out \.mate ([12]) /xi) {
 		# unmapped fastq from STAR - may need to be renamed and/or compressed
 		my $paired = $1;
 		if ($file =~ /\. (?: fq | fastq ) \.gz $/x) {
@@ -1237,8 +1237,14 @@ sub analysis_callback {
 			}
 			
 		}
+		elsif ($file =~ /\. mate [12] \. gz $/xi) {
+			# no extension but at least compressed
+			$filetype = 'Fastq';
+		}
 		else {
 			# something else? ok, whatever
+			# leave as is, I guess
+			$filetype = 'Other';
 		}
 		
 		# check the size
@@ -1425,8 +1431,8 @@ sub analysis_callback {
 	}
 	elsif ($file =~ /\. (?: \d\.bt2 | fa\.amb | fa\.ann | fa\.bwt | fa\.pac | nix | novoindex | index | fa\.0123 | fa\.bwt\.2bit\.64 ) $/x) {
 		# alignment indexes can be rebuilt - discard
-		$filetype = 'AlignmentIndex';
 		push @removelist, $clean_name;
+		return;
 	}
 	elsif ($file =~ / \.vcf \.idx $/xi) {
 		# a GATK-style index for non-tabix, uncompressed VCF files
@@ -1458,6 +1464,10 @@ sub analysis_callback {
 		}
 	}
 	
+	# sanity check - this should not be empty
+	unless ($filetype) {
+		print "   ! Logic error! No filetype for $clean_name\n";
+	}
 	
 	# Check files for Zip archive files
 	if (not $do_zip) {
