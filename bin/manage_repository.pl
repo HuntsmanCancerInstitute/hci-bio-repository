@@ -570,7 +570,9 @@ sub open_import_catalog {
 								# younger files exist by at least 1 day
 								$do = 1;
 							}
-							elsif ( $Entry->scan_datestamp == 0 and $Entry->age > 14 ) {
+							elsif ( $Entry->scan_datestamp == 0 and
+									($Entry->age and $Entry->age > 14 )
+							) {
 								# otherwise wait for project to "settle" for at least
 								# two weeks before scanning
 								$do = 1;
@@ -580,7 +582,7 @@ sub open_import_catalog {
 							if ($do) {
 								printf
 								"  > will scan %s, age %s, last scanned %s days ago\n",
-									$id, $Entry->age, $Entry->scan_datestamp ? 
+									$id, $Entry->age || '0', $Entry->scan_datestamp ? 
 									sprintf("%.0f",
 									(time - $Entry->scan_datestamp) / 86400) : '-';
 								push @action_list, $id;
@@ -662,7 +664,7 @@ sub open_import_catalog {
 							if ($do) {
 								printf
 								"  > will scan %s, age %s, last scanned %s days ago\n",
-									$id, $Entry->age, $Entry->scan_datestamp ? 
+									$id, $Entry->age || 0, $Entry->scan_datestamp ? 
 									sprintf("%.0f",
 									(time - $Entry->scan_datestamp) / 86400) : '-';
 							}
