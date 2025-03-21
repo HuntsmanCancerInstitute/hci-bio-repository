@@ -17,7 +17,7 @@ use lib "$Bin/../lib";
 use RepoCatalog;
 use RepoProject;
 
-our $VERSION = 7.5;
+our $VERSION = 7.6;
 
 
 
@@ -1380,7 +1380,7 @@ sub analysis_callback {
 		$filetype = 'Analysis';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. (?: xls | ppt | pptx | doc | docx | rout | rda | rdata | rds | rproj | xml | json | json\.gz | html | pzfx ) $/xi) {
+	elsif ($file =~ /\. (?: xls | ppt | pptx | doc | docx | rout | rda | rdata | rds | rproj | xml | yaml | json | json\.gz | seg| html | pzfx ) $/xi) {
 		$filetype = 'Results';
 		$zip = 1;
 	}
