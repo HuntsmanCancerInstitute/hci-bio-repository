@@ -1046,7 +1046,7 @@ sub analysis_callback {
 		# these are left over 10X Genomics temporary processing files
 		# they are not needed and do not need to be saved
 		# add to custom remove list
-		print "     marking 10X Genomics temporary file for deletion\n" if $verbose;
+		print "   ! marking to delete 10X Genomics temporary file\n" if $verbose;
 		push @removelist, $clean_name;
 		push @ten_x_crap, $clean_name;
 		return;
@@ -1069,44 +1069,44 @@ sub analysis_callback {
 			printf "   ! deleted temp fastq %s\n", $clean_name;
 		}
 		else {
-			printf "   ! mark to delete temp fastq %s\n", $clean_name;
+			printf "   ! marking to delete temp fastq %s\n", $clean_name;
 			push @removelist, $clean_name;
 		}
 		return;
 	}
 	elsif ( $file eq 'Aligned.sortedByCoord.out.bam' ) {
 		# STAR output bam file, normally removed by hciR alignment pipeline
-		printf "   ! mark to delete temp STAR bam %s\n", $clean_name;
+		printf "   ! marking to delete temp STAR bam %s\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
 	elsif ( $file eq 'Aligned.toTranscriptome.out.bam' ) {
 		# STAR output bam file, normally removed by hciR alignment pipeline
-		printf "   ! mark to delete temp STAR bam %s\n", $clean_name;
+		printf "   ! marking to delete temp STAR bam %s\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
 	elsif ( $file eq 'Signal.Unique.str1.out.bg' ) {
 		# STAR output bedgraph file, normally removed by hciR alignment pipeline
-		printf "   ! mark to delete temp STAR bedgraph %s\n", $clean_name;
+		printf "   ! marking to delete temp STAR bedgraph %s\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
 	elsif ( $file eq 'Signal.UniqueMultiple.str1.out.bg' ) {
 		# STAR output bedgraph file, normally removed by hciR alignment pipeline
-		printf "   ! mark to delete temp STAR bedgraph %s\n", $clean_name;
+		printf "   ! marking to delete temp STAR bedgraph %s\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
 	elsif ( $file eq 'uniq.bg' ) {
 		# STAR output bedgraph file, normally removed by hciR alignment pipeline
-		printf "   ! mark to delete temp bedgraph %s\n", $clean_name;
+		printf "   ! marking to delete temp bedgraph %s\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
 	elsif ( $file eq 'mult.bg' ) {
 		# STAR output bedgraph file, normally removed by hciR alignment pipeline
-		printf "   ! mark to delete temp bedgraph %s\n", $clean_name;
+		printf "   ! marking to delete temp bedgraph %s\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
