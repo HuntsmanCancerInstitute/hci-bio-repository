@@ -556,7 +556,11 @@ sub callback {
 		# skip directories
 		if ( $file =~ /^\./ and $file ne '.' ) {
 			# hidden directory, this cannot be good
-			print "   ! hidden directory $clean_name\n";
+			unless ( $file eq '.snakemake' or $file eq '.GQueryIndex' ) {
+				# we specifically handle snakemake and GQuery droppings below
+				# otherwise warn the user
+				print "   ! hidden directory $clean_name\n";
+			}
 		}
 		if ( $file eq 'upload_staging' or $file eq 'upload_in_progress' ) {
 			unless ($upload_warning) {
@@ -722,6 +726,12 @@ m/^ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) 
 		# somebody directly uploaded files to this directory!
 		print "   ! uploaded file $clean_name\n";
 		$failure_count++;
+		return;
+	}
+	elsif ( $clean_name eq 'Fastq/log.out' ) {
+		# left over file droppings, usually rsync output, that certain people like to 
+		# leave behind without cleaning up after themselves - how rude
+		push @removelist, $clean_name;
 		return;
 	}
 	elsif ($file =~ / samplesheet \. \w+ /xi) {
@@ -1100,6 +1110,16 @@ sub analysis_callback {
 		push @removelist, $clean_name;
 		return;
 	}
+	elsif ( $clean_name =~ m| / \. snakemake / |x ) {
+		# snakemake log files do not need be kept - they're temporary
+		push @removelist, $clean_name;
+		return;
+	}
+	elsif ( $clean_name =~ m| / \. GQueryIndex / |x ) {
+		# GQuery index files, it's a hidden directory so temporary and not worth keeping
+		push @removelist, $clean_name;
+		return;
+	}
 	
 	### metadata and stats on the file
 	my ($filetype, $zip);
@@ -1267,9 +1287,17 @@ sub analysis_callback {
 	}
 	elsif ($file =~ /\. (?: fq | fastq ) (?: \.gz)? $/xi) {
 		# fastq file
-		if ($file =~ /^ \d{4,6} X \d{1,3} _/x) {
-			if ($file !~ /_umi \.fastq \.gz $/x) {
-				print "   ! Possible HCI Fastq file detected! $clean_name\n";
+		if ($file =~ /^ \d{4,6} X \d{1,3} /x) {
+			if ($file =~ /_umi \.fastq \.gz $/x) {
+				# looks like a merged UMI fastq file. I guess keep it?
+			}
+			elsif ($file =~ /^ \d{4,6} X \d{1,3} _ \d{6} _ .+ _R\d_001 \.fastq\.gz$/x) {
+				print "   ! marking to delete probable HCI Fastq file $clean_name\n";
+				push @removelist, $clean_name;
+				return;
+			}
+			else {
+				print "   ! possible HCI Fastq file $clean_name\n";
 			}
 		}
 		$filetype = 'Fastq';
