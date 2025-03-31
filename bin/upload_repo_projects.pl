@@ -588,14 +588,14 @@ sub upload_files_parallel {
 
 sub format_human_size {
 	my $value = shift;
-	if ($value > 1000000000) {
-		return sprintf "%.1f GB", ($value / 1073741824);
+	if ($value > 1073741824) {
+		return sprintf "%.1f GiB", ($value / 1073741824);
 	}
-	elsif ($value > 1000000) {
-		return sprintf "%.1f MB", ($value / 1048576);
+	elsif ($value > 1048576) {
+		return sprintf "%.1f MiB", ($value / 1048576);
 	}
-	elsif ($value > 1000) {
-		return sprintf "%.1f KB", ($value / 1024);
+	elsif ($value > 1024) {
+		return sprintf "%.1f KiB", ($value / 1024);
 	}
 	else {
 		return sprintf "%d B", $value;
