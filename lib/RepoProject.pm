@@ -12,7 +12,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 7.2;
+our $VERSION = 7.3;
 
 ### Initialize
 
@@ -248,7 +248,7 @@ sub hide_deleted_files {
 	
 	# check file list
 	unless (-e $self->alt_remove_file) {
-		carp "  ! no alternate file remove list!";
+		printf "  ! no file remove list %s\n", $self->alt_remove_file;
 		return 1;
 	}
 	
@@ -279,7 +279,7 @@ sub zip_archive_files {
 
 	# check zip list
 	unless ( -e $self->alt_ziplist_file ) {
-		carp "  ! no alternate zip list file";
+		printf "  ! no alternate zip list file %s\n", $self->alt_ziplist_file;
 		return 1;
 	}
 
@@ -289,7 +289,7 @@ sub zip_archive_files {
 	my $zipper = `which zip`;
 	chomp $zipper;
 	unless ($zipper) {
-		print " ! no zip compression utility, disabling\n";
+		print " ! no zip compression utility\n";
 		return 1;
 	}
 	
