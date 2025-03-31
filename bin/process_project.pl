@@ -573,7 +573,7 @@ sub callback {
 		}
 		return;
 	}
-	elsif ($file =~ m/(?: fdt | fdtCommandLine ) \.jar $/x) {
+	elsif ($file =~ m/( fdt | fdtCommandLine ) \.jar $/xn) {
 		# fdt files, don't need
 		print "   ! deleting java file $clean_name\n";
 		unless (unlink $file) {
@@ -662,7 +662,7 @@ sub request_callback {
 	
 	# check file
 	if ($clean_name =~ 
-m/^ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) \/ /x
+m/^ ( Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) \/ /xn
 	) {
 		# these are QC samples in a bioanalysis or Sample of Library QC folder
 		# directly under the main project 
@@ -718,7 +718,7 @@ m/^ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) 
 		# file run sample sheet, can safely ignore
 		$type = 'document';
 	}
-	elsif ($file =~ / \. (?: xlsx | numbers | docx | pdf | csv | html ) $/x) {
+	elsif ( $file =~ / \. ( xlsx | numbers | docx | pdf | csv | html ) $/xn ) {
 		# some stray request spreadsheet file or report
 		$type = 'document';
 	}
@@ -896,7 +896,7 @@ m/^ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) 
 		}
 	}
 	# I give up! catchall for other weirdo fastq files!!!
-	elsif ($file =~ m/ .+ \. (?: fastq | fq ) \.gz $/xi) {
+	elsif ($file =~ m/ .+ \. ( fastq | fq ) \.gz $/xin) {
 		$type = 'Fastq';
 		# I can't extract metadata information
 		# but at least it will get recorded in the manifest and list files
@@ -921,7 +921,7 @@ m/^ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) 
 	}
 	# multiple checksum file - with or without datetime stamp in front - ugh
 	elsif ($file =~ 
-m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (?: sum)? .* \. (?: txt | out ) $/x
+m/^ ( \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (sum)? .* \. (txt | out ) $/xn
 	) {
 		my $fh = IO::File->new($file);
 		while (my $line = $fh->getline) {
@@ -937,7 +937,7 @@ m/^ (?: \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (?: sum)? .* \. (
 		push @removelist, $clean_name;
 		return; # do not continue
 	}
-	elsif ($clean_name =~ /^ Fastq \/ .+ \. (?: xml | csv ) $/x) {
+	elsif ($clean_name =~ /^ Fastq \/ .+ \. ( xml | csv ) $/xn) {
 		# other left over files from de-multiplexing
 		print "   ! leftover demultiplexing file $clean_name\n";
 		$type = 'document';
@@ -1024,7 +1024,7 @@ sub analysis_callback {
 		push @removelist, $clean_name;
 		return;
 	}
-	elsif ( $clean_name =~ m/ \w+ \.stat \/ \w+ \. (?: cnt | model | theta ) $/x) {
+	elsif ( $clean_name =~ m/ \w+ \.stat \/ \w+ \. ( cnt | model | theta ) $/xn) {
 		# STAR alignment statistic files, not worth keeping as they're uninterpretable
 		push @removelist, $clean_name;
 		return;
@@ -1098,17 +1098,17 @@ sub analysis_callback {
 	# this should catch most files, but there's always weirdos and miscellaneous files
 	# this will also dictate zip file status
 	
-	if ($file =~ /\. (?: bw | bigwig | bb | bigbed | hic) $/xi) {
+	if ($file =~ /\. (bw | bigwig | bb | bigbed | hic) $/xin) {
 		# an indexed analysis file
 		$filetype = 'BrowserTrack';
 		$zip = 0;
 	}
-	elsif ($file =~ /\. (?: bam | cram | sam\.gz ) $/xi) {
+	elsif ($file =~ /\. ( bam | cram | sam\.gz ) $/xin) {
 		# an alignment file
 		$filetype = 'Alignment';
 		$zip = 0;
 	}
-	elsif ( $file =~ /\. (?: bai | csi | crai | tbi ) $/xi) {
+	elsif ( $file =~ /\. ( bai | csi | crai | tbi ) $/xin) {
 		# index files
 		# these are arguably not necessary and can be regenerated relatively easily
 		push @removelist, $clean_name;
@@ -1143,7 +1143,7 @@ sub analysis_callback {
 		$filetype = 'Variant';
 		$zip = 0;
 	}
-	elsif ($file =~ /\. (?: vcf | maf ) $/xi) {
+	elsif ($file =~ /\. ( vcf | maf ) $/xin) {
 		# uncompressed variant file, either VCF or MAF
 		if ($size > 1048576) {
 			# file bigger than 1 MB, let's compress it separately
@@ -1180,11 +1180,11 @@ sub analysis_callback {
 	elsif ($file =~ /^ unmapped \.out \.mate ([12]) /xi) {
 		# unmapped fastq from STAR - may need to be renamed and/or compressed
 		my $paired = $1;
-		if ($file =~ /\. (?: fq | fastq ) \.gz $/x) {
+		if ($file =~ /\. ( fq | fastq ) \.gz $/xn) {
 			# perfect, has extension and is compressed, nothing to do
 			$filetype = 'Fastq';
 		}
-		elsif ($file =~ /\. (?: fq | fastq ) $/x) {
+		elsif ($file =~ /\. ( fq | fastq ) $/xn) {
 			# right extension, not compressed
 			$filetype = 'Fastq';
 			my $command = sprintf "%s \"%s\"", $gzipper, $file;
@@ -1253,7 +1253,7 @@ sub analysis_callback {
 			$filedata{$clean_name}{sample_id}        = q(-);
 		}
 	}
-	elsif ($file =~ /\. (?: fq | fastq ) (?: \.gz)? $/xi) {
+	elsif ($file =~ /\. ( fq | fastq ) (\.gz)? $/xin) {
 		# fastq file
 		if ($file =~ /^ \d{4,6} X \d{1,3} /x) {
 			if ($file =~ /_umi \.fastq \.gz $/x) {
@@ -1305,7 +1305,7 @@ sub analysis_callback {
 		$filedata{$clean_name}{platform}         = q(-);
 		$filedata{$clean_name}{sample_id}        = q(-);
 	}
-	elsif ($file =~ /\. (?: fa | fasta | ffn ) (?: \.gz )? $/xi) {
+	elsif ($file =~ /\. ( fa | fasta | ffn ) (\.gz )? $/xin) {
 		# sequence file of some sort
 		$filetype = 'Sequence';
 		if ($file !~ /\.gz$/i and $size > 1048576 ) {
@@ -1334,12 +1334,12 @@ sub analysis_callback {
 			$zip = 1;
 		}
 	}
-	elsif ($file =~ /\. (?: fai | dict ) (?: \.gz )? $/xi) {
+	elsif ($file =~ /\. (fai | dict) (\.gz)? $/xin) {
 		# sequence index, do not need to keep
 		push @removelist, $clean_name;
 		return;
 	}
-	elsif ($file =~ /\. (?: bed | bed\d+ | gtf | gff | gff\d | narrowpeak | broadpeak | gappedpeak | refflat | genepred | ucsc) (?:\.gz)? $/xi) {
+	elsif ($file =~ /\. ( bed | bed\d+ | gtf | gff | gff\d | narrowpeak | broadpeak | gappedpeak | refflat | genepred | ucsc) (\.gz)? $/xin) {
 		$filetype = 'Annotation';
 		if ($file =~ /\.gz$/ and $size > 10485760) {
 			# do not archive if compressed and bigger 10 MB
@@ -1349,7 +1349,7 @@ sub analysis_callback {
 			$zip = 1;
 		}
 	}
-	elsif ($file =~ /\. (?: sh | pl | py | r | rmd | rscript | awk | sm | sing ) $/xi) {
+	elsif ($file =~ /\. ( sh | pl | py | r | rmd | rscript | awk | sm | sing ) $/xin) {
 		$filetype = 'Script';
 		$zip = 1;
 	}
@@ -1358,12 +1358,12 @@ sub analysis_callback {
 		$filetype = 'Script';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. (?: txt | tsv | tab | csv | cdt | counts | results | cns | cnr | cnn | md | log | biotypes | summary | rna_metrics | out | err | idxstats? ) (?:\.gz)? $/xi) {
+	elsif ($file =~ /\. ( txt | tsv | tab | csv | cdt | counts | results | cns | cnr | cnn | md | log | biotypes | summary | rna_metrics | out | err | idxstats? ) (\.gz)? $/xin) {
 		# general analysis text files, may be compressed
 		$filetype = 'Text';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. (?: wig | bg | bdg | bedgraph ) (?:\.gz)? $/xi) {
+	elsif ($file =~ /\. ( wig | bg | bdg | bedgraph ) (\.gz)? $/xin) {
 		$filetype = 'Analysis';
 		$zip = 1;
 	}
@@ -1372,19 +1372,19 @@ sub analysis_callback {
 		$filetype = 'Analysis';
 		$zip = 0;
 	}
-	elsif ($file =~ /\. (?: bar | bar\.zip | useq | swi | swi\.gz | egr | ser | mpileup | motif | cov | mtx | mtx\.gz ) $/xi) {
+	elsif ($file =~ /\. ( bar | bar\.zip | useq | swi | swi\.gz | egr | ser | mpileup | motif | cov | mtx | mtx\.gz ) $/xin) {
 		$filetype = 'Analysis';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. (?: xls | ppt | pptx | doc | docx | rout | rda | rdata | rds | rproj | xml | yaml | json | json\.gz | seg| html | pzfx ) $/xi) {
+	elsif ($file =~ /\. ( xls | ppt | pptx | doc | docx | rout | rda | rdata | rds | rproj | xml | yaml | json | json\.gz | seg| html | pzfx ) $/xin) {
 		$filetype = 'Results';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. (?: pdf | ps | eps | png | jpg | jpeg | gif | tif | tiff | svg | ai ) $/xi) {
+	elsif ($file =~ /\. ( pdf | ps | eps | png | jpg | jpeg | gif | tif | tiff | svg | ai ) $/xin) {
 		$filetype = 'Image';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. (?: xlsx | h5 | hd5 | hdf5 | h5ad ) $/xi) {
+	elsif ($file =~ /\. ( xlsx | h5 | hd5 | hdf5 | h5ad ) $/xin) {
 		# leave out certain result files from zip archive just to be nice
 		$filetype = 'Results';
 		$zip = 0;
@@ -1409,7 +1409,7 @@ sub analysis_callback {
 		$filetype = 'Analysis';
 		$zip = 0;
 	}
-	elsif ($file =~ /\. (?: zip | tar | tar\.gz | tar\.bz2 | tgz ) $/xi) {
+	elsif ($file =~ /\. ( zip | tar | tar\.gz | tar\.bz2 | tgz ) $/xin) {
 		$filetype = 'Archive';
 		if ($file =~ /fastqc \.zip $/x) {
 			# no need keeping fastqc zip files separate
@@ -1425,7 +1425,7 @@ sub analysis_callback {
 			$zip = 0; 
 		}
 	}
-	elsif ($file =~ /\. (?: \d\.bt2 | fa\.amb | fa\.ann | fa\.bwt | fa\.pac | nix | novoindex | index | fa\.0123 | fa\.bwt\.2bit\.64 ) $/x) {
+	elsif ($file =~ /\. ( \d\.bt2 | fa(sta)?\.amb | fa(sta)?\.ann | fa(sta)?\.bwt | fa(sta)?\.pac | nix | novoindex | index | fa(sta)?\.0123 | fa(sta)?\.bwt\.2bit\.64 ) $/xn) {
 		# alignment indexes can be rebuilt - discard
 		push @removelist, $clean_name;
 		return;
