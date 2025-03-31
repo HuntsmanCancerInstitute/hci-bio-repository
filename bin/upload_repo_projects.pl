@@ -11,7 +11,7 @@ use Text::CSV;
 use List::Util qw(mesh);
 use Config::Tiny;
 use Date::Parse;
-use Forks::Super;
+use Parallel::ForkManager;
 use Net::Amazon::S3::Client;
 use Text::Levenshtein::Flexible;
 use FindBin qw($Bin);
@@ -20,7 +20,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 0.8;
+our $VERSION = 1.0;
 
 my $doc = <<END;
 
@@ -155,7 +155,7 @@ my $cost_sub = 2;
 check_options();
 initialize();
 prepare_list();
-upload_files_super() unless $check_only;
+upload_files_parallel() unless $check_only;
 
 # finished
 
@@ -498,138 +498,92 @@ sub prepare_list {
 
 }
 
-sub upload_files_super {
+sub upload_files_parallel {
 	return unless (@upload_list);
 	printf " > Uploading in %d forks\n", $cpu;
+	my $pm = Parallel::ForkManager->new($cpu)
+		or die "unable to initiate Parallel::ForkManager!";
 
-	# start each fork
-	my $running = 0;
+	# collect errors
 	my $success = 0;
 	my $failure = 0;
 	my $start   = time;
-	my %pids;
-	for my $i ( 1 .. $cpu ) {
-		last unless @upload_list;
-		if ($verbose) {
-			print "   starting fork $i....\n";
-		}
-		my $pid = fork {
-			sub => \&child_super_callback,
-			child_fh => [ qw(in out) ],
-		};
-		sleep 1;
-		$pids{$i} = $pid;
-		# start first job for this child
-		my $next = shift @upload_list;
-		print { $pid->{child_stdin} } "$next\n";
-# 		if ($verbose) {
-# 			print "   child $i: uploading $next\n";
-# 		}
-		$running++;
-	}
-	
-	# monitor each fork
-	while ($running) {
-		sleep 2;
-		foreach my $i ( 1 .. $cpu ) {
-			# check result from each fork
-			my $pid = $pids{$i} or next;
-			my $result = readline $pid->{child_stdout};
-			if ( $result and $result =~ /\w+/ ) {
-				if ($result =~ /^upload:/) {
-					# normal success
-					$success++;
-					print "   child $i: $result";
-				}
-				elsif ($result =~ /^error/) {
-					# real errors are printed directly to stderr by the child aws command
-					$failure++;
-					print "   ! child $i: $result";
-				}
-				elsif ($result =~ /^ \s => \s executing:/x) {
-					# a verbose statement from the fork
-					print "$result";
-					next;
-				}
-				else {
-					# something else
-					print "   ? child $i: $result\n";
-				}
-				my $next = shift @upload_list || undef;
-				if ($next) {
-# 					if ($verbose) {
-# 						print "   child $i: uploading $next\n";
-# 					}
-					print { $pid->{child_stdin} } "$next\n";
-				}
-				else {
-					print { $pid->{child_stdin} } "YOU_ARE_DONE\n";
-					$running--;
-					$pid->dispose;
-					undef $pids{$i};
-					if ($verbose) {
-						print "   child $i: shutting down\n";
-					}
-				}
+	$pm->run_on_finish(
+		sub {
+			my ( $pid, $exit_code, $ident, $exit_signal, $core_dump, $data ) = @_;
+			if ( $exit_code == 0 ) {
+				printf "  > Uploaded '%s' successfully\n", $upload_list[$ident];
+				$success++;
 			}
-			# else continue waiting
+			else {
+				printf "  ! Failed to upload '%s'\n%s\n", $upload_list[$ident], ${$data};
+				$failure++;
+			}
+		}
+	);
+	
+	# iterate through list
+	foreach my $i ( 0 .. $#upload_list ) {
+		my $file = $upload_list[$i];
+		$pm->start($i) and next;
+
+		### in child
+		my $remote_path = sprintf "s3://%s/%s/%s", $bucket_name, $prefix, $file;
+		if ($using_flat_req) {
+			my $alt = $file;
+			$alt =~ s/^Fastq\///;
+			$remote_path = sprintf "s3://%s/%s/%s", $bucket_name, $prefix, $alt;
+		}
+		my $command = sprintf qq(%s s3 cp '%s' '%s' --profile %s --no-progress),
+			$aws_cli, $file, $remote_path, $profile;
+		if ($storage_class) {
+			$command .= sprintf(" --storage-class %s", $storage_class);
+		}
+		if ($dryrun) {
+			$command .= ' --dryrun';
+		}
+		if ($verbose) {
+			printf " => child $i executing: %s\n", $command;
+		}
+		$command .= ' 2>&1'; 
+		my $result = qx($command);
+		chomp $result;
+		# if there is no local path then aws will stick a ./ to the file path
+		if ( $result =~ /\A upload: \s (?:\.\/)? $file \s to/x ) {
+			$pm->finish(0);
+		}
+		elsif ( $dryrun and $result =~ /\A \( dryrun \) \s upload: \s (?:\.\/)? $file/x) {
+			$pm->finish(0);
+		}
+		else {
+			# some sort of error
+			$pm->finish(1, \$result);
 		}
 	}
 
-	# completed
+	# wait till everything is completed
+	$pm->wait_all_children;
 	my $elapsed = time - $start;
+
+	# completed
 	printf "\n > Completed %d uploads in %.1f minutes, %.2f MB/sec\n", $success,
 		$elapsed / 60, ($size / 1048576 ) / ($elapsed );
 	if ($failure) {
 		printf " ! There were %d upload failures\n", $failure;
+		exit 1;
 	}
 	elsif ($success) {
 		if ($Entry) {
 			$Entry->upload_datestamp(time);
-			if ($include_autoanal) {
+			if ( $include_autoanal and $Entry->is_request ) {
 				$Entry->autoanal_up_datestamp(time);
 			}
 		}
 	}
 }
 
-sub child_super_callback {
-	# call back in a child
 
-	# continuous loop
-	while (1) {
-		while ( defined (my $file = readline STDIN ) ) {
-			chomp $file;
-			exit 0 if $file eq 'YOU_ARE_DONE';
-			my $remote_path = sprintf "s3://%s/%s/%s", $bucket_name, $prefix, $file;
-			if ($using_flat_req) {
-				my $alt = $file;
-				$alt =~ s/^Fastq\///;
-				$remote_path = sprintf "s3://%s/%s/%s", $bucket_name, $prefix, $alt;
-			}
-			my $command = sprintf qq(%s s3 cp '%s' '%s' --profile %s --no-progress),
-				$aws_cli, $file, $remote_path, $profile;
-			if ($storage_class) {
-				$command .= sprintf(" --storage-class %s", $storage_class);
-			}
-			if ($dryrun) {
-				$command .= ' --dryrun';
-			}
-			if ($verbose) {
-				printf " => executing: %s\n", $command;
-			}
-			my $result = qx($command);
-			chomp $result;
-			unless ($result) {
-				# actual errors are probably not captured here
-				$result = $dryrun ? "dryrun with $file" : "error with $file";
-			}
-			printf "%s\n", $result;
-		}
-		sleep 2;
-	}
 
-}
 
 sub format_human_size {
 	my $value = shift;
