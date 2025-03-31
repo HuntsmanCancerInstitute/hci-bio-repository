@@ -528,64 +528,65 @@ sub open_import_catalog {
 			foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
 				my $Entry = $Cat->entry($id);
 				my $path  = $Entry->path;
-				if (-e $path) {
-					my $Project = RepoProject->new($Entry->path);
-					if ($Project) {
-						my ($size, $datestamp) = $Project->get_size_age;
-						if ($size) {
-							$Entry->size($size);
-						}
-						if ($datestamp) {
-							$Entry->youngest_datestamp($datestamp);
-						}
-						# print warnings if something seems amiss
-						if ( $Entry->hidden_datestamp > 1 and
-							$datestamp > $Entry->hidden_datestamp
+				unless (-e $path) {
+					print "  ! $id missing project file path: $path\n";
+					next;
+				}
+				my $Project = RepoProject->new($Entry->path);
+				if ($Project) {
+					my ($size, $datestamp) = $Project->get_size_age;
+					if ($size) {
+						$Entry->size($size);
+					}
+					if ($datestamp) {
+						$Entry->youngest_datestamp($datestamp);
+					}
+
+					# print warnings if something seems amiss
+					if ( $Entry->deleted_datestamp > 1 and
+						$datestamp > $Entry->deleted_datestamp
+					) {
+						print "  ! New files added to deleted project $id\n";
+						next;
+					}
+					elsif ( $Entry->hidden_datestamp > 1 and
+						$datestamp > $Entry->hidden_datestamp
+					) {
+						print "  ! New files added to hidden project $id\n";
+						next;
+					}
+
+					# Check if needs to be scanned
+					if ($project_scan) {
+						my $do = 0;
+						if ( $Entry->scan_datestamp > 1 and
+							( $datestamp - $Entry->scan_datestamp ) > 86400 and
+							( time - $Entry->scan_datestamp ) > 86400
 						) {
-							print "  ! New files added to hidden project $id\n";
+							# previously scanned at least 1 day ago and
+							# younger files exist by at least 1 day
+							$do = 1;
+						}
+						elsif ( $Entry->scan_datestamp == 0 and
+								($Entry->age and $Entry->age > 14 )
+						) {
+							# otherwise wait for project to "settle" for at least
+							# two weeks before scanning
+							$do = 1;
 						}
 
-						# Check if needs to be scanned
-						if ($project_scan) {
-							my $do = 0;
-							if ( $Entry->hidden_datestamp > 1 or
-								$Entry->deleted_datestamp > 1
-							) {
-								# do absolutely nothing with these
-								# even if new files are added
-								# hopefully warning above will suffice!
-								$do = 0;
-							}
-							elsif ( $Entry->scan_datestamp > 1 and
-								( $datestamp - $Entry->scan_datestamp ) > 86400 and
-								( time - $Entry->scan_datestamp ) > 86400
-							) {
-								# previously scanned at least 1 day ago and
-								# younger files exist by at least 1 day
-								$do = 1;
-							}
-							elsif ( $Entry->scan_datestamp == 0 and
-									($Entry->age and $Entry->age > 14 )
-							) {
-								# otherwise wait for project to "settle" for at least
-								# two weeks before scanning
-								$do = 1;
-							}
-
-							# print verbose message
-							if ($do) {
-								printf
-								"  > will scan %s, age %s, last scanned %s days ago\n",
-									$id, $Entry->age || '0', $Entry->scan_datestamp ? 
-									sprintf("%.0f",
-									(time - $Entry->scan_datestamp) / 86400) : '-';
-								push @action_list, $id;
-							}
+						# print verbose message
+						if ($do) {
+							printf "  > will scan %s, age %s, last scanned %s days ago\n",
+								$id, $Entry->age || '0', $Entry->scan_datestamp ? 
+								sprintf("%.0f",
+								(time - $Entry->scan_datestamp) / 86400) : '-';
+							push @action_list, $id;
 						}
 					}
 				}
 				else {
-					print "  ! Missing project file path: $path\n";
+					die " unable to generate RepoProject object for $path";
 				}
 			}
 			
@@ -609,65 +610,74 @@ sub open_import_catalog {
 			foreach my $id ( @{$update_list}, @{$new_list}, @{$nochange_list} ) {
 				my $Entry = $Cat->entry($id);
 				my $path  = $Entry->path;
-				if (-e $path) {
-					my $Project = RepoProject->new($Entry->path);
-					if ($Project) {
-						my ($size, $datestamp) = $Project->get_size_age;
-						if ($size) {
-							$Entry->size($size);
-						}
-						if ($datestamp) {
-							$Entry->youngest_datestamp($datestamp);
-						}
-						# print warnings if something seems amiss
-						if ($Entry->hidden_datestamp and 
-							$datestamp > $Entry->hidden_datestamp
-						) {
-							print "  ! New files added to hidden project $id\n";
-						}
+				unless (-e $path) {
+					print "  ! $id missing project file path: $path\n";
+					next;
+				}
+				my $Project = RepoProject->new($path);
+				if ($Project) {
+					my $do_scan = 0;
+					my ($size, $datestamp) = $Project->get_size_age;
+					if ($size) {
+						$Entry->size($size);
+					}
+					if ($datestamp) {
+						$Entry->youngest_datestamp($datestamp);
+					}
 
-						# AutoAnalysis folder
-						my $aa_folder = $Project->get_autoanal_folder;
-						if ($aa_folder) {
-							if ($Entry->autoanal_folder ) {
-								if ( $aa_folder ne $Entry->autoanal_folder ) {
-									printf 
-									"  ! Changed AutoAnalysis folder for %s: %s\n",
+					# print warnings if something seems amiss
+					if ($Entry->deleted_datestamp and 
+						$datestamp > $Entry->deleted_datestamp
+					) {
+						print "  ! New files added to deleted project $id\n";
+						next;
+					}
+					elsif ($Entry->hidden_datestamp and 
+						$datestamp > $Entry->hidden_datestamp
+					) {
+						print "  ! New files added to hidden project $id\n";
+						next;
+					}
+
+					# AutoAnalysis folder
+					my $aa_folder = $Project->get_autoanal_folder;
+					if ($aa_folder) {
+						if ($Entry->autoanal_folder ) {
+							if ( $aa_folder ne $Entry->autoanal_folder ) {
+								printf "  ! Changed AutoAnalysis folder for %s: %s\n",
 									$id, $aa_folder;
-									$Entry->autoanal_folder($aa_folder);
-								}
-							}
-							else {
 								$Entry->autoanal_folder($aa_folder);
+								$do_scan += 1;
 							}
 						}
+						else {
+							$Entry->autoanal_folder($aa_folder);
+						}
+					}
 
-						# Check if needs to be scanned
-						if ( $project_scan and $Project->has_fastq ) {
-							my $do = 0;
-							if ( $Entry->scan_datestamp > 1 ) {
-								if ( $datestamp - $Entry->scan_datestamp > 3600 ) {
-									# there is a younger file than last scan by 1 hour
-									$do = 1;
-								}
+					# Check if needs to be scanned
+					if ( $project_scan and $Project->has_fastq ) {
+						if ( $Entry->scan_datestamp > 1 ) {
+							if ( $datestamp - $Entry->scan_datestamp > 3600 ) {
+								# there is a younger file than last scan by 1 hour
+								$do_scan += 1;
 							}
-							else {
-								$do = 1;
-							}
-							# if ($do and $verbose) {
-							if ($do) {
-								printf
-								"  > will scan %s, age %s, last scanned %s days ago\n",
-									$id, $Entry->age || 0, $Entry->scan_datestamp ? 
-									sprintf("%.0f",
-									(time - $Entry->scan_datestamp) / 86400) : '-';
-							}
-							push @action_list, $id if $do;
+						}
+						else {
+							$do_scan += 1;
+						}
+						# if ($do and $verbose) {
+						if ($do_scan) {
+							printf "  > will scan %s, age %s, last scanned %s days ago\n",
+								$id, $Entry->age || 0, $Entry->scan_datestamp ? 
+								sprintf("%.0f",
+								(time - $Entry->scan_datestamp) / 86400) : '-';
+							push @action_list, $id;
 						}
 					}
 				}
 				else {
-					print "  ! Missing project file path: $path\n";
+					die " unable to generate RepoProject object for $path";
 				}
 			}
 			
