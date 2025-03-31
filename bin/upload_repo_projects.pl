@@ -493,7 +493,7 @@ sub prepare_list {
 		printf "   > %d files were already uploaded\n", $upcnt;
 	}
 	if ($aacnt) {
-		printf "   > %d files were in AutoAnalysis folder and not included\n", $upcnt;
+		printf "   > %d files were in AutoAnalysis folder and not included\n", $aacnt;
 	}
 
 }
