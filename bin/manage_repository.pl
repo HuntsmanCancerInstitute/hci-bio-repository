@@ -1891,10 +1891,15 @@ sub print_functions {
 				$division = $ext eq 'Y' ? 'external' : $Entry->core_lab || 'none';
 			}
 			
+			# age
+			my $age = $Entry->age;
+			unless (defined $age) {
+				$age = q(?);
+			}
+			
 			# print
 			printf "%-6s\t%-7s\t%-5s\t%s\t%s\t%s\t%s\t%s\n", $id, $size, 
-				$Entry->age || q(?), $scan_day, $up_day, $hide_day, $delete_day, 
-				$division;
+				$age, $scan_day, $up_day, $hide_day, $delete_day, $division;
 		}
 	}
 
