@@ -169,11 +169,11 @@ sub check_options {
 	}
 	if ( $project_id or $cat_file ) {
 		unless ($project_id) {
-			print " No project identifer provided! See help\n";
+			print " ERROR: No project identifer provided! See help\n";
 			exit 1;
 		}
 		unless ($cat_file) {
-			print " No catalog file provided! See help\n";
+			print " ERROR: No catalog file provided! See help\n";
 			exit 1;
 		}
 	}
@@ -183,7 +183,7 @@ sub check_options {
 		# clean bucket
 		$bucket_name =~ s|^s3://||;
 		if ($bucket_name =~ m|/|) {
-			print " Bucket name should not include / characters! Use prefix\n";
+			print " ERROR: Bucket name should not include / characters! Use prefix\n";
 			exit 1;
 		}
 
@@ -192,7 +192,8 @@ sub check_options {
 		$project_id = $bits[-1];
 	}
 	else {
-		print " Not enough source or destination specifications provided! See help\n";
+		print
+" ERROR: Not enough source or destination specifications provided! See help\n";
 		exit 1;
 	}
 	unless ( $aws_cred_file and -e $aws_cred_file ) {
@@ -203,14 +204,14 @@ sub check_options {
 		unless ($storage_class =~ 
 /^ (?: STANDARD | REDUCED_REDUNDANCY | STANDARD_IA | ONEZONE_IA | INTELLIGENT_TIERING | GLACIER | DEEP_ARCHIVE | GLACIER_IR) $/x
 		) {
-			print " Unrecognized storage class – see `aws s3 cp help`\n";
+			print " ERROR: Unrecognized storage class – see `aws s3 cp help`\n";
 			exit 1;
 		}
 	}
 	# check external aws command
 	if ($aws_cli) {
 		unless ( -e $aws_cli and -x _ ) {
-			printf " Provided AWS CLI program '%s' not available!\n", $aws_cli;
+			printf " ERROR: Provided AWS CLI program '%s' not available!\n", $aws_cli;
 			exit 1;
 		}
 	}
@@ -221,7 +222,7 @@ sub check_options {
 			printf " Using %s to upload\n", $aws_cli;
 		}
 		else {
-			print " No AWS CLI program available in PATH!\n";
+			print " ERROR: No AWS CLI program available in PATH!\n";
 			exit;
 		}
 	}
@@ -281,7 +282,7 @@ sub initialize {
 		aws_access_key_id     => $access_id,
 		aws_secret_access_key => $secret,
 		retry                 => 1,
-	) or die "unable to open AWS S3 Client!";
+	) or die "ERROR: unable to open AWS S3 Client!";
 	
 }
 
