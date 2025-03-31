@@ -17,7 +17,7 @@ use lib "$Bin/../lib";
 use RepoCatalog;
 use RepoProject;
 
-our $VERSION = 7.6;
+our $VERSION = 7.7;
 
 
 
@@ -52,7 +52,6 @@ Options:
     --zip --nozip          Do or do not generate zip archive list file
     --delete --nodelete    Do or do not generate remove list file
     --verbose              Tell me everything!
- 
 
 Manual inventory of a custom directory:
     --path <path>          Scan the given custom directory. Best if 
@@ -69,7 +68,6 @@ END
 my $cat_file;
 my $id;
 my $path;
-my $do_scan = 1;
 my $do_zip;
 my $do_del;
 my $verbose;
@@ -79,7 +77,6 @@ if (scalar(@ARGV) > 1) {
 		'c|catalog=s'   => \$cat_file,
 		'p|project=s'   => \$id,
 		'path=s'        => \$path,
-		'scan!'         => \$do_scan,
 		'zip!'          => \$do_zip,
 		'delete!'       => \$do_del,
 		'verbose!'      => \$verbose,
@@ -96,7 +93,6 @@ else {
 my $request;
 my @removelist;
 my @ziplist;
-my @ten_x_crap;
 my %checksums;
 my $failure_count     = 0;
 my $runfolder_warning = 0; # Gigantic Illumina RunFolder present
@@ -233,22 +229,16 @@ if ($verbose) {
 }
 
 
-# removed file hidden folder
+# check for removed file hidden folder
 if (-e $Project->delete_folder) {
-	if ($do_scan) {
-		print "! Cannot re-scan if deleted files hidden folder exists!\n";
-		$do_scan = 0;
-		$failure_count++;
-	}
+	print "! Cannot re-scan if deleted files hidden folder exists!\n";
+	exit 1;
 }
 
-# zipped file hidden folder
+# check for zipped file hidden folder
 if ( -e $Project->zip_folder or -e $Project->zip_file ) {
-	if ($do_scan) {
-		print " ! Cannot re-scan if zipped file or hidden folder exists!\n";
-		$do_scan = 0;
-		$failure_count++;
-	}
+	print " ! Cannot re-scan if zipped file or hidden folder exists!\n";
+	exit 1;
 }
 
 
@@ -264,55 +254,46 @@ chdir $Project->given_dir or die sprintf("cannot change to %s!\n", $Project->giv
 # check for files that shouldn't be here
 if ( -e $Project->zip_file ) {
 	printf " ! Cannot scan because Archive Zip file %s exists\n", $Project->zip_file;
-	$failure_count++;
-	$do_scan = 0;
+	exit 1;
 }
 if ( -e $Project->ziplist_file ) {
 	printf " ! Cannot scan because Archive Zip list file %s exists\n",
 		$Project->ziplist_file;
-	$failure_count++;
-	$do_scan = 0;
+	exit 1;
 }
 if ( -e $Project->remove_file ) {
 	printf " ! Cannot scan because Remove list file %s exists\n", $Project->remove_file;
-	$failure_count++;
-	$do_scan = 0;
+	exit 1;
 }
 
 # scan the directory
-if ($do_scan) {
+printf " > Scanning...\n";
+scan_directory();
 
-	# scan the directory
-	printf " > Scanning...\n";
-	scan_directory();
-	
-	# update scan time stamp
-	if ($cat_file and -e $cat_file and not $failure_count) {
-		my $Catalog = RepoCatalog->new($cat_file);
-		if ( $Catalog ) {
-			my $Entry = $Catalog->entry($Project->id) ;
-			$Entry->scan_datestamp(time);
-			print " > Updated Catalog scan date stamp\n";
-		}
-	}
-}
-
-
-
-
-######## Finished
 if ($failure_count) {
 	printf " ! Finished with %s with %d failures in %.1f minutes\n\n", $Project->id,
 		$failure_count, (time - $start_time)/60;
-	
+	exit 1;
 }
 else {
+	# update catalog time stamp
+	if ( $cat_file and -e $cat_file ) {
+		my $Catalog = RepoCatalog->new($cat_file);
+		if ( $Catalog ) {
+			my $Entry = $Catalog->entry($Project->id);
+			if ($Entry) {
+				$Entry->scan_datestamp(time);
+				print " > Updated Catalog scan date stamp\n";
+			}
+		}
+	}
 	printf " > Finished with %s in %.1f minutes\n\n", $Project->id, 
 		(time - $start_time)/60;
+	exit 0;
 }
 
 
-exit;
+
 
 
 
@@ -390,6 +371,7 @@ sub scan_directory {
 		# check file status
 		if (not exists $filedata{$f}{status}) {
 			print " ! ERROR: no status for $f\n";
+			$failure_count++;
 		}
 		elsif ($filedata{$f}{status} == 1) {
 			$removed_file_count++;
@@ -1057,7 +1039,6 @@ sub analysis_callback {
 		# add to custom remove list
 		print "   ! marking to delete 10X Genomics temporary file\n" if $verbose;
 		push @removelist, $clean_name;
-		push @ten_x_crap, $clean_name;
 		return;
 	}
 	elsif ( $clean_name =~ /_STARtmp\// ) {
@@ -1504,6 +1485,7 @@ sub analysis_callback {
 	# sanity check - this should not be empty
 	unless ($filetype) {
 		print "   ! Logic error! No filetype for $clean_name\n";
+		$failure_count++;
 	}
 	
 	# Check files for Zip archive files
