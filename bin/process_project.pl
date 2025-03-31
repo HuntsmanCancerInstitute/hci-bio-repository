@@ -632,9 +632,7 @@ sub callback {
 	}
 	elsif ( $file eq 'COMPLETE' and $clean_name =~ /^ AutoAnalysis_\w+ \/ /x ) {
 		# an AutoAnalysis control file
-		unless (unlink $file) {
-			push @removelist, $clean_name;
-		}
+		push @removelist, $clean_name;
 		return;
 	}
 	
@@ -719,42 +717,22 @@ m/^ (?: Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) 
 	elsif ($file =~ / samplesheet \. \w+ /xi) {
 		# file run sample sheet, can safely ignore
 		$type = 'document';
-		$sample = q();
-		$laneID = q();
-		$pairedID = q();
-		$machineID = q();
 	}
 	elsif ($file =~ / \. (?: xlsx | numbers | docx | pdf | csv | html ) $/x) {
 		# some stray request spreadsheet file or report
 		$type = 'document';
-		$sample = q();
-		$laneID = q();
-		$pairedID = q();
-		$machineID = q();
 	}
 	elsif ($file =~ /\.sh$/) {
 		# processing shell script
 		$type = 'script';
-		$sample = q();
-		$laneID = q();
-		$pairedID = q();
-		$machineID = q();
 	}
 	elsif ( $file =~ /\.txt$/ and $file !~ /md5/ ) {
 		# additional stray files but not md5 files!
 		$type = 'document';
-		$sample = q();
-		$laneID = q();
-		$pairedID = q();
-		$machineID = q();
 	}
 	elsif ($file =~ /\.zip$/) {
 		# some Zip file - caution
 		$type = 'zip';
-		$sample = q();
-		$laneID = q();
-		$pairedID = q();
-		$machineID = q();
 	}
 	# ora reference compressed interleaved fastq file
 	elsif ($file =~ m/^ (\d{4,5} [xXPG] \d+ ) _\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _R\-interleaved_001 \.fastq\.ora $/x) {
