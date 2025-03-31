@@ -7,7 +7,7 @@ use Carp;
 use IO::File;
 use DBM::Deep;
 
-our $VERSION = 7.2;
+our $VERSION = 7.3;
 
 
 # General private values
@@ -20,17 +20,17 @@ my $ARRAY_SIZE = 31;  # size of DB Entry array, see RepoEntry index list
 my $repo_epoch = 2005;
 my $internal_org = qr/(?: Bioinformatics \s Shared \s Resource | HTG \s Core \s Facility | SYSTEM )/x;
 my $req_up_min_size    = 26214400;  # minimum Request size to upload, 25 MB
-my $req_up_min_age     = 0;  # minimum age for request upload
-my $req_up_max_age     = 180;  # maximum age for request upload
-my $req_hide_min_age   = 180;  # minimum age for hiding request
-my $req_hide_max_age   = 100000;  # maximum age for hiding request
-my $req_del_min_age    = 30;  # minimum age to delete hidden request
-my $anal_up_min_age    = 360;  # minimum age for analysis upload
-my $anal_up_max_age    = 100000;  # maximum age for analysis upload
-my $anal_up_min_size   = 1024;  # minimum Analysis size to upload, 1 Kb
-my $anal_hide_min_age  = 360;  # minimum age to hide analysis
-my $anal_hide_max_age  = 100000;  # maximum age to hide analysis
-my $anal_del_min_age   = 60;  # minimum age to delete hidden analysis
+my $req_up_min_age     = 0;         # minimum age for request upload
+my $req_up_max_age     = 360;       # maximum age for request upload
+my $req_hide_min_age   = 180;       # minimum age for hiding request
+my $req_hide_max_age   = 100000;    # maximum age for hiding request
+my $req_del_min_age    = 30;        # minimum age to delete hidden request
+my $anal_up_min_age    = 360;       # minimum age for analysis upload
+my $anal_up_max_age    = 100000;    # maximum age for analysis upload
+my $anal_up_min_size   = 1024;      # minimum Analysis size to upload, 1 Kb
+my $anal_hide_min_age  = 360;       # minimum age to hide analysis
+my $anal_hide_max_age  = 100000;    # maximum age to hide analysis
+my $anal_del_min_age   = 60;        # minimum age to delete hidden analysis
 
 # Functions
 
@@ -438,6 +438,7 @@ sub find_requests_to_delete {
 	my $sorted = $self->sort_list(\@list);
 	return wantarray ? @{ $sorted } : $sorted;
 }
+
 
 sub find_analysis_to_upload {
 	my $self = shift;
