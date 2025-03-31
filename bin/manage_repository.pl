@@ -15,7 +15,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 7.3;
+our $VERSION = 8.0;
 
 
 ######## Documentation
@@ -392,8 +392,8 @@ sub check_options {
 			exit 1;
 		}
 		if ($import_file) {
-			print "No search functions allowed if importing!\n";
-			exit;
+			print "FATAL: No search functions allowed if importing!\n";
+			exit 1;
 		}
 		
 	}
@@ -463,12 +463,6 @@ sub check_options {
 			print "FATAL: Can't do anything else if unhiding files!\n";
 			exit 1;
 		}
-	}
-	
-	# contradictory zip and upload
-	if ( $project_zip and ( $project_upload or $project_aa_upload ) ) {
-		print "FATAL: Zip projects first before uploading\n";
-		exit 1;
 	}
 	
 	# contradictory metadata options
@@ -1257,7 +1251,7 @@ sub run_metadata_actions {
 
 
 sub run_project_actions {
-	
+
 	# delete projects
 	if ($delete_entry) {
 		print " Deleting projects...\n";
@@ -1279,6 +1273,7 @@ sub run_project_actions {
 		unless (@action_list) {
 			die "No list provided to scan projects!\n";
 		}
+		my @success;
 		foreach my $item (@action_list) {
 			my ($id, @rest) = split m/\s+/, $item;
 			next unless ($id);
@@ -1286,7 +1281,7 @@ sub run_project_actions {
 			# generate the command for external utility
 			# these will be executed one at a time
 			my $command = sprintf
-				"%s/process_project.pl --catalog %s --project %s --scan",
+				"%s/process_project.pl --catalog %s --project %s",
 				$Bin, $cat_file, $id;
 			if ($verbose) {
 				$command .= " --verbose";
@@ -1312,10 +1307,92 @@ sub run_project_actions {
 				}
 			}
 			print " Executing $command\n";
-			system($command);
+			my $r = system($command);
+			if ($r) {
+				print " \n FAILURE while scanning $id\n";
+			}
+			else {
+				push @success, $id;
+			}
 		}
+		# reset the action list based on the success of this step
+		@action_list = @success;
 	}
 	
+	# zip files
+	# technically a directory action, but this needs to be done before uploading
+	# and after scanning, so we do it here
+	if ($project_zip) {
+		print " Zipping project files...\n";
+		unless (@action_list) {
+			die "No list provided to zip projects!\n";
+		}
+		my @success;
+
+		# remember current directory, as we will move around
+		my $start_dir = File::Spec->rel2abs( File::Spec->curdir() );
+
+		# iterate through projects
+		foreach my $item (@action_list) {
+			my ($id, @rest) = split(m/\s+/, $item);
+			next unless (defined $id);
+			printf "\n > Zipping files for project %s\n", $id;
+			
+			# Collect project path
+			my $Entry = $Catalog->entry($id);
+			unless ($Entry) {
+				print " ! Identifier $id not in Catalog! skipping\n";
+				next;
+			}
+			my $Project = RepoProject->new($Entry->path, $verbose);
+			unless ($Project) { 
+				printf  " ! unable to initiate Repository Project for path %s! skipping\n", 
+					$Entry->path;
+				next;
+			}
+			unless (chdir $Project->given_dir) {
+				printf " ! cannot change to given directory %s! $OS_ERROR\n",
+					$Project->given_dir;
+				next;
+			};
+
+			# Check project and process accordingly
+			unless ( $Entry->scan_datestamp ) {
+				printf " ! %s has not been scanned\n", $id;
+				next;
+			}
+			unless ( -e $Project->alt_ziplist_file ) {
+				printf " ! %s does not have a zip list file\n", $id;
+				next;
+			}
+			if ( $Entry->scan_datestamp < $Entry->youngest_datestamp ) {
+				printf " ! %s has newer files since last scan\n", $id;
+				next;
+			}
+			if ( -e $Project->zip_file) {
+				printf " ! %s is already archived, %s exists\n", $id, $Project->zip_file;
+				next;
+			}
+			my $failure_count = $Project->zip_archive_files;
+			if ($failure_count) {
+				printf "  ! Project %s had %d zip failures\n", $id, $failure_count;
+			}
+			else {
+				printf "  > Completed project %s successfully\n", $id;
+				push @success, $id;
+			}
+		}
+
+		# move back
+		chdir $start_dir;
+
+		# this action should already be completed, so set to false
+		$move_zip_files = 0;
+
+		# reset the action list based on the success of this step
+		@action_list = @success;
+	}
+
 	# upload the project
 	if ( $project_upload or $project_aa_upload ) {
 		print " Preparing projects for upload...\n";
@@ -1366,6 +1443,7 @@ sub run_project_actions {
 			join(', ', @upload_list);
 
 		# run upload tool
+		my @success;
 		foreach my $id (@upload_list) {
 			my $command = sprintf "%s/upload_repo_projects.pl --catalog %s --project %s",
 				$Bin, $cat_file, $id;
@@ -1385,8 +1463,16 @@ sub run_project_actions {
 				$command .= ' --check';
 			}
 			print "\n Executing $command\n";
-			system($command);
+			my $r = system($command);
+			if ($r) {
+				print " \n FAILURE during upload of $id\n";
+			}
+			else {
+				push @success, $id;
+			}
 		}
+		# reset the action list based on the success of this step
+		@action_list = @success;
 	}
 }
 
@@ -1399,12 +1485,13 @@ sub run_project_directory_actions {
 	return unless (
 		$move_zip_files or $move_del_files or $unhide_zip_files or $unhide_del_files or 
 		$restore_zip_files or $delete_zip_files or $delete_del_files or $add_notice or 
-		$clean_project_files or $project_zip);
+		$clean_project_files);
 	
 	# remember current directory, as we will move around
 	my $current_dir = File::Spec->rel2abs( File::Spec->curdir() );
 	
 	# we will do all given functions at once for each project
+	my @success;
 	foreach my $item (@action_list) {
 		my ($id, @rest) = split(m/\s+/, $item);
 		next unless (defined $id);
@@ -1431,22 +1518,6 @@ sub run_project_directory_actions {
 			print "cannot change to given directory! $OS_ERROR\n";
 			next;
 		};
-
-		# zip files
-		if ($project_zip) {
-			if ( $Entry->scan_datestamp < $Entry->youngest_datestamp ) {
-				printf " ! %s has newer files since last scan\n", $id;
-				$failure_count++;
-			}
-			elsif ( -e $Project->zip_file) {
-				printf " ! %s has been archived, %s exists\n", $id, $Project->zip_file;
-				$failure_count++;
-			}
-			else {
-				$failure_count += $Project->zip_archive_files;
-				$move_zip_files = 0; # this should already be completed
-			}
-		}
 
 		# hide the zipped files
 		if ($move_zip_files) {
@@ -1634,17 +1705,21 @@ sub run_project_directory_actions {
 
 		######## Finished
 		if ($failure_count) {
-			printf " ! finished with %s with %d failures\n\n", $Project->project,
+			printf " ! finished with %s with %d failures\n\n", $id,
 				$failure_count;
 		}
 		else {
-			printf " > finished with %s with 0 failures\n\n", $Project->project;
+			printf " > finished with %s with 0 failures\n\n", $id;
+			push @success, $id
 		}
 
 	}
 	
 	# change back
 	chdir $current_dir;
+
+	# reset the action list based on the success of this step
+	@action_list = @success;
 }
 
 
