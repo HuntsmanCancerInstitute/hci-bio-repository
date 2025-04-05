@@ -279,8 +279,10 @@ sub zip_archive_files {
 
 	# check zip list
 	unless ( -e $self->alt_ziplist_file ) {
-		printf "  ! no alternate zip list file %s\n", $self->alt_ziplist_file;
-		return 1;
+		printf "  ! %s has no alternate zip list file %s\n", $self->project || q(),
+			$self->alt_ziplist_file;
+		# sometimes this happens, there was nothing to zip, not necessarily an error
+		return;
 	}
 
 	# An extensive internet search reveals no parallelized zip archiver, despite
