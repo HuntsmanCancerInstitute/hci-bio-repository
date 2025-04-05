@@ -644,7 +644,7 @@ sub open_import_catalog {
 					if ($aa_folder) {
 						if ($Entry->autoanal_folder ) {
 							if ( $aa_folder ne $Entry->autoanal_folder ) {
-								printf "  ! Changed AutoAnalysis folder for %s: %s\n",
+								printf "  ! Updated AutoAnalysis folder for %s to %s\n",
 									$id, $aa_folder;
 								$Entry->autoanal_folder($aa_folder);
 								$do_scan += 1;
@@ -653,6 +653,11 @@ sub open_import_catalog {
 						else {
 							$Entry->autoanal_folder($aa_folder);
 						}
+					}
+					elsif ( not $aa_folder and $Entry->autoanal_folder ) {
+						printf "  ! AutoAnalysis folder for %s was removed\n", $id;
+						$Entry->autoanal_folder( q() );
+						$do_scan += 1;
 					}
 
 					# Check if needs to be scanned
