@@ -6,7 +6,7 @@ requires "DBM::Deep";
 requires "Digest::MD5";
 requires "Email::Simple";
 requires "Email::Sender";
-requires "Forks::Super";
+requires "Parallel::ForkManager";
 requires "List::Util";
 requires "LWP::Protocol::https";
 requires "Net::Amazon::S3";
