@@ -575,9 +575,11 @@ sub upload_files_parallel {
 	}
 	elsif ($success) {
 		if ($Entry) {
-			$Entry->upload_datestamp(time);
 			if ( $include_autoanal and $Entry->is_request ) {
 				$Entry->autoanal_up_datestamp(time);
+			}
+			else {
+				$Entry->upload_datestamp(time);
 			}
 		}
 	}
