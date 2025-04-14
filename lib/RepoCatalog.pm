@@ -7,7 +7,7 @@ use Carp;
 use IO::File;
 use DBM::Deep;
 
-our $VERSION = 7.3;
+our $VERSION = 7.4;
 
 
 # General private values
@@ -131,17 +131,21 @@ sub list_all {
 	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
 	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
+	my $email = exists $opts{emailed} ? $opts{emailed} : -1;
 	
 	# scan through list
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
+
 		if (
 			substr($E->date, 0, 4) >= $year and
 			$E->age >= $min_age and
 			( $max_age ? ($E->age < $max_age) ? 1 : 0 : 1) and
-			( $min_size ? ($E->size >= $min_size) ? 1 : 0 : 1)
+			( $min_size ? ($E->size >= $min_size) ? 1 : 0 : 1) and
+			( ( $email == -1 ) or ( $email == 0 && $E->emailed_datestamp == 0 ) or
+				( $email == 1 && $E->emailed_datestamp > 1 ) )
 		) {
 			# we have a possible candidate
 			if (defined $core) {
@@ -182,12 +186,15 @@ sub list_projects_for_pi {
 	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} : 0;
 	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
 	# CORE lab and external status is based on PI, so no need to filter those
+	my $email = exists $opts{emailed} ? $opts{emailed} : -1;
 	
 	# scan through list
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
 		my $E = $self->entry($key);
+
+		# calculate size
 		my $size; 
 		{
 			# use the biggest size available for checking
@@ -195,12 +202,16 @@ sub list_projects_for_pi {
 			my $b = $E->last_size || 0;
 			$size = $a > $b ? $a : $b;
 		}
+
+		# check lab name, date, age, size
 		if (
 			lc $E->lab_last eq $name and
 			substr($E->date, 0, 4) >= $year and
 			$E->age >= $min_age and
 			( $max_age  ? $E->age < $max_age ? 1 : 0 : 1) and
-			( $min_size ? $size >= $min_size  ? 1 : 0 : 1)
+			( $min_size ? $size >= $min_size  ? 1 : 0 : 1) and
+			( ( $email == -1 ) or ( $email == 0 && $E->emailed_datestamp == 0 ) or
+				( $email == 1 && $E->emailed_datestamp > 1 ) )
 		) {
 			push @list, $key;
 		}
@@ -295,6 +306,7 @@ sub find_requests_to_upload {
 		$req_up_min_age; 
 	my $max_age = (exists $opts{maxage} and defined $opts{maxage}) ? $opts{maxage} :
 		$req_up_max_age; 
+	my $email = exists $opts{emailed} ? $opts{emailed} : -1;
 	
 	# scan through list
 	my @list;
@@ -310,7 +322,9 @@ sub find_requests_to_upload {
 			$E->age > $min_age and
 			$E->age < $max_age and
 			$E->lab_last !~ $internal_org and
-			substr($E->date, 0, 4) >= $year
+			substr($E->date, 0, 4) >= $year and
+			( ( $email == -1 ) or ( $email == 0 && $E->emailed_datestamp == 0 ) or
+				( $email == 1 && $E->emailed_datestamp > 1 ) )
 		) {
 			# we have a candidate
 			# we could try to filter on application type, but there are so many 
@@ -319,7 +333,7 @@ sub find_requests_to_upload {
 			# too big, and we might miss small MiSeq projects
 			# too little, and we might include large sample-quality projects
 			if ($E->size > $min_size) {
-				# size is bigger than 25 MB, looks like a candidate
+				# size is bigger than minimum size, looks like a candidate
 				if ($E->upload_datestamp > 1) {
 					# already been uploaded? Make sure we're considerably bigger
 					if (
@@ -356,6 +370,7 @@ sub find_requests_to_hide {
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
 	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} :
 		$req_up_min_size;  # same size as upload
+	my $email = exists $opts{emailed} ? $opts{emailed} : -1;
 	
 	# scan through list
 	my @list;
@@ -371,7 +386,9 @@ sub find_requests_to_hide {
 			$E->age > $min_age and                      # older than minimum age
 			$E->age < $max_age and                      # less than maximum age
 			$E->lab_last !~ $internal_org and           # not internal lab
-			substr($E->date, 0, 4) >= $year             # older than start
+			substr($E->date, 0, 4) >= $year and         # older than start
+			( ( $email == -1 ) or ( $email == 0 && $E->emailed_datestamp == 0 ) or
+				( $email == 1 && $E->emailed_datestamp > 1 ) )
 		) {
 			# we have a possible candidate
 			if (defined $core) {
@@ -404,6 +421,7 @@ sub find_requests_to_delete {
 	my $max_age = (exists $opts{maxage} and $opts{maxage} =~ /^\d+$/) ? $opts{maxage} :
 		$req_hide_max_age;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
+	my $email = exists $opts{emailed} ? $opts{emailed} : -1;
 	
 	# scan through list
 	my @list;
@@ -417,9 +435,12 @@ sub find_requests_to_delete {
 			$E->deleted_datestamp < 1 and               # not yet deleted
 			$E->hidden_age > $min_age and               # hidden for minimum time
 			$E->lab_last !~ $internal_org and           # not internal lab
-			substr($E->date, 0, 4) >= $year             # current year
+			substr($E->date, 0, 4) >= $year and         # current year
+			( ( $email == -1 ) or ( $email == 0 && $E->emailed_datestamp == 0 ) or
+				( $email == 1 && $E->emailed_datestamp > 1 ) )
 		) {
 			# we have a possible candidate
+			# check core status
 			if (defined $core) {
 				if ($core and $E->core_lab) {
 					push @list, $key;
@@ -450,6 +471,7 @@ sub find_analysis_to_upload {
 		$anal_up_max_age;
 	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} :
 		$anal_up_min_size;
+	my $email = exists $opts{emailed} ? $opts{emailed} : -1;
 	
 	# scan through list
 	my @list;
@@ -464,7 +486,9 @@ sub find_analysis_to_upload {
 			$E->age > $min_age and                      # older than min age
 			$E->age < $max_age and                      # less than max age
 			$E->lab_last !~ $internal_org and           # not internal lab
-			substr($E->date, 0, 4) >= $year             # current year
+			substr($E->date, 0, 4) >= $year and         # current year
+			( ( $email == -1 ) or ( $email == 0 && $E->emailed_datestamp == 0 ) or
+				( $email == 1 && $E->emailed_datestamp > 1 ) )
 		) {
 			# we have a candidate
 			push @list, $key;
@@ -488,6 +512,7 @@ sub find_analysis_to_hide {
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
 	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} :
 		$anal_up_min_size;
+	my $email = exists $opts{emailed} ? $opts{emailed} : -1;
 	
 	# scan through list
 	my @list;
@@ -501,9 +526,12 @@ sub find_analysis_to_hide {
 			$E->age > $min_age and                      # older than min age
 			$E->age < $max_age	and                     # less than max age
 			substr($E->date, 0, 4) >= $year and         # current year
-			$E->lab_last !~ $internal_org               # not internal lab
+			$E->lab_last !~ $internal_org and           # not internal lab
+			( ( $email == -1 ) or ( $email == 0 && $E->emailed_datestamp == 0 ) or
+				( $email == 1 && $E->emailed_datestamp > 1 ) )
 		) {
 			# we have a possible candidate
+			# check core status
 			if (defined $core) {
 				if ($core and $E->core_lab) {
 					push @list, $key;
@@ -535,6 +563,7 @@ sub find_analysis_to_delete {
 		$anal_up_max_age;
 	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
 	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
+	my $email = exists $opts{emailed} ? $opts{emailed} : -1;
 	
 	# scan through list
 	my @list;
@@ -548,9 +577,12 @@ sub find_analysis_to_delete {
 			$E->hidden_age > $min_age and               # hidden for min number days
 			$E->hidden_age < $max_age and               # hidden for max number days
 			$E->lab_last !~ $internal_org and           # not hidden lab
-			substr($E->date, 0, 4) >= $year             # current year
+			substr($E->date, 0, 4) >= $year and         # current year
+			( ( $email == -1 ) or ( $email == 0 && $E->emailed_datestamp == 0 ) or
+				( $email == 1 && $E->emailed_datestamp > 1 ) )
 		) {
 			# we have a possible candidate
+			# check core status
 			if (defined $core) {
 				if ($core and $E->core_lab) {
 					push @list, $key;
