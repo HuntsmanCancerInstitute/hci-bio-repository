@@ -9,7 +9,7 @@ use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
 use hciCore qw( generate_prefix generate_bucket );
 
-our $VERSION = 7.0;
+our $VERSION = 7.1;
 
 
 
@@ -215,6 +215,13 @@ sub fetch_analyses {
 			# an existing project, just need to update 
 			my $u = 0;
 			
+			# reconfirm external status
+			if ( ( $row[9] eq 'Y' or $row[10] eq 'Y' ) and $E->external eq 'N' ) {
+				printf "  > updating %s to external status\n", $E->id;
+				$E->external('Y');
+				$u++;
+			}
+
 			# basically check to see if we have a CORE lab
 			if ($E->external eq 'N') {
 				# for university clients only
@@ -434,7 +441,14 @@ sub fetch_requests {
 				$E->request_status($row[11]);
 				$u++;
 			}
-			
+
+			# reconfirm external status
+			if ( ( $row[9] eq 'Y' or $row[10] eq 'Y' ) and $E->external eq 'N' ) {
+				printf "  > updating %s to external status\n", $E->id;
+				$E->external('Y');
+				$u++;
+			}
+
 			# sb lab division 
 			if ($E->external eq 'N') {
 				# for university clients only
