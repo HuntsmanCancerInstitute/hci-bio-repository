@@ -91,6 +91,8 @@ OPTIONS
     --nocore                  Exclude projects with a CORE lab name
     --external                Select only external projects (assumes no CORE lab)
     --noexternal              Exclude external projects
+    --emailed                 Include projects that have been emailed
+    --noemailed               Exclude projects that have been emailed
     
   Action on catalog entries (select one): 
     --status                  Print the status of listed projects
@@ -193,6 +195,7 @@ my $min_age;
 my $max_age;
 my $min_size;
 my $external;
+my $emailed;
 my $show_status = 0;
 my $show_info = 0;
 my $show_aa_status = 0;
@@ -271,6 +274,7 @@ if (scalar(@ARGV) > 1) {
 		'max_age=i'             => \$max_age,
 		'size=s'                => \$min_size,
 		'external!'             => \$external,
+		'emailed!'              => \$emailed,
 		'status!'               => \$show_status,
 		'info!'                 => \$show_info,
 		'aastatus!'             => \$show_aa_status,
@@ -758,6 +762,7 @@ sub generate_list {
 			core     => $include_core,
 			external => $external,
 			size     => $min_size,
+			emailed  => (defined $emailed ? $emailed : -1 ),
 		);
 		if ($list_req) {
 			return grep  {m/^\d+R$/} @list;
@@ -791,6 +796,7 @@ sub generate_list {
 			core     => $include_core,
 			external => $external,
 			size     => $min_size,
+			emailed  => (defined $emailed ? $emailed : -1 ),
 		);
 	}
 	
@@ -804,6 +810,7 @@ sub generate_list {
 			core     => $include_core,
 			external => $external,
 			size     => $min_size,
+			emailed  => (defined $emailed ? $emailed : -1 ),
 		);
 	}
 	
@@ -828,6 +835,7 @@ sub generate_list {
 			core     => $include_core,
 			external => $external,
 			size     => $min_size,
+			emailed  => (defined $emailed ? $emailed : -1 ),
 		);
 	}
 	
@@ -841,6 +849,7 @@ sub generate_list {
 			core     => $include_core,
 			external => $external,
 			size     => $min_size,
+			emailed  => (defined $emailed ? $emailed : -1 ),
 		);
 	}
 	
@@ -853,6 +862,7 @@ sub generate_list {
 			age      => $min_age,
 			maxage   => $max_age,
 			size     => $min_size,			
+			emailed  => (defined $emailed ? $emailed : -1 ),
 		);
 	}
 	
