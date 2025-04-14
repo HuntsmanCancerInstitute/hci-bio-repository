@@ -15,7 +15,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 8.0;
+our $VERSION = 8.1;
 
 
 ######## Documentation
@@ -556,6 +556,10 @@ sub open_import_catalog {
 						next;
 					}
 
+					# skip remainder of loop if project hidden or deleted
+					next if $Entry->deleted_datestamp;
+					next if $Entry->hidden_datestamp;
+
 					# Check if needs to be scanned
 					if ($project_scan) {
 						my $do = 0;
@@ -625,7 +629,7 @@ sub open_import_catalog {
 						$Entry->youngest_datestamp($datestamp);
 					}
 
-					# print warnings if something seems amiss
+					# print warnings if something seems amiss and skip remainder of loop
 					if ($Entry->deleted_datestamp and 
 						$datestamp > $Entry->deleted_datestamp
 					) {
@@ -638,6 +642,10 @@ sub open_import_catalog {
 						print "  ! New files added to hidden project $id\n";
 						next;
 					}
+
+					# skip remainder of loop if project hidden or deleted
+					next if $Entry->deleted_datestamp;
+					next if $Entry->hidden_datestamp;
 
 					# AutoAnalysis folder
 					my $aa_folder = $Project->get_autoanal_folder;
