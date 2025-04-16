@@ -574,9 +574,15 @@ sub upload_files_parallel {
 		exit 1;
 	}
 	elsif ($success) {
+		# update the upload time stamps as appropriate
 		if ($Entry) {
 			if ( $include_autoanal and $Entry->is_request ) {
 				$Entry->autoanal_up_datestamp(time);
+
+				# also update standard upload date too if it's not set
+				unless ( $Entry->upload_datestamp ) {
+					$Entry->upload_datestamp(time);
+				}
 			}
 			else {
 				$Entry->upload_datestamp(time);
