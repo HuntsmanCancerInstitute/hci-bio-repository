@@ -30,12 +30,12 @@ projects based on status, age, size, ownership, etc. Projects that have
 exceeded their lifespan can be prepared for offloading to other storage 
 platforms, for example AWS accounts. 
 
-Expired projects may be scanned and inventoried, moved to a hidden directory, 
-and permanently deleted. Scanning and archiving files is done by separate 
-applications, process_analysis_project and process_request_project. This 
-writes important file lists in the project directory or parent – all subsequent 
-project file actions depend on these lists and cannot proceed without them.
-No project file manipulation is performed through blind or bulk wildcards. 
+Expired projects may be scanned and inventoried, moved to a hidden directory,
+and permanently deleted. Scanning and archiving files is done by a separate
+application, 'process_project.pl'. This writes important file lists in the
+project directory or parent – all subsequent project file actions depend on
+these lists and cannot proceed without them. No project file manipulation is
+performed through blind or bulk wildcards. 
 
 All data is stored in a local catalog (database) file. This catalog may be 
 exported (and imported) as a simple tab-delimited text file for backup purposes
@@ -63,7 +63,11 @@ USAGE
 OPTIONS
 
   Required:
-    --cat <file>              Provide the path to a catalog database file
+    -c --cat <file>           Provide the path to a catalog database file
+  
+  Import from GNomEx:
+    --import_anal             Fetch and update Analysis projects from GNomEx DB
+    --import_req              Fetch and update Request projects from GNomEx DB
   
   Catalog entry selection: 
     --list <file>             File of project identifiers to work on
@@ -91,24 +95,23 @@ OPTIONS
     --nocore                  Exclude projects with a CORE lab name
     --external                Select only external projects (assumes no CORE lab)
     --noexternal              Exclude external projects
-    --emailed                 Include projects that have been emailed
+    --emailed                 Select only projects that have been emailed
     --noemailed               Exclude projects that have been emailed
     
-  Action on catalog entries (select one): 
+  Display catalog entries (select one): 
     --status                  Print the status of listed projects
     --info                    Print basic information of listed projects
     --aastat                  Print status of Request AutoAnalysis projects
     --path                    Print the local repository path of listed project
     --url                     Print the S3 URL of listed projects
     --print                   Print all the information of listed projects
-    --delete_entry            Delete catalog entry
+                                tab-delimited format with header
   
   Actions on projects:
     --scan                    Scan the project directory and write METADATA
     --zip                     Zip archive Analysis files
-    --upload                  Upload projects to CORE lab AWS bucket
+    --upload                  Upload projects to AWS bucket, skips AutoAnalysis
     --aaupload                Upload projects, including AutoAnalysis folders
-    --forks <int>             Number of parallel forks for uploads
 
   Actions on project directories:
     --hide_zip                Hide the zipped files to _ZIPPED_FILES folder
@@ -128,10 +131,6 @@ OPTIONS
     --email_req_del           Email Request scheduled deletion
     --email_req_up            Email Request upload
   
-  Import from GNomEx:
-    --import_anal             Fetch and update Analysis projects from GNomEx DB
-    --import_req              Fetch and update Request projects from GNomEx DB
-  
   Actions to update catalog entries:
        For the <date> value, use 'YYYYMMDD' for specific date, 'now'
        for the current time and date, or '0' to clear.
@@ -148,6 +147,7 @@ OPTIONS
     --update_bucket <text>    Update the AWS S3 bucket
     --update_prefix <text>    Update the AWS prefix (only one project)
     --generate_s3             Generate default AWS S3 bucket/prefix
+    --delete_entry            Delete catalog entry
   
   Actions on catalog file:
     --export <path>           Dump the contents to tab-delimited text file
@@ -160,10 +160,11 @@ OPTIONS
                                 Default is ~/.aws/credentials. 
 
   General:
-    --transform               When exporting transform to human conventions
-    --biggest                 Print the biggest size in status (current or previous)
     --mock                    For email and upload functions only,
                                  print output but not actual work
+    --forks <int>             Number of parallel forks for uploads
+    --transform               When exporting transform to human conventions
+    --biggest                 Print the biggest size in status (current or previous)
     -v --verbose              Print additional output for some functions
     -h --help                 Print documentation
   
