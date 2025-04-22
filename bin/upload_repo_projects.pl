@@ -18,7 +18,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 1.0;
+our $VERSION = 1.1;
 
 my $doc = <<END;
 
@@ -26,13 +26,12 @@ A script to prepare and upload a GNomEx Repository Project to its
 corresponding CORE Lab account AWS bucket.
 
 It will identify candidate files to upload from a given GNomEx
-Repository project, either Request and Analysis. The Project Manifest
+Repository project, either Request or Analysis. The Project Manifest
 file is used to generate the list of candidate files, so the Project
 must already be scanned; see corresponding process_project.pl
 application. If the project was previously uploaded and the
 bucket/prefix exists, then it will be recursively listed and compared
-with the manifest file to determine which file(s) need to be uploaded.
-
+with the manifest file to determine which files need to be uploaded.
 
 The target AWS bucket and prefix are determined from a Project catalog
 database. See the manage_repository.pl application. It is possible to
@@ -153,7 +152,17 @@ my $cost_sub = 2;
 check_options();
 initialize();
 prepare_list();
-upload_files_parallel() unless $check_only;
+unless ($check_only) {
+	if ( scalar @upload_list ) {
+		upload_files_parallel();
+	}
+	else {
+		print " ! Nothing to upload\n";
+		# not necessarily an error per se, but this signals that no upload occurred
+		# necessary for downstream pipelining, for example not to send an email
+		exit 2;
+	}
+}
 
 # finished
 
@@ -221,7 +230,7 @@ sub check_options {
 		}
 		else {
 			print " ERROR: No AWS CLI program available in PATH!\n";
-			exit;
+			exit 1;
 		}
 	}
 }
@@ -386,34 +395,6 @@ sub prepare_list {
 	}
 	
 
-	# manifest file itself
-	my @man_stat = stat $manifest_file;
-	if ( exists $existing{$manifest_file} ) {
-		my $local_time  = $man_stat[9];
-		my $remote_time = str2time( $existing{$manifest_file} );
-		if ( $local_time > $remote_time ) {
-			push @upload_list, $manifest_file;
-			$count++;
-			$size += $man_stat[7];
-			if ($verbose) {
-				print "   > including file $manifest_file\n";
-			}
-		}
-		else {
-			if ($verbose) {
-				print "   > skipping uploaded file $manifest_file\n";
-			}
-		}
-	}
-	else {
-		push @upload_list, $manifest_file;
-		$count++;
-		$size += $man_stat[7];		
-		if ($verbose) {
-			print "   > including file $manifest_file\n";
-		}
-	}
-
 	# parse manifest
 	my $csv = Text::CSV->new();
 	my $fh  = IO::File->new($manifest_file) or
@@ -483,6 +464,41 @@ sub prepare_list {
 	}
 	$fh->close;
 	
+	# manifest file itself
+	my @man_stat = stat $manifest_file;
+	if ( exists $existing{$manifest_file} ) {
+		my $local_time  = $man_stat[9];
+		my $remote_time = str2time( $existing{$manifest_file} );
+		if ( $local_time > $remote_time ) {
+			# check to see if we have other files to upload
+			# we do not need to upload the manifest if it is the only changed file
+			if ($count) {
+				push @upload_list, $manifest_file;
+				$count++;
+				$size += $man_stat[7];
+				if ($verbose) {
+					print "   > including file $manifest_file\n";
+				}
+			}
+			else {
+				print "  > Manifest file is the only changed file, skipping upload\n";
+			}
+		}
+		else {
+			if ($verbose) {
+				print "   > skipping uploaded file $manifest_file\n";
+			}
+		}
+	}
+	else {
+		push @upload_list, $manifest_file;
+		$count++;
+		$size += $man_stat[7];		
+		if ($verbose) {
+			print "   > including file $manifest_file\n";
+		}
+	}
+
 	printf " > Collected %d files (%s) out of %d to upload to %s/%s\n",
 		$count, format_human_size($size), $count + $skip, $bucket_name, $prefix;
 	if ($zipcnt) {
@@ -498,7 +514,6 @@ sub prepare_list {
 }
 
 sub upload_files_parallel {
-	return unless (@upload_list);
 	printf " > Uploading in %d forks\n", $cpu;
 	my $pm = Parallel::ForkManager->new($cpu)
 		or die "unable to initiate Parallel::ForkManager!";
