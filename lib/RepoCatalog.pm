@@ -1152,7 +1152,7 @@ sub print_string {
 	if ($transform) {
 		
 		# convert times from epoch to YYYYMMDD
-		for my $i (SCAN, UPLOAD, HIDDEN, DELETED, EMAILED, AAUPLOAD, QCSCAN) {
+		for my $i (AGE, SCAN, UPLOAD, HIDDEN, DELETED, EMAILED, AAUPLOAD, QCSCAN) {
 			next unless (defined $data[$i] and $data[$i]);
 			my @times = localtime($data[$i]);
 			if ($times[5] == 69 or $times[5] == 70) {
@@ -1163,9 +1163,6 @@ sub print_string {
 					$times[5] + 1900, $times[4] + 1, $times[3]);
 			}
 		}
-		
-		# express age in days
-		$data[AGE] = sprintf("%d days", $self->age);
 		
 		# convert sizes
 		for my $i (SIZE, LASTSIZE) {
