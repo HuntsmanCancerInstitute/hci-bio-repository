@@ -5,6 +5,7 @@ use strict;
 use English qw(-no_match_vars);
 use Carp;
 use IO::File;
+use Cwd;
 use File::Spec;
 use File::Copy;
 use File::Path qw(make_path);
@@ -12,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 7.3;
+our $VERSION = 7.4;
 
 ### Initialize
 
@@ -576,7 +577,7 @@ sub get_size_age {
 sub get_autoanal_folder {
 	my $self = shift;
 	return unless ($self->project =~ /^\d+R$/);
-	my $curdir = File::Spec->curdir();
+	my $curdir = getcwd();
 	chdir $self->given_dir;
 	my @results = glob("AutoAnalysis_*");
 	my $aapath = q();
@@ -594,7 +595,7 @@ sub get_autoanal_folder {
 sub has_fastq {
 	my $self = shift;
 	return unless ($self->project =~ /^\d+R$/);
-	my @results = glob( sprintf("%s/Fastq/*.fastq.gz", $self->given_dir) );
+	my @results = glob( sprintf("%s/Fastq/*.fastq.*", $self->given_dir ) );
 	if (@results) {
 		return 1;
 	}
