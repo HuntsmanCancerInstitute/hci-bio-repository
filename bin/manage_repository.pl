@@ -3,8 +3,10 @@
 use warnings;
 use strict;
 use English qw(-no_match_vars);
-use IO::File;
 use Getopt::Long;
+use Cwd;
+use File::Spec;
+use IO::File;
 use Time::Local;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
@@ -75,15 +77,15 @@ OPTIONS
     --list_req_up             Print or work on Request IDs for upload to AWS
     --list_req_hide           Print or work on Request IDs for hiding
     --list_req_delete         Print or work on Request IDs for deletion
-    --list_aa_up              Print or work on AutoAnalysis Requests for upload
     --list_anal_up            Print or work on Analysis IDs for uploading to AWS
     --list_anal_hide          Print or work on Analysis IDs for hiding
     --list_anal_delete        Print or work on Analysis IDs for deletion
     --list_lab <pi_lastname>  Print or select based on PI last name
     --list_req                Print or select all Request catalog entries
     --list_anal               Print or select all Analysis catalog entries
-    --list_aa                 Print or select all AutoAnalysis Request entries
     --list_all                Print or select all catalog entries
+    --list_aa                 Print or select all AutoAnalysis Request entries
+    --list_aa_up              Print or work on AutoAnalysis Requests for upload
   
   Catalog selection modifiers:
     --year <YYYY>             Select entries to given year or newer
@@ -375,7 +377,7 @@ sub check_options {
 	if ($cat_file) {
 		if ($cat_file !~ m|^/|) {
 			# catalog file path is not from root
-			$cat_file = File::Spec->catfile( File::Spec->rel2abs(), $cat_file);
+			$cat_file = File::Spec->rel2abs($cat_file);
 		}
 	}
 	else {
@@ -1364,7 +1366,7 @@ sub run_project_actions {
 		my @success;
 
 		# remember current directory, as we will move around
-		my $start_dir = File::Spec->rel2abs( File::Spec->curdir() );
+		my $start_dir = getcwd();
 
 		# iterate through projects
 		foreach my $item (@action_list) {
@@ -1499,7 +1501,7 @@ sub run_project_actions {
 			print "\n Executing $command\n";
 			my $r = system($command);
 			if ($r) {
-				print " \n FAILURE during upload of $id\n";
+				print " \n ! Incomplete or no uploads of $id\n";
 			}
 			else {
 				push @success, $id;
@@ -1522,7 +1524,7 @@ sub run_project_directory_actions {
 		$clean_project_files);
 	
 	# remember current directory, as we will move around
-	my $current_dir = File::Spec->rel2abs( File::Spec->curdir() );
+	my $current_dir = getcwd();
 	
 	# we will do all given functions at once for each project
 	my @success;
