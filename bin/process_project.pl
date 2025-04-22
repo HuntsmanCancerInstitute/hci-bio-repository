@@ -135,7 +135,7 @@ if ($cat_file and $id) {
 	# first check path
 	if ($cat_file !~ m|^/|) {
 		# catalog file path is not from root
-		$cat_file = File::Spec->catfile( File::Spec->rel2abs(), $cat_file);
+		$cat_file = File::Spec->rel2abs($cat_file);
 	}
 	
 	# find entry in catalog and collect information
