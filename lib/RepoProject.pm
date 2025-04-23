@@ -887,7 +887,8 @@ full path.
 
 =item has_fastq
 
-Returns true (1) or false (0) if a Request project as a Fastq folder.
+Returns true (number of found files) or false (0) if a Request project
+contains identifiable fastq files in a C<Fastq> folder.
 
 =back
 
