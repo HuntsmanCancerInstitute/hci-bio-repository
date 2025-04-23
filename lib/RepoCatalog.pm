@@ -392,7 +392,7 @@ sub find_requests_to_hide {
 		) {
 			# we have a possible candidate
 			if (defined $core) {
-				if ($core and $E->core_lab) {
+				if ($core and $E->core_lab and $E->upload_datestamp > 1) {
 					push @list, $key;
 				}
 				elsif (not $core and not $E->core_lab) {
