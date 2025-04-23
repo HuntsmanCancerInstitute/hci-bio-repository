@@ -162,8 +162,8 @@ OPTIONS
                                 Default is ~/.aws/credentials. 
 
   General:
-    --mock                    For email and upload functions only,
-                                 print output but not actual work
+    --mock                    For scan, upload, zip, and email functions only,
+                                 print command or output, but perform no work
     --forks <int>             Number of parallel forks for uploads
     --transform               When exporting transform to human conventions
     --biggest                 Print the biggest size in status (current or previous)
@@ -1316,8 +1316,7 @@ sub run_project_actions {
 			
 			# generate the command for external utility
 			# these will be executed one at a time
-			my $command = sprintf
-				"%s/process_project.pl --catalog %s --project %s",
+			my $command = sprintf "%s/process_project.pl --catalog %s --project %s",
 				$Bin, $cat_file, $id;
 			if ($verbose) {
 				$command .= " --verbose";
@@ -1342,13 +1341,19 @@ sub run_project_actions {
 					$command .= " --nozip";
 				}
 			}
-			print " Executing $command\n";
-			my $r = system($command);
-			if ($r) {
-				print " \n FAILURE while scanning $id\n";
+			if ($mock) {
+				print " MOCK Executing '$command'\n";
+				push @success, $id;
 			}
 			else {
-				push @success, $id;
+				print " Executing '$command'\n";
+				my $r = system($command);
+				if ($r) {
+					print " \n FAILURE while scanning $id\n";
+				}
+				else {
+					push @success, $id;
+				}
 			}
 		}
 		# reset the action list based on the success of this step
@@ -1409,13 +1414,19 @@ sub run_project_actions {
 				printf " ! %s is already archived, %s exists\n", $id, $Project->zip_file;
 				next;
 			}
-			my $failure_count = $Project->zip_archive_files;
-			if ($failure_count) {
-				printf "  ! Project %s had %d zip failures\n", $id, $failure_count;
+			if ($mock) {
+				printf " MOCK Zipping %s....\n", $id;
+				push @success, $id;
 			}
 			else {
-				printf "  > Completed project %s successfully\n", $id;
-				push @success, $id;
+				my $failure_count = $Project->zip_archive_files;
+				if ($failure_count) {
+					printf "  ! Project %s had %d zip failures\n", $id, $failure_count;
+				}
+				else {
+					printf "  > Completed project %s successfully\n", $id;
+					push @success, $id;
+				}
 			}
 		}
 
@@ -1478,27 +1489,30 @@ sub run_project_actions {
 		printf " > %d projects to upload: %s\n", scalar @upload_list,
 			join(', ', @upload_list);
 
+		# generate base command
+		my $base_command = sprintf "%s/upload_repo_projects.pl --catalog %s", $Bin,
+			$cat_file;
+		if ($project_aa_upload) {
+			$base_command .= ' --aa';
+		}
+		if ($forks) {
+			$base_command .= sprintf " --forks %d", $forks;
+		}
+		if ($verbose) {
+			$base_command .= ' --verbose';
+		}
+		if ($mock) {
+			# Not the actual mock command, which goes through the entire forking
+			# and dryrun aws s3 commands. Instead just checks bucket and counts
+			# number of files to upload, which is what we really want here. 
+			$base_command .= ' --check';
+		}
+
 		# run upload tool
 		my @success;
 		foreach my $id (@upload_list) {
-			my $command = sprintf "%s/upload_repo_projects.pl --catalog %s --project %s",
-				$Bin, $cat_file, $id;
-			if ($project_aa_upload) {
-				$command .= ' --aa';
-			}
-			if ($forks) {
-				$command .= sprintf " --forks %d", $forks;
-			}
-			if ($verbose) {
-				$command .= ' --verbose';
-			}
-			if ($mock) {
-				# Not the actual mock command, which goes through the entire forking
-				# and dryrun aws s3 commands. Instead just checks bucket and counts
-				# number of files to upload, which is what we really want here. 
-				$command .= ' --check';
-			}
-			print "\n Executing $command\n";
+			my $command = sprintf "%s --project %s", $base_command, $id;
+			print "\n Executing '$command'\n";
 			my $r = system($command);
 			if ($r) {
 				print " \n ! Incomplete or no uploads of $id\n";
