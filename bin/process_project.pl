@@ -350,7 +350,10 @@ sub scan_directory {
 	# check paired fastq status
 	my $paired_fastq = 0;
 	foreach my $f (keys %filedata) {
-		if ( exists $filedata{$f}{paired_end} and $filedata{$f}{paired_end} eq '2' ) {
+		if ( exists $filedata{$f}{paired_end} and 
+			( $filedata{$f}{paired_end} eq '2' or
+			$filedata{$f}{paired_end} eq 'interleaved' )
+		 ) {
 			$paired_fastq = 1;
 			last;
 		}
@@ -563,6 +566,10 @@ sub callback {
 		return;
 	}
 	elsif ($file eq $Project->zip_file) {
+		return;
+	}
+	elsif ($file eq 'ora_decompression_README.txt') {
+		push @removelist, $clean_name;
 		return;
 	}
 	elsif ($file =~ /libsnappyjava\.so$/xi) {
@@ -957,7 +964,7 @@ m/^ ( \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (sum)? .* \. (txt |
 	my ($date, $size) = get_file_stats($file);
 	
 	# clean up sample identifier as necessary
-	$sample =~ s/P/X/;
+	$sample =~ s/[PG]/X/;
 	
 	### Record the collected file information
 	my $status = 3;
