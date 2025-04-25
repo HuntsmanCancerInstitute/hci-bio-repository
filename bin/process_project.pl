@@ -1102,6 +1102,12 @@ sub analysis_callback {
 	my ($filetype, $zip);
 	my ($date, $size) = get_file_stats($file);
 	
+	# zero byte files are arguably not worth keeping
+	if ($size == 0) {
+		push @removelist, $clean_name;
+		return;
+	}
+	
 	### Possible file types
 	# assign general file category type based on the extension
 	# this should catch most files, but there's always weirdos and miscellaneous files
