@@ -591,9 +591,6 @@ sub fetch_requests {
 						# we're allowed to upload
 						$E->core_lab($lab2info->{$lab}->[2]);
 						$E->profile( $lab2info->{$lab}->[3] );
-						# generate bucket and prefix
-						generate_bucket($E);
-						generate_prefix($E);
 					}
 				}
 				else {

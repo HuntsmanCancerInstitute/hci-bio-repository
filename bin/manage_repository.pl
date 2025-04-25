@@ -686,13 +686,17 @@ sub open_import_catalog {
 						else {
 							$do_scan += 1;
 						}
-						# if ($do and $verbose) {
 						if ($do_scan) {
 							printf "  > will scan %s, age %s, last scanned %s days ago\n",
 								$id, $Entry->age || 0, $Entry->scan_datestamp ? 
 								sprintf("%.0f",
 								(time - $Entry->scan_datestamp) / 86400) : '-';
 							push @action_list, $id;
+						}
+						# check S3 information
+						if ( $Entry->core_lab and not $Entry->bucket ) {
+							generate_bucket($Entry);
+							generate_prefix($Entry);
 						}
 					}
 				}
