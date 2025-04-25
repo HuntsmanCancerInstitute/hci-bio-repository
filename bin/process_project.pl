@@ -964,7 +964,9 @@ m/^ ( \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (sum)? .* \. (txt |
 	my ($date, $size) = get_file_stats($file);
 	
 	# clean up sample identifier as necessary
-	$sample =~ s/[PG]/X/;
+	if ($sample) {
+		$sample =~ s/[PG]/X/;
+	}
 	
 	### Record the collected file information
 	my $status = 3;
