@@ -10,7 +10,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw( generate_bucket generate_prefix cleanup );
 
-our $VERSION = 7.1;
+our $VERSION = 7.2;
 my  $net_loaded = 0;
 
 sub generate_bucket {
@@ -33,6 +33,10 @@ sub generate_bucket {
 	}
 	elsif ( $group =~ /^Request s? \s submitted \s by \s ([\w\-]+) \s ([\w\-\s]+)$/xi ) {
 		$group = sprintf "%s-%s", $1, $2;
+	}
+	elsif ( $group =~ /^Request s? \s submitted \s by \s ([\w\-]+) $/xi ) {
+		# old style folder with only one name, probably first, use their full name
+		$group = sprintf "%s-%s", $Entry->user_first, $Entry->user_last;
 	}
 	elsif ( $group =~ /^submitted \s for \s ([\w\-]+) \s ([\w\-\s]+)$/xi ) {
 		$group = sprintf "%s-%s", $1, $2;
