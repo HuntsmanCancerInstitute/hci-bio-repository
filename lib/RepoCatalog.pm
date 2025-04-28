@@ -44,8 +44,10 @@ sub new {
 		$db = DBM::Deep->new($path) or 
 			croak "unable to open database file '$path'! $OS_ERROR";
 		# check if current version
-		my $first = $db->first_key;
-		my $data = $db->get($first);
+		my $first = $db->first_key or
+			croak "uninitialized or corrupt database file!";
+		my $data = $db->get($first)or
+			croak "uninitialized or corrupt database file!";
 		if ( scalar @{ $data } != $ARRAY_SIZE ) {
 			croak "Database first entry does not have $ARRAY_SIZE fields! Old database?";
 		}

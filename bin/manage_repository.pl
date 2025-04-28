@@ -379,6 +379,10 @@ sub check_options {
 			# catalog file path is not from root
 			$cat_file = File::Spec->rel2abs($cat_file);
 		}
+		if ( not -e $cat_file and not $import_file ) {
+			printf "FATAL: '%s' cannot be found!\n", $cat_file;
+			exit 1;
+		}
 	}
 	else {
 		print "FATAL: No catalog file provided!\n";
