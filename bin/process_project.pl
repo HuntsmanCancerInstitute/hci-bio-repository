@@ -402,6 +402,9 @@ sub scan_directory {
 			}
 			else {
 				# don't have it, need to calculate
+				if ($verbose) {
+					printf "    generating checksum for %s\n", $f;
+				}
 				$md5 = $Project->calculate_file_checksum($f);
 			}
 			$filedata{$f}{MD5} = $md5;
