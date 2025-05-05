@@ -619,9 +619,7 @@ sub callback {
 	elsif ( $file =~ /^\./ ) {
 		# hidden files
 		print "   ! deleting hidden file $clean_name\n";
-		unless (unlink $file) {
-			push @removelist, $clean_name;
-		}
+		push @removelist, $clean_name;
 		return;
 	}
 	elsif ( -l $file  ) {
@@ -960,8 +958,9 @@ m/^ ( \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (sum)? .* \. (txt |
 	else {
 		# programmer error!
 		print "   ! unrecognized file $clean_name\n";
-		$failure_count++;
-		return;
+		$type = 'document';
+# 		$failure_count++;
+# 		return;
 	}
 	
 	# stats on the file
