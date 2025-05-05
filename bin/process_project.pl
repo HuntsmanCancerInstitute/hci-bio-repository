@@ -921,9 +921,10 @@ m/^ ( Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) \/
 		my ($m, undef) = split(/\s+/, $line, 2);
 		$fh->close;
 		push @removelist, $clean_name;
-		$clean_name =~ s/$ext//;
-		$checksums{$clean_name} = $m;
-		print "   > processed md5 file for $clean_name\n" if $verbose;
+		my $original = $file;
+		$original =~ s/$ext//;
+		$checksums{$original} = $m;
+		print "   > processed md5 file for $original\n" if $verbose;
 		return; # do not continue
 	}
 	# multiple checksum file - with or without datetime stamp in front - ugh
