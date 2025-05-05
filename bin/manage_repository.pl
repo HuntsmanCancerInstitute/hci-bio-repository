@@ -207,7 +207,6 @@ my $show_url = 0;
 my $print_info = 0;
 my $delete_entry = 0;
 my $scan_size_age = 0;
-my $import_sizes = 0;
 my $update_scan_date;
 my $update_hide_date;
 my $update_upload_date;
@@ -305,7 +304,6 @@ if (scalar(@ARGV) > 1) {
 		'mock!'                 => \$mock,
 		'import_anal!'          => \$fetch_analysis,
 		'import_req!'           => \$fetch_request,
-		'import_size!'          => \$import_sizes,
 		'update_scan=s'         => \$update_scan_date,
 		'update_hide=s'         => \$update_hide_date,
 		'update_up=s'           => \$update_upload_date,
@@ -750,13 +748,15 @@ sub generate_list {
 		if ($header =~ m/^ (?: \d+R | A\d+ ) /x) {
 			# the first line looks like a project identifier, so keep it
 			chomp $header;
-			push @list, $header;
+			my ($id, @rest) = split /\s+/, $header;
+			push @list, $id;
 		}
 		
 		# load remaining file
-		while (my $l = $fh->getline) {
-			chomp $l;
-			push @list, $l;
+		while (my $line = $fh->getline) {
+			chomp $line;
+			my ($id, @rest) = split /\s+/, $line;
+			push @list, $id;
 		}
 		
 		# printf " loaded %d lines from $list_file\n", scalar(@action_list);
@@ -909,9 +909,7 @@ sub run_metadata_actions {
 			die "No list provided to scan filesystem for size and age!\n";
 		}
 		my $count = 0;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			my $Project = RepoProject->new($Entry->path) or next;
 			my ($size, $age) = $Project->get_size_age;
@@ -926,28 +924,6 @@ sub run_metadata_actions {
 		print " Collected and updated size and age stats for $count entries\n";
 	}
 
-	# import sizes from file
-	if ($import_sizes) {
-		unless (@action_list) {
-			die "No list provided to import sizes!\n";
-		}
-		my $count = 0;
-		foreach my $item (@action_list) {
-			my ($id, $size, $previous_size) = split(m/\s+/, $item);
-			next unless (defined $id);
-			my $Entry = $Catalog->entry($id) or next;
-			if (defined $size and defined $previous_size) {
-				$Entry->size($previous_size); # this one first
-				$Entry->size($size); # then the current one
-			}
-			elsif (defined $size) {
-				$Entry->size($size);
-			}
-			$count++;
-		}
-		print "  updated sizes for $count entries\n";
-	}
-	
 	# update the metadata scan date
 	if (defined $update_scan_date) {
 		my $time;
@@ -969,9 +945,7 @@ sub run_metadata_actions {
 			die "No list provided to update scan dates!\n";
 		}
 		my $count = 0;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->scan_datestamp($time);
 			$count++;
@@ -1000,9 +974,7 @@ sub run_metadata_actions {
 			die "No list provided to update upload dates!\n";
 		}
 		my $count = 0;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->upload_datestamp($time);
 			$count++;
@@ -1031,9 +1003,7 @@ sub run_metadata_actions {
 			die "No list provided to update upload dates!\n";
 		}
 		my $count = 0;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->autoanal_up_datestamp($time);
 			$count++;
@@ -1062,9 +1032,7 @@ sub run_metadata_actions {
 			die "No list provided to update hide dates!\n";
 		}
 		my $count = 0;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->hidden_datestamp($time);
 			$count++;
@@ -1093,9 +1061,7 @@ sub run_metadata_actions {
 			die "No list provided to update delete dates!\n";
 		}
 		my $count = 0;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->deleted_datestamp($time);
 			$count++;
@@ -1124,9 +1090,7 @@ sub run_metadata_actions {
 			die "No list provided to update email dates!\n";
 		}
 		my $count = 0;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->emailed_datestamp($time);
 			$count++;
@@ -1144,9 +1108,7 @@ sub run_metadata_actions {
 			$update_core_lab = q();
 		}
 		my $count = 0;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->core_lab($update_core_lab);
 			$count++;
@@ -1164,9 +1126,7 @@ sub run_metadata_actions {
 			$update_profile = q();
 		}
 		my $count = 0;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			$Entry->profile($update_profile);
 			$count++;
@@ -1185,9 +1145,7 @@ sub run_metadata_actions {
 		my $nocore   = 0;
 		my $uploaded = 0;
 		my $skipped  = 0;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			if (not $Entry->core_lab) {
 				$nocore++;
@@ -1230,7 +1188,7 @@ sub run_metadata_actions {
 			print "! Only the first project will have its prefix updated!\n"
 		}
 		$update_prefix =~ s|/$||;
-		my ($id, @rest) = split( m/\s+/, $action_list[0] );
+		my $id = $action_list[0];
 		my $Entry = $Catalog->entry($id);
 		if ($Entry) {
 			if ( not $Entry->core_lab ) {
@@ -1259,9 +1217,7 @@ sub run_metadata_actions {
 		my $nocore   = 0;
 		my $uploaded = 0;
 		my $skipped  = 0;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			if (not $Entry->core_lab) {
 				$nocore++;
@@ -1302,11 +1258,12 @@ sub run_project_actions {
 		unless (@action_list) {
 			die "No list provided to delete entries!\n";
 		}
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			if ($Catalog->delete_entry($id) ) {
 				print "  deleted $id\n";
+			}
+			else {
+				print "  ! $id not found\n";
 			}
 		}
 	}
@@ -1318,9 +1275,7 @@ sub run_project_actions {
 			die "No list provided to scan projects!\n";
 		}
 		my @success;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split m/\s+/, $item;
-			next unless ($id);
+		foreach my $id (@action_list) {
 			
 			# generate the command for external utility
 			# these will be executed one at a time
@@ -1382,9 +1337,7 @@ sub run_project_actions {
 		my $start_dir = getcwd();
 
 		# iterate through projects
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			printf "\n > Zipping files for project %s\n", $id;
 			
 			# Collect project path
@@ -1457,9 +1410,7 @@ sub run_project_actions {
 
 		# prepare valid project upload list
 		my @upload_list;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id);
 			unless ($Entry) {
 				print " ! Identifier $id not in Catalog! skipping\n";
@@ -1550,9 +1501,7 @@ sub run_project_directory_actions {
 	
 	# we will do all given functions at once for each project
 	my @success;
-	foreach my $item (@action_list) {
-		my ($id, @rest) = split(m/\s+/, $item);
-		next unless (defined $id);
+	foreach my $id (@action_list) {
 		
 		# Collect project path
 		my $Entry = $Catalog->entry($id);
@@ -1801,9 +1750,7 @@ sub run_email_notifications {
 	
 	# request scheduled deletion notification 
 	if ($email_req_del) {
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 		
 			my $result = $Email->send_request_deletion_email($Entry, 'mock' => $mock);
@@ -1820,9 +1767,7 @@ sub run_email_notifications {
 	
 	# request upload notification
 	if ($email_req_up) {
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 		
 			my $result = $Email->send_request_upload_email($Entry, 'mock' => $mock);
@@ -1839,9 +1784,7 @@ sub run_email_notifications {
 	
 	# analysis deletion notification
 	if ($email_anal_del) {
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 		
 			my $result = $Email->send_analysis_deletion_email($Entry, 'mock' => $mock);
@@ -1858,9 +1801,7 @@ sub run_email_notifications {
 	
 	# analysis upload notification
 	if ($email_anal_up) {
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 		
 			my $result = $Email->send_analysis_upload_email($Entry, 'mock' => $mock);
@@ -1894,9 +1835,7 @@ sub print_functions {
 		printf "%-6s\t%-6s\t%-5s\t%-10s\t%-10s\t%-10s\t%-10s\t%-10s\n",
 			qw(ID Size Age Scan Upload Hide Delete CORELab);
 		# loop through items
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 		
 			# get and format the current size to human readable sizes
@@ -1960,9 +1899,7 @@ sub print_functions {
 		printf "%-6s\t%-6s\t%-5s\t%-10s\t%-10s\t%-20s\t%-10s\n", 
 			qw(ID Size Age Scan AAUpload AAFolder CORELab);
 		# loop through items
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 		
 			# format size, use last given size instead of current size, so that we
@@ -2012,9 +1949,7 @@ sub print_functions {
 			die "No list provided to show status!\n";
 		}
 		printf "%-6s\t%-10s\t%-16s\t%-16s\t%s\n", qw(ID Date UserName LabName Name);
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 		
 			printf "%-6s\t%-10s\t%-16s\t%-16s\t%s\n", 
@@ -2031,9 +1966,7 @@ sub print_functions {
 		unless (@action_list) {
 			die "No list provided to show status!\n";
 		}
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 		
 			printf "%s\n", $Entry->path;
@@ -2046,9 +1979,7 @@ sub print_functions {
 			die "No list provided to show URLs!\n";
 		}
 		my $missing = 0;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			my $url = $Entry->project_url;
 			if ($url) {
@@ -2071,9 +2002,7 @@ sub print_functions {
 		}
 		my $header = RepoCatalog->header;
 		print $header;
-		foreach my $item (@action_list) {
-			my ($id, @rest) = split(m/\s+/, $item);
-			next unless (defined $id);
+		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			print($Entry->print_string($transform));
 		}
