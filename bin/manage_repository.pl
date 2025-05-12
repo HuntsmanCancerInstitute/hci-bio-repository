@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 8.1;
+our $VERSION = 8.2;
 
 
 ######## Documentation
@@ -543,7 +543,7 @@ sub open_import_catalog {
 				}
 				my $Project = RepoProject->new($Entry->path);
 				if ($Project) {
-					my ($size, $datestamp) = $Project->get_size_age;
+					my ($size, $datestamp, $aa_datestamp) = $Project->get_size_age;
 					if ($size) {
 						$Entry->size($size);
 					}
@@ -630,7 +630,7 @@ sub open_import_catalog {
 				my $Project = RepoProject->new($path);
 				if ($Project) {
 					my $do_scan = 0;
-					my ($size, $datestamp) = $Project->get_size_age;
+					my ($size, $datestamp, $aa_datestamp) = $Project->get_size_age;
 					if ($size) {
 						$Entry->size($size);
 					}
@@ -669,6 +669,10 @@ sub open_import_catalog {
 						}
 						else {
 							$Entry->autoanal_folder($aa_folder);
+						}
+						if ( $aa_datestamp - $Entry->scan_datestamp > 3600 ) {
+							# there is a younger autoanal file than last scan by 1 hour
+							$do_scan += 1;
 						}
 					}
 					elsif ( not $aa_folder and $Entry->autoanal_folder ) {
@@ -912,7 +916,7 @@ sub run_metadata_actions {
 		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			my $Project = RepoProject->new($Entry->path) or next;
-			my ($size, $age) = $Project->get_size_age;
+			my ($size, $age, $aa_age) = $Project->get_size_age;
 			if ($size) {
 				$Entry->size($size);
 			}
