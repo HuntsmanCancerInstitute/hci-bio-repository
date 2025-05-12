@@ -693,9 +693,10 @@ sub open_import_catalog {
 							$do_scan += 1;
 						}
 						if ($do_scan) {
-							printf "  > will scan %s, age %s, last scanned %s days ago\n",
-								$id, $Entry->age || 0, $Entry->scan_datestamp ? 
-								sprintf("%.0f",
+							printf
+								"  > will scan %s, age %3s, last scanned %3s days ago\n",
+								$id, $Entry->age || 0,
+								$Entry->scan_datestamp ? sprintf("%.0f",
 								(time - $Entry->scan_datestamp) / 86400) : '-';
 							push @action_list, $id;
 						}
