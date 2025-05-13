@@ -573,18 +573,18 @@ sub open_import_catalog {
 					if ($project_scan) {
 						my $do = 0;
 						if ( $Entry->scan_datestamp > 1 and
-							( $datestamp - $Entry->scan_datestamp ) > 86400 and
-							( time - $Entry->scan_datestamp ) > 86400
+							( time - $Entry->scan_datestamp ) > 3600 and
+							( $datestamp - time ) > 3600
 						) {
-							# previously scanned at least 1 day ago and
-							# younger files exist by at least 1 day
+							# previously scanned at least an hour ago and
+							# files are at least an hour old
 							$do = 1;
 						}
 						elsif ( $Entry->scan_datestamp == 0 and
-								($Entry->age and $Entry->age > 14 )
+								($Entry->age and $Entry->age >= 7 )
 						) {
 							# otherwise wait for project to "settle" for at least
-							# two weeks before scanning
+							# one week before scanning
 							$do = 1;
 						}
 
@@ -666,12 +666,17 @@ sub open_import_catalog {
 								$Entry->autoanal_folder($aa_folder);
 								$do_scan += 1;
 							}
+							if (
+								(time - $aa_datestamp) > 3600 and
+								($aa_datestamp - $Entry->scan_datestamp) > 3600
+							) {
+								# youngest autoanal file is at least 1 hour old
+								# and older than the last scan by 1 hour
+								$do_scan += 1;
+							}
 						}
 						else {
 							$Entry->autoanal_folder($aa_folder);
-						}
-						if ( $aa_datestamp - $Entry->scan_datestamp > 3600 ) {
-							# there is a younger autoanal file than last scan by 1 hour
 							$do_scan += 1;
 						}
 					}
@@ -681,7 +686,7 @@ sub open_import_catalog {
 						$do_scan += 1;
 					}
 
-					# Check if needs to be scanned
+					# Check if needs to be scanned, only if there are fastq files present
 					if ( $project_scan and $Project->has_fastq ) {
 						if ( $Entry->scan_datestamp > 1 ) {
 							if ( $datestamp - $Entry->scan_datestamp > 3600 ) {
