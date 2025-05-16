@@ -543,6 +543,7 @@ sub open_import_catalog {
 				}
 				my $Project = RepoProject->new($Entry->path);
 				if ($Project) {
+					my $prev_size = $Entry->size;
 					my ($size, $datestamp, $aa_datestamp) = $Project->get_size_age;
 					if ($size) {
 						$Entry->size($size);
@@ -552,6 +553,7 @@ sub open_import_catalog {
 					}
 
 					# print warnings if something seems amiss
+					# this is entirely dependent on file ages, not on size
 					if ( $Entry->deleted_datestamp > 1 and
 						$datestamp > $Entry->deleted_datestamp
 					) {
@@ -571,25 +573,32 @@ sub open_import_catalog {
 
 					# Check if needs to be scanned
 					if ($project_scan) {
-						my $do = 0;
+						my $do_scan = 0;
 						if ( $Entry->scan_datestamp > 1 and
 							( time - $Entry->scan_datestamp ) > 3600 and
 							( $datestamp - time ) > 3600
 						) {
 							# previously scanned at least an hour ago and
 							# files are at least an hour old
-							$do = 1;
+							$do_scan += 1;
 						}
 						elsif ( $Entry->scan_datestamp == 0 and
 								($Entry->age and $Entry->age >= 7 )
 						) {
 							# otherwise wait for project to "settle" for at least
 							# one week before scanning
-							$do = 1;
+							$do_scan += 1;
+						}
+						elsif ( abs($prev_size - $size) >= 1024 and
+								$Entry->scan_datestamp > 0
+						) {
+							# odd situation where size changes by 1 KiB in size
+							# with files that don't trigger an age change
+							$do_scan += 1;
 						}
 
 						# print verbose message
-						if ($do) {
+						if ($do_scan) {
 							printf "  > will scan %s, age %s, last scanned %s days ago\n",
 								$id, $Entry->age || '0', $Entry->scan_datestamp ? 
 								sprintf("%.0f",
