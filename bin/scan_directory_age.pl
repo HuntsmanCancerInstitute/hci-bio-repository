@@ -5,7 +5,7 @@ use strict;
 use File::Find;
 use Getopt::Long;
 
-our $VERSION = 1.3;
+our $VERSION = 1.4;
 
 ######## Documentation
 my $doc = <<END;
@@ -13,7 +13,8 @@ my $doc = <<END;
 A script to report the ages in days for a give directory.
 It will scan all files in a given directory and sub-directories, 
 and report the age in days from now for the youngest file found.
-It will also generate the total size of the directory.
+It will also generate the total size of the directory. Sizes
+are given in human-readable (K,M,G,T suffix) binary sizes.
 
 Version: $VERSION
 
@@ -93,11 +94,11 @@ foreach my $given_dir (@ARGV) {
 	}
 	my $youngest_age = (time - $youngest) / $day;
 	my $oldest_age = (time - $oldest) / $day;
-	printf("%.0f\t%s\t%s\n", $youngest_age, generate_short_size($running_size), $given_dir);
+	printf("%.0f\t%s\t%s\n", $youngest_age, _format_size($running_size), $given_dir);
 	if ($verbose) {
 		printf("  oldest file at %.0f days is %s\n", $oldest_age, $oldest_file);
 		printf("  youngest file at %.0f days is %s\n", $youngest_age, $youngest_file);
-		printf("  biggest file at %s is %s\n", generate_short_size($biggest_size), 
+		printf("  biggest file at %s is %s\n", _format_size($biggest_size), 
 			$biggest_file);
 	}
 }
@@ -153,16 +154,21 @@ sub age_callback {
 	}
 }
 
-sub generate_short_size {
+sub _format_size {
 	my $size = shift;
-	if ($size > 1000000000) {
-		return sprintf("%.1fG", $size / 1000000000);
+	# using binary sizes here
+	if ($size > 1099511627776) {
+		return sprintf("%.1fT", $size / 1099511627776);
 	}
-	elsif ($size > 1000000) {
-		return sprintf("%.1fM", $size / 1000000);
+	elsif ($size > 1073741824) {
+		return sprintf("%.1fG", $size / 1073741824);
+	}
+	elsif ($size > 1048576) {
+		return sprintf("%.1fM", $size / 1048576);
 	}
 	elsif ($size > 1000) {
-		return sprintf("%.1fK", $size / 1000);
+		# avoid weird formatting situations of >1000 and < 1024 bytes
+		return sprintf("%.1fK", $size / 1024);
 	}
 	else {
 		return sprintf("%dB", $size);
