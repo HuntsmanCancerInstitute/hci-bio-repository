@@ -77,7 +77,7 @@ OPTIONS:
     -f --forks <int>        Number of parallel aws upload jobs, default 2
     --class <text>          Specify storage class (default STANDARD)
                               Examples include INTELLIGENT_TIERING, 
-                              GLACIER, DEEP_ARCHIVE
+                              GLACIER, DEEP_ARCHIVE, GLACIER_IR
     --dryrun                Do not upload
     --cred <path>           Path to AWS credentials file. 
                                Default is ~/.aws/credentials. 
