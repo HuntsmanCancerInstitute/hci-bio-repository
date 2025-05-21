@@ -1282,6 +1282,12 @@ sub analysis_callback {
 				push @removelist, $clean_name;
 				return;
 			}
+			elsif ($file =~ /^ \d{4,6} X \d{1,3} _ S\d+ _ L\d+ _[IR]\d _001 \.fastq\.gz$/x) {
+				# a simplified HCI fastq for 10X pipelines
+				print "   ! marking to delete probable HCI Fastq file $clean_name\n";
+				push @removelist, $clean_name;
+				return;
+			}
 			else {
 				print "   ! possible HCI Fastq file $clean_name\n";
 			}
