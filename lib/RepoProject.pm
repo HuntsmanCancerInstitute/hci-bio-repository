@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 7.5;
+our $VERSION = 7.6;
 
 ### Initialize
 
@@ -634,7 +634,7 @@ sub _move_directory_files {
 		# source file
 		my $sourcefile = $self->_check_file($source, $dir, $basefile);
 		unless ($sourcefile) {
-			print "   Missing $file\n" if $self->verbose;
+			printf "   ! Missing or non-file to move: %s\n", $file;
 			next;
 		}
 		# destination
@@ -645,7 +645,7 @@ sub _move_directory_files {
 			# return value is number of directories made, which in some cases could be 0!
 		print "   moving $sourcefile to $destinationdir\n" if $self->verbose;
 		move($sourcefile, $destinationdir) or do {
-			print "   failed to move $sourcefile! $OS_ERROR\n";
+			printf "   ! Failed to move %s: %s\n", $sourcefile, $OS_ERROR;
 			$failure_count++;
 		};
 	}
@@ -667,12 +667,12 @@ sub _delete_directory_files {
 		my (undef, $dir, $basefile) = File::Spec->splitpath($file);
 		my $targetfile = $self->_check_file($target_dir, $dir, $basefile);
 		unless ($targetfile) {
-			print "   Missing $file\n" if $self->verbose;
+			printf "   ! Missing or non-file to delete: %s\n", $file;
 			next;
 		}
 		print "   DELETING $targetfile\n" if $self->verbose;
 		unlink($targetfile) or do {
-			print "   failed to remove $targetfile! $OS_ERROR\n";
+			printf "   ! Failed to remove %s: %s\n", $targetfile, $OS_ERROR;
 			$failure_count++;
 		};
 	}
@@ -681,21 +681,36 @@ sub _delete_directory_files {
 }
 
 sub _check_file {
+	# this checks whether the file exists, handling links and broken links and
+	# odd cases where the file has been moved to a special directory
+	# or really old file lists that record the project ID in the path
+	# directories and special files shouldn't be given, the will return undefined
+	# as will missing files
+	
 	my ($self, $target_dir, $dir, $basefile) = @_;
 	return undef unless ($target_dir and $basefile);
 	my $targetfile = File::Spec->catfile($target_dir, $dir, $basefile);
-	if (-e $targetfile) {
-		# check file exist and not something else like a link
-		return $targetfile if -f _ ;
-		return undef;
+	# need to check whether it is a symlink first, which forces an lstat
+	# other file tests simply follow the symlink to the referent and runs stat 
+	# which is problematic if the referent was zipped up and removed, failing the test
+	if ( -l $targetfile ) {
+		return $targetfile;
+	}
+	elsif ( -f $targetfile ) {
+		return $targetfile;
 	}
 	else {
 		# older versions may record the project folder in the list file name, so let's 
-		# try removing that
+		# try removing that prefix
 		my $p = $self->id;
 		$dir =~ s/^$p\///;
 		$targetfile = File::Spec->catfile($target_dir, $dir, $basefile);
-		return $targetfile if -e $targetfile and -f _ ;
+		if ( -l $targetfile ) {
+			return $targetfile;
+		}
+		elsif ( -f $targetfile ) {
+			return $targetfile;
+		}		
 	}
 	return undef;	
 }
