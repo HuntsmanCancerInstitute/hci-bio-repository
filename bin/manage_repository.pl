@@ -549,6 +549,14 @@ sub open_import_catalog {
 					if ($size) {
 						$Entry->size($size);
 					}
+					else {
+						# no file sizes!? must be cleaned out, update and move on
+						if ( $Entry->size >= 1048576 and $Entry->hidden_datestamp == 0 ) {
+							print "  ! $id was forcefully emptied without plan\n";
+						}
+						$Entry->size(0);
+						next ANALYSIS_FETCH_LOOP;
+					}
 					if ($datestamp) {
 						$Entry->youngest_datestamp($datestamp);
 					}
@@ -646,6 +654,14 @@ sub open_import_catalog {
 					my ($size, $datestamp, $aa_datestamp) = $Project->get_size_age;
 					if ($size) {
 						$Entry->size($size);
+					}
+					else {
+						# no size!? Someone must have emptied it
+						if ( $Entry->size >= 1048576 and $Entry->hidden_datestamp == 0 ) {
+							print "  ! $id was forcefully emptied without plan\n";
+						}
+						$Entry->size(0);
+						next REQUEST_FETCH_LOOP;
 					}
 					if ($datestamp) {
 						$Entry->youngest_datestamp($datestamp);
@@ -938,12 +954,8 @@ sub run_metadata_actions {
 			my $Entry = $Catalog->entry($id) or next;
 			my $Project = RepoProject->new($Entry->path) or next;
 			my ($size, $age, $aa_age) = $Project->get_size_age;
-			if ($size) {
-				$Entry->size($size);
-			}
-			if ($age) {
-				$Entry->youngest_datestamp($age);
-			}
+			$Entry->size($size);
+			$Entry->youngest_datestamp($age);
 			$count++;
 		}
 		print " Collected and updated size and age stats for $count entries\n";
