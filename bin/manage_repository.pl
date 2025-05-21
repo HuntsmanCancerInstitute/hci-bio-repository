@@ -534,12 +534,13 @@ sub open_import_catalog {
 			
 			# update information from the repository file server
 			print " Updating project sizes and ages....\n";
+			ANALYSIS_FETCH_LOOP:
 			foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
 				my $Entry = $Cat->entry($id);
 				my $path  = $Entry->path;
 				unless (-e $path) {
 					print "  ! $id missing project file path: $path\n";
-					next;
+					next ANALYSIS_FETCH_LOOP;
 				}
 				my $Project = RepoProject->new($Entry->path);
 				if ($Project) {
@@ -558,18 +559,18 @@ sub open_import_catalog {
 						$datestamp > $Entry->deleted_datestamp
 					) {
 						print "  ! New files added to deleted project $id\n";
-						next;
+						next ANALYSIS_FETCH_LOOP;
 					}
 					elsif ( $Entry->hidden_datestamp > 1 and
 						$datestamp > $Entry->hidden_datestamp
 					) {
 						print "  ! New files added to hidden project $id\n";
-						next;
+						next ANALYSIS_FETCH_LOOP;
 					}
 
 					# skip remainder of loop if project hidden or deleted
-					next if $Entry->deleted_datestamp;
-					next if $Entry->hidden_datestamp;
+					next ANALYSIS_FETCH_LOOP if $Entry->deleted_datestamp;
+					next ANALYSIS_FETCH_LOOP if $Entry->hidden_datestamp;
 
 					# Check if needs to be scanned
 					if ($project_scan) {
@@ -608,7 +609,9 @@ sub open_import_catalog {
 					}
 				}
 				else {
-					die " unable to generate RepoProject object for $path";
+					printf " ERROR! unable to generate RepoProject object for %s!\n ",
+						$path;
+					next ANALYSIS_FETCH_LOOP;
 				}
 			}
 			
@@ -629,12 +632,13 @@ sub open_import_catalog {
 			
 			# update information from the repository file server
 			print " Updating project sizes and ages....\n";
+			REQUEST_FETCH_LOOP:
 			foreach my $id ( @{$update_list}, @{$new_list}, @{$nochange_list} ) {
 				my $Entry = $Cat->entry($id);
 				my $path  = $Entry->path;
 				unless (-e $path) {
 					print "  ! $id missing project file path: $path\n";
-					next;
+					next REQUEST_FETCH_LOOP;
 				}
 				my $Project = RepoProject->new($path);
 				if ($Project) {
@@ -652,18 +656,18 @@ sub open_import_catalog {
 						$datestamp > $Entry->deleted_datestamp
 					) {
 						print "  ! New files added to deleted project $id\n";
-						next;
+						next REQUEST_FETCH_LOOP;
 					}
 					elsif ($Entry->hidden_datestamp and 
 						$datestamp > $Entry->hidden_datestamp
 					) {
 						print "  ! New files added to hidden project $id\n";
-						next;
+						next REQUEST_FETCH_LOOP;
 					}
 
 					# skip remainder of loop if project hidden or deleted
-					next if $Entry->deleted_datestamp;
-					next if $Entry->hidden_datestamp;
+					next REQUEST_FETCH_LOOP if $Entry->deleted_datestamp;
+					next REQUEST_FETCH_LOOP if $Entry->hidden_datestamp;
 
 					# AutoAnalysis folder
 					my $aa_folder = $Project->get_autoanal_folder;
@@ -722,7 +726,9 @@ sub open_import_catalog {
 					}
 				}
 				else {
-					die " unable to generate RepoProject object for $path";
+					printf " ERROR! unable to generate RepoProject object for %s!\n ",
+						$path;
+					next REQUEST_FETCH_LOOP;
 				}
 			}
 			
@@ -738,7 +744,7 @@ sub open_import_catalog {
 
 		# print number of project to scan as final report
 		if (@action_list) {
-			printf "  %d to scan\n", scalar @action_list;
+			printf "\n  %d projects to scan\n", scalar @action_list;
 		}
 
 	}
