@@ -1337,8 +1337,9 @@ sub analysis_callback {
 	elsif ($file =~ /\. ( fa | fasta | ffn ) (\.gz )? $/xin) {
 		# sequence file of some sort
 		$filetype = 'Sequence';
-		if ($file !~ /\.gz$/i and $size > 1048576 ) {
-			# file not compressed!!!????? let's compress it
+		if ($file !~ /\.gz$/i and $size > TEN_MB and $clean_name !~ /cellranger/i) {
+			# file not compressed? let's compress it, so long as it's not 
+			# a cellranger out file
 			my $command = sprintf "%s \"%s\"", $gzipper, $file;
 			if (system($command)) {
 				print "   ! failed to automatically compress '$clean_name': $OS_ERROR\n";
@@ -1353,8 +1354,8 @@ sub analysis_callback {
 		}
 		
 		# check the size
-		if ($size > 1048576) {
-			# Bigger than 1 MB, leave it out
+		if ($size > TEN_MB or $file =~ /\.gz$/) {
+			# Bigger than 10 MB or is compressed, leave it out
 			$zip = 0;
 		}
 		else {
@@ -1474,6 +1475,11 @@ sub analysis_callback {
 		# singularity container file
 		$filetype = 'SingularityFile';
 		$zip = 0;
+	}
+	elsif ($file =~ /\. ( pat\.gz | beta ) $/xin) {
+		# WGBS tools pattern and beta files
+		$filetype = 'Analysis';
+		$zip = 1;
 	}
 	else {
 		# catchall
