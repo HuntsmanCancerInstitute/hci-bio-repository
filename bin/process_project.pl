@@ -16,6 +16,11 @@ use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use RepoCatalog;
 use RepoProject;
+use constant {
+	ONE_KB => 1024,
+	ONE_MB => 1048576,
+	TEN_MB => 10485760
+};
 
 our $VERSION = 7.7;
 
@@ -414,7 +419,7 @@ sub scan_directory {
 		# we do this for all files, but only if they're greater than 1 MB in size
 		# there are lots of little text files, like scripts and such, that are identical
 		# by their nature, so we're really only interested in the big ones
-		if ($filedata{$f}{Size} > 1048576 ) {
+		if ($filedata{$f}{Size} > ONE_MB ) {
 			if ( exists $dupmd5{$md5} ) {
 				printf "  ! duplicate md5 checksum $md5 for $f\n";
 			}
@@ -1135,7 +1140,7 @@ sub analysis_callback {
 	elsif ($file =~ /\.sam$/i) {
 		# an uncompressed alignment - why do these exist??
 		$filetype = 'Alignment';
-		if ($size > 1048576) {
+		if ($size > ONE_MB) {
 			# file bigger than 1 MB, let's compress it separately
 			my $command = sprintf "%s \"%s\"", $gzipper, $file;
 			if (system($command)) {
@@ -1163,7 +1168,7 @@ sub analysis_callback {
 	}
 	elsif ($file =~ /\. ( vcf | maf ) $/xin) {
 		# uncompressed variant file, either VCF or MAF
-		if ($size > 1048576) {
+		if ($size > ONE_MB) {
 			# file bigger than 1 MB, let's compress it separately
 			my $command = sprintf "%s \"%s\"", $bgzipper, $file;
 			if (system($command)) {
@@ -1254,7 +1259,7 @@ sub analysis_callback {
 		}
 		
 		# check the size
-		if ($size > 1048576) {
+		if ($size > ONE_MB) {
 			# Bigger than 1 MB, leave it out
 			$zip = 0;
 		}
@@ -1310,7 +1315,7 @@ sub analysis_callback {
 		}
 		
 		# check the size
-		if ($size > 1048576) {
+		if ($size > ONE_MB) {
 			# Bigger than 1 MB, leave it out
 			$zip = 0;
 		}
@@ -1337,7 +1342,6 @@ sub analysis_callback {
 			my $command = sprintf "%s \"%s\"", $gzipper, $file;
 			if (system($command)) {
 				print "   ! failed to automatically compress '$clean_name': $OS_ERROR\n";
-				$zip = 1; 
 			}
 			else {
 				# succesfull compression! update values
@@ -1365,7 +1369,7 @@ sub analysis_callback {
 	}
 	elsif ($file =~ /\. ( bed | bed\d+ | gtf | gff | gff\d | narrowpeak | broadpeak | gappedpeak | refflat | genepred | ucsc) (\.gz)? $/xin) {
 		$filetype = 'Annotation';
-		if ($file =~ /\.gz$/ and $size > 10485760) {
+		if ($file =~ /\.gz$/ and $size > TEN_MB) {
 			# do not archive if compressed and bigger 10 MB
 			$zip = 0;
 		}
@@ -1439,7 +1443,7 @@ sub analysis_callback {
 			# no need keeping fastqc zip files separate
 			$zip = 1; 
 		}
-		elsif ( $size < 10485760 ) {
+		elsif ( $size < TEN_MB ) {
 			# go ahead and store the zip if it is under 10 MB
 			# includes many AutoAnalysis LogsRunScripts.zip files
 			$zip = 1;
