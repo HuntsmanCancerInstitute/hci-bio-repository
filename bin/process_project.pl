@@ -1282,7 +1282,7 @@ sub analysis_callback {
 			if ($file =~ /_umi \.fastq \.gz $/x) {
 				# looks like a merged UMI fastq file. I guess keep it?
 			}
-			elsif ($file =~ /^ \d{4,6} X \d{1,3} _ \d{6} _ .+ _R\d_001 \.fastq\.gz$/x) {
+			elsif ($file =~ /^ \d{4,6} X \d{1,3} _ \d{6} _ .+ _[IR]\d_001 \.fastq\.gz$/x) {
 				print "   ! marking to delete probable HCI Fastq file $clean_name\n";
 				push @removelist, $clean_name;
 				return;
@@ -1378,7 +1378,7 @@ sub analysis_callback {
 			$zip = 1;
 		}
 	}
-	elsif ($file =~ /\. ( sh | pl | py | r | rmd | rscript | awk | sm | sing ) $/xin) {
+	elsif ($file =~ /\. ( sh | pl | py | r | rmd | rscript | awk | sm | sing | slurm ) $/xin) {
 		$filetype = 'Script';
 		$zip = 1;
 	}
