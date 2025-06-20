@@ -983,17 +983,20 @@ m/^ ( \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (sum)? .* \. (txt |
 		my $old_size = $filedata{$clean_name}{Size} || 0;
 		my $old_time = $filedata{$clean_name}{ftime} || 0;
 		my $diff = abs( $date - $old_time );
-		if ( $diff < 3601 and $size == $old_size ) {
+		if ( ( $diff <= 1 || ( $diff >= 3599 && $diff <= 3601 ) ) && $size == $old_size) {
 			# files are equivalent taking into account a possible one hour difference
+			# due to daylight savings
 			$status = 2;
 		}
 	}
 	$filedata{$clean_name}{Type}             = $type;
-	$filedata{$clean_name}{ftime}            = $date;
-	$filedata{$clean_name}{Size}             = $size;
-	$filedata{$clean_name}{Archive}          = 'N';
+	$filedata{$clean_name}{Archive}          = 'N';   # not archiving any files here
 	$filedata{$clean_name}{status}           = $status;
-	$filedata{$clean_name}{MD5}              = q();
+	if ($status == 3) {
+		$filedata{$clean_name}{ftime}      ||= $date;
+		$filedata{$clean_name}{Size}       ||= $size;
+		$filedata{$clean_name}{MD5}          = q();   # this will be calculated later
+	}
 	if ($type eq 'Fastq') {
 		$filedata{$clean_name}{sample_id}        = $sample || q(-);
 		$filedata{$clean_name}{platform_unit_id} = $laneID || q(-);
@@ -1513,18 +1516,19 @@ sub analysis_callback {
 		my $old_size = $filedata{$clean_name}{Size} || 0;
 		my $old_time = $filedata{$clean_name}{ftime} || 0;
 		my $diff = abs( $date - $old_time );
-		if ( $diff < 3601 and $size == $old_size ) {
+		if ( ( $diff <= 1 || ( $diff >= 3599 && $diff <= 3601 ) ) && $size == $old_size) {
 			# files are equivalent taking into account a possible one hour difference
+			# due to daylight savings
 			$status = 2;
 		}
 	}
-	$filedata{$clean_name}{Type}     = $filetype;
-	$filedata{$clean_name}{ftime}    = $date;
-	$filedata{$clean_name}{Size}     = $size;
-	$filedata{$clean_name}{Archived} = $zip ? 'Y' : 'N';
-	$filedata{$clean_name}{status}   = $status;
+	$filedata{$clean_name}{Type}        = $filetype;
+	$filedata{$clean_name}{Archived}    = $zip ? 'Y' : 'N';
+	$filedata{$clean_name}{status}      = $status;
 	if ($status == 3) {
-		$filedata{$clean_name}{MD5}  = $Project->calculate_file_checksum($file);
+		$filedata{$clean_name}{Size}  ||= $size;
+		$filedata{$clean_name}{ftime} ||= $date;
+		$filedata{$clean_name}{MD5}     = $Project->calculate_file_checksum($file);
 	}
 	
 	# Check for sample ID
