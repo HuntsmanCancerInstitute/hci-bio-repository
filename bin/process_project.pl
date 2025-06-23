@@ -724,7 +724,13 @@ m/^ ( Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) \/
 	elsif ( $clean_name eq 'Fastq/log.out' ) {
 		# left over file droppings, usually rsync output, that certain people like to 
 		# leave behind without cleaning up after themselves - how rude
-		push @removelist, $clean_name;
+		if (unlink $file) {
+			printf "   ! deleted %s\n", $clean_name;
+		}
+		else {
+			printf "   ! unable to delete %s\n", $clean_name;
+			push @removelist, $clean_name;
+		}
 		return;
 	}
 	elsif ($file =~ / samplesheet \. \w+ /xi) {
