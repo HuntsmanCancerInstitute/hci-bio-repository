@@ -7,7 +7,7 @@ use Carp;
 use IO::File;
 use DBM::Deep;
 
-our $VERSION = 7.4;
+our $VERSION = 7.5;
 
 
 # General private values
@@ -337,13 +337,8 @@ sub find_requests_to_upload {
 			if ($E->size > $min_size) {
 				# size is bigger than minimum size, looks like a candidate
 				if ($E->upload_datestamp > 1) {
-					# already been uploaded? Make sure we're considerably bigger
-					if (
-						$E->upload_age > $E->age and
-						$E->last_size and 
-						($E->size - $E->last_size) > $min_size
-					) {
-						# must have added new fastq files???
+					# already been uploaded
+					if ( $E->upload_age > $E->age ) {
 						push @list, $key;
 					}
 				}
