@@ -733,6 +733,28 @@ m/^ ( Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) \/
 		}
 		return;
 	}
+	elsif ( $clean_name eq 'Fastq/dragen-replay.json' ) {
+		# dragen demux file, move it to the Sequence_QC folder where it can live
+		my $dest = sprintf "%s/Sequence_QC", $Project->given_dir;
+		if ( move($file, $dest) ) {
+			printf "    > moved %s to Sequence_QC folder\n", $clean_name;
+		}
+		else {
+			printf "    ! cannot move %s to Sequence_QC\n", $clean_name;
+		}
+		return;
+	}
+	elsif ( $clean_name eq 'Fastq/dragen.time_metrics.csv' ) {
+		# dragen demux file, move it to the Sequence_QC folder where it can live
+		my $dest = sprintf "%s/Sequence_QC", $Project->given_dir;
+		if ( move($file, $dest) ) {
+			printf "    > moved %s to Sequence_QC folder\n", $clean_name;
+		}
+		else {
+			printf "    ! cannot move %s to Sequence_QC\n", $clean_name;
+		}
+		return;
+	}
 	elsif ($file =~ / samplesheet \. \w+ /xi) {
 		# file run sample sheet, can safely ignore
 		$type = 'document';
@@ -1414,7 +1436,7 @@ sub analysis_callback {
 		$filetype = 'Analysis';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. ( xls | ppt | pptx | doc | docx | rout | rda | rdata | rds | rproj | xml | yaml | json | json\.gz | seg| html | pzfx ) $/xin) {
+	elsif ($file =~ /\. ( xls | ppt | pptx | doc | docx | rout | rda | rdata | rds | rproj | xml | yaml | json | json\.gz | geojson | seg| html | pzfx ) $/xin) {
 		$filetype = 'Results';
 		$zip = 1;
 	}
