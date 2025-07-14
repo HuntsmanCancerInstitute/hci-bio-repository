@@ -18,7 +18,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 1.1;
+our $VERSION = 1.2;
 
 my $doc = <<END;
 
@@ -563,10 +563,14 @@ sub upload_files_parallel {
 		my $result = qx($command);
 		chomp $result;
 		# if there is no local path then aws will stick a ./ to the file path
-		if ( $result =~ /\A upload: \s (?:\.\/)? $file \s to/x ) {
+		if ( $result =~ /\A upload: \s (?:\.\/)? $file \s to \s $remote_path/x ) {
 			$pm->finish(0);
 		}
 		elsif ( $dryrun and $result =~ /\A \( dryrun \) \s upload: \s (?:\.\/)? $file/x) {
+			$pm->finish(0);
+		}
+		elsif ( $file =~ /\s/ and $result =~ /upload:\s .+ \s to \s s3:\/\/ .+ /x ) {
+			# file has a space which breaks the regex so look for success a different way
 			$pm->finish(0);
 		}
 		else {
