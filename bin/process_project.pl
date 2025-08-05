@@ -755,6 +755,17 @@ m/^ ( Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) \/
 		}
 		return;
 	}
+	elsif ( $clean_name =~ /^ Fastq \/ \w+ _ \d+ _usage.txt $/x ) {
+		# dragen compression file, move it to the Sequence_QC folder where it can live
+		my $dest = sprintf "%s/Sequence_QC", $Project->given_dir;
+		if ( move($file, $dest) ) {
+			printf "    > moved %s to Sequence_QC folder\n", $clean_name;
+		}
+		else {
+			printf "    ! cannot move %s to Sequence_QC\n", $clean_name;
+		}
+		return;
+	}
 	elsif ($file =~ / samplesheet \. \w+ /xi) {
 		# file run sample sheet, can safely ignore
 		$type = 'document';
