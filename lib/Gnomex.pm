@@ -9,7 +9,7 @@ use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
 use hciCore qw( generate_prefix generate_bucket );
 
-our $VERSION = 7.1;
+our $VERSION = 7.2;
 
 
 
@@ -437,7 +437,9 @@ sub fetch_requests {
 			my $u = 0;
 			
 			# status
-			if ($E->request_status ne $row[11]) {
+			if ( $E->request_status ne 'COMPLETE' and $E->request_status ne $row[11] ) {
+				# do not update if already marked completed, because sometimes it's
+				# not updated appropriately in GNomEx and has to be done manually
 				$E->request_status($row[11]);
 				$u++;
 			}
