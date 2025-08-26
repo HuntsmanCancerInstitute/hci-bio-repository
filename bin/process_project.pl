@@ -652,6 +652,11 @@ sub callback {
 	# continue processing based on project type
 	if ($request) {
 		if ($clean_name =~ /^ AutoAnalysis_\w+ \/ /x) {
+			# AutoAnalysis folder
+			return analysis_callback($file, $clean_name);
+		}
+		elsif ($clean_name =~ /output\-XETG00516__\d{7}__Region_\d+__20\d{6}__\d{6}\//x) {
+			# Xenium result folder
 			return analysis_callback($file, $clean_name);
 		}
 		else {
