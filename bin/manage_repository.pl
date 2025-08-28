@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 8.2;
+our $VERSION = 8.3;
 
 
 ######## Documentation
@@ -378,6 +378,8 @@ sub check_options {
 			$cat_file = File::Spec->rel2abs($cat_file);
 		}
 		if ( not -e $cat_file and not $import_file ) {
+			(not $import_file and not $fetch_analysis and not $fetch_request )
+		) {
 			printf "FATAL: '%s' cannot be found!\n", $cat_file;
 			exit 1;
 		}
@@ -429,12 +431,18 @@ sub check_options {
 		print "FATAL: year must be four digits!\n";
 		exit 1;
 	}
+	
+	# import
 	if (($fetch_analysis or $fetch_request) and not $year) {
 		# set default year based on a calculation
 		# year is 60 * 60 * 24 * 365 = 31536000 seconds
 		my $n = $fetch_analysis ? 94608000 : 63072000; # 3 years Analysis, 2 Request
 		my @t = localtime(time - $n);
 		$year = $t[5] + 1900;
+	}
+	if (($fetch_analysis or $fetch_request) and not $labinfo_path) {
+		print "FATAL: Must provide lab information file!\n";
+		exit 1;
 	}
 
 	# external
