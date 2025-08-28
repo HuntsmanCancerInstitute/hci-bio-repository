@@ -9,7 +9,7 @@ use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
 use hciCore qw( generate_prefix generate_bucket );
 
-our $VERSION = 7.2;
+our $VERSION = 7.3;
 
 
 
@@ -66,14 +66,15 @@ lab.isExternalPricingCommercial,
 request.codeRequestStatus,
 application.application Application
 FROM request 
-join project on project.idproject = request.idproject 
-join lab on lab.idlab = request.idlab 
-join appuser on appuser.idappuser = request.idappuser 
-join application on application.codeapplication = request.codeapplication
+left join project on project.idproject = request.idproject 
+left join lab on lab.idlab = request.idlab 
+left join appuser on appuser.idappuser = request.idappuser 
+left join application on application.codeapplication = request.codeapplication
 WHERE request.idCoreFacility = 1 
 ORDER BY request.createDate;
 QUERY
 
+# WHERE request.createDate > (select dateadd(month, -30, getdate()))
 
 sub new {
 	my $class = shift;
