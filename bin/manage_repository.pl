@@ -716,7 +716,8 @@ sub open_import_catalog {
 					}
 
 					# Check if needs to be scanned, only if there are fastq files present
-					if ( $project_scan and $Project->has_fastq ) {
+					# or the project is unusual size > 10 GB, like Xenium
+					if ( $project_scan and ($Project->has_fastq or $size > 10000000000) ) {
 						if ( $Entry->scan_datestamp > 1 ) {
 							if ( $datestamp - $Entry->scan_datestamp > 3600 ) {
 								# there is a younger file than last scan by 1 hour
