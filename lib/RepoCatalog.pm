@@ -7,7 +7,7 @@ use Carp;
 use IO::File;
 use DBM::Deep;
 
-our $VERSION = 7.5;
+our $VERSION = 7.6;
 
 
 # General private values
@@ -979,7 +979,7 @@ sub last_size {
 
 sub youngest_datestamp {
 	my $self = shift;
-	if (@_ and defined $_[0] and $_[0] > 1) {
+	if (@_ and defined $_[0]) {
 		$self->{data}->[AGE] = $_[0];
 	}
 	my $a = $self->{data}->[AGE];
