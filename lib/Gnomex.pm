@@ -407,13 +407,7 @@ sub fetch_requests {
 	my @new_list;
 	my @nochange_list;
 	while (my @row = $sth->fetchrow_array) {
-		
-		# check
-		unless ($row[0]) {
-			printf " database returned an item without an identifier: %s\n", join ", ", @row;
-			next;
-		}
-		
+				
 		# check date
 		$row[2] =~ s/\s+ \d\d: \d\d: \d\d \.\d+ $//x; # clean up time from date
 		my ($year) = $row[2] =~ /^(\d{4})/;
@@ -429,7 +423,6 @@ sub fetch_requests {
 			$_ = q() if not defined;
 		}
 
-	
 		# get entry
 		my $E = $Catalog->entry($row[0]);
 		if ($E) {
