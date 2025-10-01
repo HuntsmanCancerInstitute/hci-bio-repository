@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 7.6;
+our $VERSION = 7.7;
 
 ### Initialize
 
@@ -91,11 +91,12 @@ sub new {
 	};
 	
 	# project files
-	$self->{manifest} = $project . "_MANIFEST.csv";
-	$self->{remove}   = $project . "_REMOVE_LIST.txt";
-	$self->{ziplist}  = $project . "_ARCHIVE_LIST.txt";
-	$self->{zip}      = $project . "_ARCHIVE.zip";
-	$self->{notice}   = "where_are_my_files.txt";
+	$self->{manifest}     = $project . "_MANIFEST.csv";
+	$self->{prevmanifest} = $project . "_PREVIOUS_MANIFEST.csv";
+	$self->{remove}       = $project . "_REMOVE_LIST.txt";
+	$self->{ziplist}      = $project . "_ARCHIVE_LIST.txt";
+	$self->{zip}          = $project . "_ARCHIVE.zip";
+	$self->{notice}       = 'where_are_my_files.txt';
 
 	# hidden file names in parent directory
 	if ($parent_dir) {
@@ -151,6 +152,10 @@ sub project {
 
 sub manifest_file {
 	return shift->{manifest};
+}
+
+sub previous_manifest_file {
+	return shift->{prevmanifest};
 }
 
 sub remove_file {
