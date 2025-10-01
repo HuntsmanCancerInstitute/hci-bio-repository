@@ -9,7 +9,7 @@ use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
 use hciCore qw( generate_prefix generate_bucket );
 
-our $VERSION = 7.3;
+our $VERSION = 7.4;
 
 
 
@@ -235,6 +235,7 @@ sub fetch_analyses {
 					$u++;
 				}
 				my $lab = sprintf("%s %s", $row[7], $row[8]);
+				my $alt_lab = sprintf("%s %s", $row[5], $row[6]);
 				if (exists $lab2info->{$lab}) {
 					
 					# check CORE lab status
@@ -254,9 +255,31 @@ sub fetch_analyses {
 							$E->profile( $lab2info->{$lab}->[3] );
 							$u++;
 						}
-						elsif ($lab2info->{$lab}->[1] eq 'N' and length($E->core_lab) > 1) {
+						elsif (
+							$lab2info->{$lab}->[1] eq 'N'
+							and length($E->core_lab) > 1
+							and not exists $lab2info->{$alt_lab}
+						) {
 							printf "  ! mismatched CORE Lab '%s' for %s\n", $E->core_lab, $row[0];
 						}
+					}
+					
+					# check alternate CORE lab
+					if ( 
+						not $E->core_lab and exists $lab2info->{$alt_lab}
+						and $lab2info->{$alt_lab}->[1] eq 'Y'
+						and not $E->upload_datestamp and not $E->hidden_datestamp
+					) {
+						# sometimes a PI with an AWS CORE lab account will submit a
+						# project under a collaborator's PI lab account without a CORE
+						# account, so in that case reassign to the submitting PI's account
+						# looking at you H***** and J** and D***** and....
+						printf 
+			"  > assigning CORE account for %s from PI %s %s to User's account '%s'\n",
+							$row[0], $row[7], $row[8], $lab2info->{$alt_lab}->[2];
+						$E->core_lab( $lab2info->{$alt_lab}->[2] );
+						$E->profile( $lab2info->{$alt_lab}->[3] );
+						$u++;
 					}
 					
 					# check lab PI email
@@ -457,9 +480,10 @@ sub fetch_requests {
 					$u++;
 				}
 				my $lab = sprintf("%s %s", $row[7], $row[8]);
+				my $alt_lab = sprintf("%s %s", $row[5], $row[6]);
 				if (exists $lab2info->{$lab}) {
 					
-					# check SBG division
+					# check AWS CORE lab division
 					if (
 						# check length of values to ensure comparing real values
 						# also, skip if it's already been uploaded
@@ -476,10 +500,32 @@ sub fetch_requests {
 							$E->profile( $lab2info->{$lab}->[3] );
 							$u++;
 						}
-						elsif ($lab2info->{$lab}->[1] eq 'N' and length($E->core_lab) > 1) {
+						elsif (
+							$lab2info->{$lab}->[1] eq 'N'
+							and length($E->core_lab) > 1
+							and not exists $lab2info->{$alt_lab}
+						) {
 							printf "  ! mismatched CORE Lab '%s' for %s\n", 
 								$E->core_lab, $row[0];
 						}
+					}
+					
+					# check alternate AWS Core lab division
+					if ( 
+						not $E->core_lab and exists $lab2info->{$alt_lab}
+						and $lab2info->{$alt_lab}->[1] eq 'Y'
+						and not $E->upload_datestamp and not $E->hidden_datestamp
+					) {
+						# sometimes a PI with an AWS CORE lab account will submit a
+						# project under a collaborator's PI lab account without a CORE
+						# account, so in that case reassign to the submitting PI's account
+						# looking at you H***** and J** and D***** and....
+						printf 
+			"  > assigning CORE account for %s from PI %s %s to User's account '%s'\n",
+							$row[0], $row[7], $row[8], $lab2info->{$alt_lab}->[2];
+						$E->core_lab( $lab2info->{$alt_lab}->[2] );
+						$E->profile( $lab2info->{$alt_lab}->[3] );
+						$u++;
 					}
 					
 					# check lab PI email
