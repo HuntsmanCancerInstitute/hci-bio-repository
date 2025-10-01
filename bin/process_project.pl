@@ -644,12 +644,28 @@ sub callback {
 	
 	# continue processing based on project type
 	if ($request) {
-		if ($clean_name =~ /^ AutoAnalysis_\w+ \/ /x) {
+		if ($clean_name =~ 
+	m/^ ( Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) \/ /xn
+		) {
+			# these are QC samples in a bioanalysis or Sample of Library QC folder
+			# directly under the main project 
+			print "   > skipping QC file $clean_name\n" if $verbose;
+			return;
+		}
+		elsif ($clean_name =~ /^ Fastq.*/) {
+			return request_callback($file, $clean_name);
+		}
+		elsif ($clean_name =~ /^ AutoAnalysis_\w+ \/ /x) {
 			# AutoAnalysis folder
 			return analysis_callback($file, $clean_name);
 		}
 		elsif ($clean_name =~ /output\-XETG00516__\d{7}__Region_\d+__20\d{6}__\d{6}\//x) {
 			# Xenium result folder
+			return analysis_callback($file, $clean_name);
+		}
+		elsif ($clean_name =~ /^ [\w\s\&]+ image s? \/ /xi) {
+			# top level images folder, probably Xenium images
+			# this may be a non-standard folder name, so this may change
 			return analysis_callback($file, $clean_name);
 		}
 		else {
@@ -672,15 +688,7 @@ sub request_callback {
 	my ($type, $sample, $machineID, $laneID, $pairedID);
 	
 	# check file
-	if ($clean_name =~ 
-m/^ ( Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) \/ /xn
-	) {
-		# these are QC samples in a bioanalysis or Sample of Library QC folder
-		# directly under the main project 
-		print "   > skipping QC file $clean_name\n" if $verbose;
-		return;
-	}
-	elsif ($clean_name =~ /^ \w+ _AutoAnalysis _ \w+/x) {
+	if ($clean_name =~ /^ \w+ _AutoAnalysis _ \w+/x) {
 		# usually an unwanted or depreciated AutoAnalysis
 		# david puts 'depreciated' or 'DontUse' or some other prefix
 		# print a warning, but only once
@@ -1230,16 +1238,6 @@ sub analysis_callback {
 		}
 		$filetype = 'Variant';
 	}
-	elsif ($file =~ /\. [cv] loupe $/xi) {
-		# 10X genomics loupe file
-		$filetype = 'Analysis';
-		$zip = 0;
-	}
-	elsif ($file =~ /\. loom $/xi) {
-		# Velocyto loom file
-		$filetype = 'Analysis';
-		$zip = 0;
-	}
 	elsif ($file =~ /^ unmapped \.out \.mate ([12]) /xi) {
 		# unmapped fastq from STAR - may need to be renamed and/or compressed
 		my $paired = $1;
@@ -1475,6 +1473,26 @@ sub analysis_callback {
 		}
 	}
 	elsif ($file =~ /\. bismark \. cov \.gz $/xi) {
+		$filetype = 'Analysis';
+		$zip = 0;
+	}
+	elsif ($file =~ /\. [cv] loupe $/xi) {
+		# 10X genomics loupe file
+		$filetype = 'Analysis';
+		$zip = 0;
+	}
+	elsif ($file =~ /\. loom $/xi) {
+		# Velocyto loom file
+		$filetype = 'Analysis';
+		$zip = 0;
+	}
+	elsif ($file =~ /\. parquet $/xi) {
+		# Xenium parquet file
+		$filetype = 'Analysis';
+		$zip = 0;
+	}
+	elsif ($file =~ /\. zarr \. zip $/xi) {
+		# Xenium archive file
 		$filetype = 'Analysis';
 		$zip = 0;
 	}
