@@ -22,7 +22,7 @@ use constant {
 	TEN_MB => 10485760
 };
 
-our $VERSION = 7.7;
+our $VERSION = 7.8;
 
 
 
@@ -95,6 +95,7 @@ else {
 
 ######## Global variables
 # these are needed since the File::Find callback doesn't accept pass through variables
+my $start_time        = time;
 my $request;
 my @removelist;
 my @ziplist;
@@ -105,7 +106,6 @@ my $autoanal_warning  = 0; # warnings about AutoAnalysis folders
 my $upload_warning    = 0; # GNomEx upload folder
 my $post_zip_size     = 0;
 my $max_zip_size      = 200000000; # 200 MB
-my $start_time        = time;
 
 # our sequence machine IDs to platform technology lookup
 my %machinelookup = (
@@ -124,8 +124,6 @@ my %machinelookup = (
 # keys: File Type sample_id platform platform_unit_id paired_end Size Date MD5 clean 
 # status = 1: from manifest, 2: from manifest verified, 3: new
 my %filedata;
-
-
 
 
 ######## Check options
@@ -240,13 +238,15 @@ if (-e $Project->delete_folder) {
 	exit 1;
 }
 
-# check for zipped file hidden folder
+# check for zipped file hidden folder or file
 if ( -e $Project->zip_folder or -e $Project->zip_file ) {
 	print " ! Cannot re-scan if zipped file or hidden folder exists!\n";
 	exit 1;
 }
 
-
+# project manifest files
+my $project_manifest_file      = $Project->manifest_file;
+my $project_prev_manifest_file = $Project->previous_manifest_file;
 
 
 
@@ -257,10 +257,6 @@ printf " > Changing to %s\n", $Project->given_dir if $verbose;
 chdir $Project->given_dir or die sprintf("cannot change to %s!\n", $Project->given_dir);
 
 # check for files that shouldn't be here
-if ( -e $Project->zip_file ) {
-	printf " ! Cannot scan because Archive Zip file %s exists\n", $Project->zip_file;
-	exit 1;
-}
 if ( -e $Project->ziplist_file ) {
 	printf " ! Cannot scan because Archive Zip list file %s exists\n",
 		$Project->ziplist_file;
@@ -564,16 +560,13 @@ sub callback {
 		print "   > skipping directory $clean_name\n" if $verbose;
 		return;
 	}
-	elsif ($file eq $Project->manifest_file) {
+	elsif ($file eq $project_manifest_file) {
 		return;
 	}
-	elsif ($file eq $Project->notice_file) {
+	elsif ($file eq $project_prev_manifest_file) {
 		return;
 	}
-	elsif ($file eq $Project->ziplist_file) {
-		return;
-	}
-	elsif ($file eq $Project->zip_file) {
+	elsif ($file eq 'where_are_my_files.txt') {
 		return;
 	}
 	elsif ($file eq 'ora_decompression_README.txt') {
