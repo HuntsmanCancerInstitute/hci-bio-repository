@@ -22,6 +22,7 @@ my $Digest = Digest::MD5->new;
 
 # Initialize global find variables
 my $current_project = undef;
+my %ignore_files    = ();
 my $project_age     = 0;
 my $project_size    = 0;
 my $autoanal_age    = 0;
@@ -569,6 +570,14 @@ sub get_size_age {
 	$project_size    = 0;
 	$project_age     = 0;
 	$autoanal_age    = 0;
+	%ignore_files    = map { $_ => 1 } (
+		$self->manifest_file,
+		$self->zip_file,
+		$self->ziplist_file,
+		$self->remove_file,
+		$self->previous_manifest_file,
+		$self->notice_file,
+	);
 	
 	# collect data for given directory
 	find( {
@@ -608,12 +617,7 @@ sub has_fastq {
 		# they may have .gz or .ora or other extension depending on compression
 		return 0 unless ( -e $dir);
 		my @results = glob( sprintf("%s/*.fastq.* %s/%sX*/*.fastq.*", $dir, $dir, $1 ) );
-		if (@results) {
-			return scalar(@results);
-		}
-		else {
-			return 0;
-		}
+		return scalar(@results);
 	}
 	else {
 		return 0;
@@ -723,13 +727,10 @@ sub _check_file {
 sub _age_callback {
 	my $file = $_;
 	
-	# skip specific files, including SB preparation files
+	# skip specific files, including project manifest files
 	return if -d $file;
 	return if -l $file;
-	return if $file eq $current_project->manifest_file;  
-	return if $file eq $current_project->zip_file;  
-	return if $file eq $current_project->ziplist_file;  
-	return if $file eq $current_project->remove_file;  
+	return if exists $ignore_files{$file};
 	return if $file =~ m/md5/i;   # too small and variable to make a difference
 
 	# for Request projects, don't calculate age if file appears to be a QC folder
