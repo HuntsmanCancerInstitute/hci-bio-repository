@@ -697,7 +697,7 @@ m/^ ( Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) \/
 			return;
 		}
 	}
-	elsif ($clean_name =~ /^ RunFolder/x) {
+	elsif ($clean_name =~ /^ run .* folder/xi) {
 		# a few external requesters want the entire original RunFolder 
 		# these folders typically have over 100K files!!!!
 		# do not print even if verbose is turned on
@@ -778,14 +778,14 @@ m/^ ( Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) \/
 	}
 	elsif ( $file =~ /\.txt$/ and $file !~ /md5/ ) {
 		# additional stray files but not md5 files!
-		$type = 'document';
+		$type = 'text';
 	}
 	elsif ($file =~ /\.zip$/) {
 		# some Zip file - caution
 		$type = 'zip';
 	}
 	# ora reference compressed interleaved fastq file
-	elsif ($file =~ m/^ (\d{4,5} [xXPG] \d+ ) _+\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _R\-interleaved_001 \.fastq\.ora $/x) {
+	elsif ($file =~ m/^ (\d{4,5} [xXPG] \d+ ) _+\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ .* _S\d+ _L(\d+) _R\-interleaved_001 \.fastq\.ora $/x) {
 		$type   = 'Fastq';
 		$sample = $1;
 		$machineID = $2;
@@ -796,7 +796,7 @@ m/^ ( Sample.?QC | Library.?QC | Sequence.?QC | Cell.Prep.QC | MolecDiag.QC ) \/
 	# 15945X8_190320_M05774_0049_MS7833695-50V2_S1_L001_R2_001.fastq.gz
 	# new style: 16013X1_190529_D00550_0563_BCDLULANXX_S12_L001_R1_001.fastq.gz
 	# NovoaSeqX: 21185X1_20230810_LH00227_0005_A227HG7LT3_S42_L004_R1_001.fastq.gz
-	elsif ($file =~ m/^ (\d{4,5} [xXPG] \d+ ) _+\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _R(\d) _001 \. fastq \. (?: gz | ora ) $/x) {
+	elsif ($file =~ m/^ (\d{4,5} [xXPG] \d+ ) _+\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ .* _S\d+ _L(\d+) _R(\d) _001 \. fastq \. (?: gz | ora ) $/x) {
 		$type = 'Fastq';
 		$sample = $1;
 		$machineID = $2;
@@ -1322,7 +1322,7 @@ sub analysis_callback {
 			if ($file =~ /_umi \.fastq \.gz $/x) {
 				# looks like a merged UMI fastq file. I guess keep it?
 			}
-			elsif ($file =~ /^ \d{4,6} X \d{1,3} _ \d{6} _ .+ _[IR]\d_001 \.fastq\.gz$/x) {
+			elsif ($file =~ /^ \d{4,6} X \d{1,3} _ \d{6,8} _ .+ _[IR]\d_001 \.fastq\.gz$/x) {
 				print "   ! marking to delete probable HCI Fastq file $clean_name\n";
 				push @removelist, $clean_name;
 				return;
