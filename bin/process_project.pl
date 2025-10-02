@@ -104,6 +104,7 @@ my $failure_count     = 0;
 my $runfolder_warning = 0; # Gigantic Illumina RunFolder present
 my $autoanal_warning  = 0; # warnings about AutoAnalysis folders
 my $upload_warning    = 0; # GNomEx upload folder
+my $xenium_warning    = 0; # Xenium folder
 my $post_zip_size     = 0;
 my $max_zip_size      = 200000000; # 200 MB
 
@@ -285,6 +286,12 @@ else {
 			if ($Entry) {
 				$Entry->scan_datestamp(time);
 				print " > Updated Catalog scan date stamp\n";
+
+				# record Xenium folder as an Analysis folder
+				if ( $xenium_warning and not $Entry->autoanal_folder ) {
+					$Entry->autoanal_folder( $xenium_warning );
+					print " > Updated AutoAnalysis folder to Xenium folder\n";
+				}
 			}
 		}
 	}
@@ -661,6 +668,13 @@ sub callback {
 		}
 		elsif ($clean_name =~ /output\-XETG00516__\d{7}__Region_\d+__20\d{6}__\d{6}\//x) {
 			# Xenium result folder
+			unless ($xenium_warning) {
+				# need to store the parent directory for recording later
+				# split path into parts, just need first item, ignore filename
+				my @bits = File::Spec->splitdir($clean_name);
+				printf "   ! Detected a Xenium results folder in %s\n", $bits[0];
+				$xenium_warning = $bits[0];
+			}
 			return analysis_callback($file, $clean_name);
 		}
 		elsif ($clean_name =~ /^ [\w\s\&]+ image s? \/ /xi) {
