@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 8.3;
+our $VERSION = 8.4;
 
 
 ######## Documentation
@@ -148,6 +148,7 @@ OPTIONS
     --update_profile <text>   Update the AWS IAM profile
     --update_bucket <text>    Update the AWS S3 bucket
     --update_prefix <text>    Update the AWS prefix (only one project)
+    --update_aa <text>        Update the Request AutoAnalysis folder
     --generate_s3             Generate default AWS S3 bucket/prefix
     --delete_entry            Delete catalog entry
   
@@ -217,6 +218,7 @@ my $update_core_lab;
 my $update_profile;
 my $update_bucket;
 my $update_prefix;
+my $update_aa;
 my $generate_s3_path;
 my $project_scan;
 my $project_upload;
@@ -314,6 +316,7 @@ if (scalar(@ARGV) > 1) {
 		'update_profile=s'      => \$update_profile,
 		'update_bucket=s'       => \$update_bucket,
 		'update_prefix=s'       => \$update_prefix,
+		'update_aa=s'           => \$update_aa,
 		'generate_s3!'          => \$generate_s3_path,
 		'update_size|update_age!' => \$scan_size_age,
 		'export_file=s'         => \$dump_file,
@@ -1248,6 +1251,24 @@ sub run_metadata_actions {
 				$Entry->prefix($update_prefix);
 				print "  updated prefix for $id\n";
 			}
+		}
+		else {
+			print " no Catalog entry for '$id'!\n";
+		}
+	}
+
+	# update the AutoAnalysis folder
+	if (defined $update_aa) {
+		unless (@action_list) {
+			die "No list provided to update AutoAnalysis folder!\n";
+		}
+		if (scalar @action_list > 1) {
+			print "! Only the first project will have the AutoAnalysis folder updated!\n"
+		}
+		my $id = $action_list[0];
+		my $Entry = $Catalog->entry($id);
+		if ($Entry) {
+			$Entry->autoanal_folder($update_aa);
 		}
 		else {
 			print " no Catalog entry for '$id'!\n";
