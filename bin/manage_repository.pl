@@ -701,8 +701,9 @@ sub open_import_catalog {
 					if ($aa_folder) {
 						if ($Entry->autoanal_folder ) {
 							if ( $aa_folder ne $Entry->autoanal_folder ) {
-								printf "  ! Updated AutoAnalysis folder for %s to %s\n",
-									$id, $aa_folder;
+								printf
+								"  ! Updated AutoAnalysis folder from '%s' to '%s'\n",
+									$Entry->autoanal_folder, $aa_folder;
 								$Entry->autoanal_folder($aa_folder);
 								$do_scan += 1;
 							}
@@ -721,9 +722,25 @@ sub open_import_catalog {
 						}
 					}
 					elsif ( not $aa_folder and $Entry->autoanal_folder ) {
-						printf "  ! AutoAnalysis folder for %s was removed\n", $id;
-						$Entry->autoanal_folder( q() );
-						$do_scan += 1;
+						if ($Entry->autoanal_folder =~ /AutoAnalysis/ ) {
+							printf "  ! AutoAnalysis folder '%s' was removed\n",
+								$Entry->autoanal_folder;
+							$Entry->autoanal_folder( q() );
+							$do_scan += 1;
+						}
+						elsif (
+							 -e File::Spec->catfile($Entry->path, $Entry->autoanal_folder)
+						) {
+							# non-standard folder masquerading as an Analysis folder
+							# folder exists so keep it
+							# likely already scanned
+						}
+						else {
+							printf "  ! AutoAnalysis folder '%s' was removed\n",
+								$Entry->autoanal_folder;
+							$Entry->autoanal_folder( q() );
+							$do_scan += 1;
+						}
 					}
 
 					# Check if needs to be scanned, only if there are fastq files present
