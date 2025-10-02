@@ -1447,6 +1447,11 @@ sub analysis_callback {
 		$filetype = 'Results';
 		$zip = 1;
 	}
+	elsif ($file =~ /\. ome \. tif $/x) {
+		# Xenium morphology images, typically huge, should not zip
+		$filetype = 'Image';
+		$zip = 0;
+	}
 	elsif ($file =~ /\. ( pdf | ps | eps | png | jpg | jpeg | gif | tif | tiff | svg | ai ) $/xin) {
 		$filetype = 'Image';
 		$zip = 1;
