@@ -1235,7 +1235,7 @@ sub run_metadata_actions {
 		}
 		print "  updated the bucket name for $count entries\n";
 		if ($skipped) {
-			print "  skipped $skipped entries with existing S3 path (use --force)\n";
+			print "  ! skipped $skipped entries with existing S3 path (use --force)\n";
 		}
 		if ($nocore) {
 			print "  skipped $nocore entries with no CORE lab assignment\n";
@@ -1321,7 +1321,7 @@ sub run_metadata_actions {
 		}
 		print "  generated bucket/prefix default paths for $count entries\n";
 		if ($skipped) {
-			print "  skipped $skipped entries with existing S3 path (use --force)\n";
+			print "  ! skipped $skipped entries with existing S3 path (use --force)\n";
 		}
 		if ($nocore) {
 			print "  skipped $nocore entries with no CORE lab assignment\n";
