@@ -1465,7 +1465,7 @@ sub analysis_callback {
 		$filetype = 'Analysis';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. ( xls | ppt | pptx | doc | docx | rout | rda | rdata | rds | rproj | xml | yaml | json | json\.gz | geojson | seg| html | pzfx ) $/xin) {
+	elsif ($file =~ /\. ( xls | ppt | pptx | doc | docx | rout | rda | rdata | rds | rproj | xml | yaml | json | json\.gz | geojson | seg | pzfx ) $/xin) {
 		$filetype = 'Results';
 		$zip = 1;
 	}
@@ -1482,6 +1482,21 @@ sub analysis_callback {
 		# leave out certain result files from zip archive just to be nice
 		$filetype = 'Results';
 		$zip = 0;
+	}
+	elsif ($file =~ /\.html$/i) {
+		# try to discern what kind of html report we have and assign accordingly
+		if ($file =~ / _fastqc \./x) {
+			$filetype = 'QC';
+			$zip = 1;
+		}
+		elsif ($file =~ / (?: multiqc | metrics | screen )/xi) {
+			$filetype = 'QC';
+			$zip = 0;
+		}
+		else {
+			$filetype = 'Results';
+			$zip = 0;
+		}
 	}
 	elsif ($file =~ /\. bismark \. cov $/xi) {
 		$filetype = 'Analysis';
