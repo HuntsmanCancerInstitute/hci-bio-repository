@@ -288,9 +288,17 @@ else {
 				print " > Updated Catalog scan date stamp\n";
 
 				# record Xenium folder as an Analysis folder
-				if ( $xenium_warning and not $Entry->autoanal_folder ) {
-					$Entry->autoanal_folder( $xenium_warning );
-					print " > Updated AutoAnalysis folder to Xenium folder\n";
+				if ($xenium_warning) {
+					if ( not $Entry->autoanal_folder ) {
+						$Entry->autoanal_folder( $xenium_warning );
+						print " > Set AutoAnalysis folder to the Xenium folder %s\n",
+							$xenium_warning;
+					}
+					elsif ( $Entry->autoanal_folder ne $xenium_warning ) {
+						$Entry->autoanal_folder( $xenium_warning );
+						printf " ! Updated AutoAnalysis folder to the Xenium folder %s\n",
+							$xenium_warning;
+					}
 				}
 			}
 		}
@@ -677,7 +685,7 @@ sub callback {
 			}
 			return analysis_callback($file, $clean_name);
 		}
-		elsif ($clean_name =~ /^ [\w\s\&]+ image s? \/ /xi) {
+		elsif ($clean_name =~ / [\w\s\&]+ image s? \/ /xi) {
 			# top level images folder, probably Xenium images
 			# this may be a non-standard folder name, so this may change
 			return analysis_callback($file, $clean_name);
@@ -1461,12 +1469,12 @@ sub analysis_callback {
 		$filetype = 'Results';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. ome \. tif $/x) {
+	elsif ($file =~ /\. ome \. tif{1,2} $/x) {
 		# Xenium morphology images, typically huge, should not zip
 		$filetype = 'Image';
 		$zip = 0;
 	}
-	elsif ($file =~ /\. ( pdf | ps | eps | png | jpg | jpeg | gif | tif | tiff | svg | ai ) $/xin) {
+	elsif ($file =~ /\. ( pdf | ps | eps | png | jpg | jpeg | gif | tif{1,2} | svg | ai ) $/xin) {
 		$filetype = 'Image';
 		$zip = 1;
 	}
