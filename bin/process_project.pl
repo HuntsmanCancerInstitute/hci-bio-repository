@@ -1629,7 +1629,7 @@ sub analysis_callback {
 	}
 	
 	# Check for sample ID
-	if ( $clean_name =~ / (\d{4,6}X\d{1,3}) [\.\-_\/] /x ) {
+	if ( $clean_name =~ / (\d{4,6}x\d{1,3}) [\.\-_\/] /xi ) {
 		$filedata{$clean_name}{sample_id} = $1;
 	}
 	else {
