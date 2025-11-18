@@ -22,7 +22,7 @@ use constant {
 	TEN_MB => 10485760
 };
 
-our $VERSION = 7.8;
+our $VERSION = 7.9;
 
 
 
@@ -549,12 +549,11 @@ sub scan_directory {
 
 sub callback {
 	my $file = $_;
-	# print "  > find callback on $file for $clean_name\n" if $verbose;
 
 	# generate a clean name for recording
 	my $clean_name = $File::Find::name;
 	$clean_name =~ s|^\./||; # strip the beginning ./ from the name to clean it up
-		
+	
 	### Ignore certain files
 	if (-d $file) {
 		# skip directories
