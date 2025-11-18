@@ -5,6 +5,7 @@ use strict;
 use English qw(-no_match_vars);
 use Getopt::Long;
 use IO::File;
+use File::Spec;
 use Text::CSV;
 use List::Util qw(mesh);
 use Config::Tiny;
@@ -18,7 +19,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 1.2;
+our $VERSION = 1.3;
 
 my $doc = <<END;
 
@@ -350,25 +351,60 @@ sub prepare_list {
 		exit 1;
 	}
 	
-	# files in a zip archive would be in the manifest but excluded from disk
-	# therefore are skipped in the upload list
-	my $ziplist = $Project->ziplist_file;
+	# files in a zip archive are in the manifest but not directly uploaded
+	# need to check both current or hidden zip list files and behave appropriately
+	# skip zipped files but do not die
+	my $ziplist;
 	my %zipped;
-	if ( -e $ziplist ) {
-		my $fh = IO::File->new($ziplist) or 
-			die " Cannot read zip list file '$ziplist'! $OS_ERROR";
+	if ( -e $Project->ziplist_file ) {
+		$ziplist = $Project->ziplist_file;
+	}
+	elsif ( -e $Project->alt_ziplist_file ) {
+		if ($Entry) {
+			if ($Entry->is_request) {
+				if ($include_autoanal) {
+					if ( $check_only or $dryrun ) {
+						printf "  > Using %s hidden ziplist file %s\n", $project_id,
+							$Project->alt_ziplist_file;
+					}
+					else {
+						printf "  ! Project %s still has hidden ziplist file %s\n",
+							$project_id, $Project->alt_ziplist_file;
+						print  "  ! Not zipped?\n";
+					}
+				}
+			}
+			else {
+				# an analysis project
+				if ( $check_only or $dryrun ) {
+					printf "  > Using %s hidden ziplist file %s\n", $project_id,
+						$Project->alt_ziplist_file;
+				}
+				else {
+					printf "  ! Project %s still has hidden ziplist file %s\n",
+						$project_id, $Project->alt_ziplist_file;
+					print  "  ! Project not zipped?\n";
+				}
+			}
+		}
+		else {
+			printf "  > Using alternate zip list, not zipped yet!!??\n";
+		}
+		$ziplist = $Project->alt_ziplist_file;
+	}
+	if ($ziplist) {
+		my $fh = IO::File->new($ziplist)
+			or die " Cannot read zip list file '$ziplist'! $OS_ERROR";
 		while ( my $line = $fh->getline ) {
 			chomp $line;
 			$zipped{$line} = 1;
 		}
 		$fh->close;
 		if ($verbose) {
-			printf "  > loaded %d files from zip list file '%s'\n", scalar(keys %zipped),
+			printf "  > loaded %d files from zip list file '%s'\n",
+				scalar( keys %zipped ),
 				$ziplist;
 		}
-	}
-	else {
-		undef $ziplist;
 	}
 
 	# check existing bucket prefix contents
@@ -393,7 +429,12 @@ sub prepare_list {
 				$project_id, $bucket_name, $prefix;
 		}
 	}
-	
+
+	# generate autoanalysis folder regex using generic or specific prefix
+	my $aa_match = qr/^ AutoAnalysis_ \w+\d{4} \/ /x;
+	if ( $Entry and my $aa = $Entry->autoanal_folder ) {
+		$aa_match = qr/^ $aa \/ /x;
+	}
 
 	# parse manifest
 	my $csv = Text::CSV->new();
@@ -410,24 +451,27 @@ sub prepare_list {
 		
 		# generate alternate name, old Request projects uploaded to Seven Bridges did
 		# not maintain directories, so skip the Fastq directory to maintain consistency
+		# single cell projects also had sample subfolders so skip those too
 		my $altname;
-		if ( $fname =~ m|^Fastq/| ) {
-			$altname = $fname;
-			$altname =~ s|^Fastq/||;
+		if ( $fname =~ /^fastq/i ) {
+			(undef, undef, $altname) = File::Spec->splitpath($fname);
 		}
 		
 		# check if we need to skip this file
+		if ( not $include_autoanal and $fname =~ $aa_match ) {
+			if ($verbose) {
+				print "   > skipping autoanalysis file $fname\n";
+			}
+			$skip++;
+			$aacnt++;
+			next;
+		}
 		if (exists $zipped{$fname}) {
 			if ($verbose) {
 				print "   > skipping zipped file $fname\n";
 			}
 			$skip++;
 			$zipcnt++;
-			next;
-		}
-		if ( not $include_autoanal and $fname =~ /^ AutoAnalysis_ \w+\d{4} \/ /x ) {
-			$skip++;
-			$aacnt++;
 			next;
 		}
 		
@@ -451,6 +495,12 @@ sub prepare_list {
 				$skip++;
 				$upcnt++;
 				next;
+			}
+			else {
+				if ($verbose) {
+					printf "   > replacing %s with older remote time %d and local %d\n",
+						$fname, $remote_time, $local_time;
+				}
 			}
 		}
 		
@@ -481,7 +531,7 @@ sub prepare_list {
 				}
 			}
 			else {
-				print "  > Manifest file is the only changed file, skipping upload\n";
+				print "  ! Manifest file is the only changed file, skipping upload\n";
 			}
 		}
 		else {
@@ -491,18 +541,28 @@ sub prepare_list {
 		}
 	}
 	else {
-		push @upload_list, $manifest_file;
-		$count++;
-		$size += $man_stat[7];		
-		if ($verbose) {
-			print "   > including file $manifest_file\n";
+		if ($count) {
+			push @upload_list, $manifest_file;
+			$count++;
+			$size += $man_stat[7];		
+			if ($verbose) {
+				print "   > including file $manifest_file\n";
+			}
+		}
+		else {
+			print "   ! no files to upload, skipping upload of $manifest_file\n";
 		}
 	}
 
 	printf " > Collected %d files (%s) out of %d to upload to %s/%s\n",
 		$count, format_human_size($size), $count + $skip, $bucket_name, $prefix;
 	if ($zipcnt) {
-		printf "   > %d files were zipped\n", $zipcnt;
+		if ( -e $Project->zip_file ) {
+			printf "   > %d files were zipped and skipped\n", $zipcnt;
+		}
+		else {
+			printf "   > %d files to be zipped and skipped\n", $zipcnt;
+		}
 	}
 	if ($upcnt) {
 		printf "   > %d files were already uploaded\n", $upcnt;
