@@ -306,8 +306,11 @@ sub prepare_list {
 		}
 	}
 	if ( $bucket ) {
-		if ($verbose) {
-			printf "  > bucket '%s' exists\n", $bucket_name;
+		if ($Entry) {
+			printf " > Found bucket '%s' in '%s'\n", $bucket_name, $Entry->core_lab;
+		}
+		else {
+			printf " > Found bucket '%s' under profile '%s'\n", $bucket_name, $profile;
 		}
 	}
 	else {
