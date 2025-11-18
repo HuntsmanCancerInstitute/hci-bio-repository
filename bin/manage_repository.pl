@@ -1888,11 +1888,12 @@ sub run_email_notifications {
 			# or AutoAnalysis uploads prior to hiding
 			# but could also be a deletion notification before redirecting or new account
 			# skip uploads when just uploaded in the same execution
-			if ( $project_upload and $Entry->emailed_datestamp ) {
+			if ( ( $project_upload or $project_aa_upload ) and $Entry->emailed_datestamp )
+			{
 				printf " ! Skipping subsequent email notification for %s\n", $id;
 				next;
 			}
-			my $result = $Email->send_request_upload_email($Entry, 'mock' => $mock);
+			my $result = $Email->send_request_upload_email( $Entry, 'mock' => $mock );
 			if ($result) {
 				printf " > Sent Request AWS upload email for $id: %s\n", 
 					ref($result) ? $result->message : "\n$result";
