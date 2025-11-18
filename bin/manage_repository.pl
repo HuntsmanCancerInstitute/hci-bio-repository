@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 8.4;
+our $VERSION = 8.5;
 
 
 ######## Documentation
@@ -149,6 +149,7 @@ OPTIONS
     --update_bucket <text>    Update the AWS S3 bucket
     --update_prefix <text>    Update the AWS prefix (only one project)
     --update_aa <text>        Update the Request AutoAnalysis folder
+    --update_complete         Mark an erroneous Request metadata as 'COMPLETE'
     --generate_s3             Generate default AWS S3 bucket/prefix
     --delete_entry            Delete catalog entry
   
@@ -219,6 +220,7 @@ my $update_profile;
 my $update_bucket;
 my $update_prefix;
 my $update_aa;
+my $update_complete;
 my $generate_s3_path;
 my $project_scan;
 my $project_upload;
@@ -317,6 +319,7 @@ if (scalar(@ARGV) > 1) {
 		'update_bucket=s'       => \$update_bucket,
 		'update_prefix=s'       => \$update_prefix,
 		'update_aa=s'           => \$update_aa,
+		'update_complete!'      => \$update_complete,
 		'generate_s3!'          => \$generate_s3_path,
 		'update_size|update_age!' => \$scan_size_age,
 		'export_file=s'         => \$dump_file,
@@ -1292,6 +1295,33 @@ sub run_metadata_actions {
 		}
 	}
 
+	# update the Request COMPLETE flag manually
+	# sometimes this does not get set in GNomEx, so trigger it manually
+	if ($update_complete) {
+		unless (@action_list) {
+			die "No list provided to update COMPLETE status!\n";
+		}
+		my $count    = 0;
+		my $skipped  = 0;
+		foreach my $id (@action_list) {
+			my $Entry = $Catalog->entry($id) or next;
+			unless ($Entry->is_request) {
+				$skipped++;
+				next;
+			}
+			if ( $Entry->request_status eq 'COMPLETE' ) {
+				$skipped++;
+				next;
+			}
+			$Entry->request_status('COMPLETE');
+			$count++;
+		}	
+		print " updated COMPLETE status for $count entries\n";
+		if ($skipped) {
+			print " ! skipped $skipped entries to update\n";
+		}
+	}
+	
 	if ($generate_s3_path) {
 		print " Generating default bucket/prefix S3 paths\n";
 		unless (@action_list) {
