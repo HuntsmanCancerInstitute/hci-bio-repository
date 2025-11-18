@@ -1106,6 +1106,10 @@ sub analysis_callback {
 		push @removelist, $clean_name;
 		return;
 	}
+	elsif ( $clean_name =~ /\. md5 (sum)? $/xin ) {
+		push @removelist, $clean_name;
+		return;
+	}
 	elsif ( $clean_name =~ /_STARtmp\// ) {
 		# left over STAR alignment droppings, delete
 		push @removelist, $clean_name;
@@ -1336,19 +1340,30 @@ sub analysis_callback {
 			$filedata{$clean_name}{sample_id}        = q(-);
 		}
 	}
-	elsif ($file =~ /\. ( fq | fastq ) (\.gz)? $/xin) {
+	elsif ($file =~ /\. ( fq | fastq ) (\. (gz|ora) )? $/xin) {
 		# fastq file
 		if ($file =~ /^ \d{4,6} X \d{1,3} /x) {
 			if ($file =~ /_umi \.fastq \.gz $/x) {
 				# looks like a merged UMI fastq file. I guess keep it?
 			}
-			elsif ($file =~ /^ \d{4,6} X \d{1,3} _ \d{6,8} _ .+ _[IR]\d_001 \.fastq\.gz$/x) {
+			elsif ( $file =~
+				/^ \d{4,6} X \d{1,3} _ \d{6,8} _ .+ _[IR]\d_001 \.fastq \.gz $/x )
+			{
 				print "   ! marking to delete probable HCI Fastq file $clean_name\n";
 				push @removelist, $clean_name;
 				return;
 			}
-			elsif ($file =~ /^ \d{4,6} X \d{1,3} _ S\d+ _ L\d+ _[IR]\d _001 \.fastq\.gz$/x) {
+			elsif ( $file =~
+				/^ \d{4,6} X \d{1,3} _ S\d+ _ L\d+ _[IR]\d _001 \.fastq \.(gz|ora) $/xn )
+			{
 				# a simplified HCI fastq for 10X pipelines
+				print "   ! marking to delete probable HCI Fastq file $clean_name\n";
+				push @removelist, $clean_name;
+				return;
+			}
+			elsif ( $file =~
+				/^ \d{4,6} X \d{1,3} _ \d{6,8} _ .+ R\-interleaved_001 \.fastq \.ora $/x )
+			{
 				print "   ! marking to delete probable HCI Fastq file $clean_name\n";
 				push @removelist, $clean_name;
 				return;
@@ -1358,7 +1373,7 @@ sub analysis_callback {
 			}
 		}
 		$filetype = 'Fastq';
-		if ($file !~ /\.gz$/i) {
+		if ($file !~ /\. (gz|ora|bz2?) $/xin) {
 			# file not compressed!!!????? let's compress it separately
 			my $command = sprintf "%s \"%s\"", $gzipper, $file;
 			if (system($command)) {
