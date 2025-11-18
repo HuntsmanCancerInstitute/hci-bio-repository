@@ -1443,7 +1443,7 @@ sub analysis_callback {
 		push @removelist, $clean_name;
 		return;
 	}
-	elsif ($file =~ /\. ( bed | bed\d+ | gtf | gff | gff\d | narrowpeak | broadpeak | gappedpeak | refflat | genepred | ucsc) (\.gz)? $/xin) {
+	elsif ($file =~ /\. ( bed | bed\d+ | gtf | gff | gff\d | narrowpeak | broadpeak | gappedpeak | refflat | genepred | ucsc | saf ) (\.gz)? $/xin) {
 		$filetype = 'Annotation';
 		if ($file =~ /\.gz$/ and $size > TEN_MB) {
 			# do not archive if compressed and bigger 10 MB
@@ -1462,9 +1462,14 @@ sub analysis_callback {
 		$filetype = 'Script';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. ( txt | tsv | tab | csv | cdt | counts | results | cns | cnr | cnn | md | log | biotypes | summary | rna_metrics | out | err | idxstats? ) (\.gz)? $/xin) {
+	elsif ($file =~ /\. ( txt | tsv | tab | csv | cdt | counts | results | cns | cnr | cnn | md | log | biotypes | summary | out | err ) (\.gz)? $/xin) {
 		# general analysis text files, may be compressed
 		$filetype = 'Text';
+		$zip = 1;
+	}
+	elsif ($file =~ /\. ( rna_metrics | idxstats? | flagstats? | stats? ) (\.gz)? $/xin) {
+		# QC text files, may be compressed
+		$filetype = 'QC';
 		$zip = 1;
 	}
 	elsif ($file =~ /\. ( wig | bg | bdg | bedgraph ) (\.gz)? $/xin) {
@@ -1476,7 +1481,11 @@ sub analysis_callback {
 		$filetype = 'Analysis';
 		$zip = 0;
 	}
-	elsif ($file =~ /\. ( bar | bar\.zip | useq | swi | swi\.gz | egr | ser | mpileup | motif | cov | mtx | mtx\.gz ) $/xin) {
+	elsif ($file =~ /\. ( bar | bar\.zip | useq | swi | swi\.gz | egr | ser ) $/xin) {
+		$filetype = 'Analysis';
+		$zip = 1;
+	}
+	elsif ($file =~ /\. ( mpileup | motif | cov | mtx | mtx\.gz | mat | mat\.gz ) $/xin) {
 		$filetype = 'Analysis';
 		$zip = 1;
 	}
