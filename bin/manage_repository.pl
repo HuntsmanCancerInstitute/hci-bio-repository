@@ -1211,22 +1211,22 @@ sub run_metadata_actions {
 		$update_bucket =~ s|^s3://||;
 		$update_bucket =~ s|/$||;
 		my $count    = 0;
-		my $nocore   = 0;
-		my $uploaded = 0;
 		my $skipped  = 0;
 		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 			if (not $Entry->core_lab) {
-				$nocore++;
-				next;
+				print "  ! Project $id is not assigned a CORE lab\n";
+				unless ($force) {
+					$skipped++;
+					next;
+				}
 			}
 			if ( $Entry->upload_datestamp > 1000 ) {
-				$uploaded++;
-				next;
-			}
-			if ($Entry->project_url and not $force) {
-				$skipped++;
-				next;
+				print "  ! Project $id has already been uploaded\n";
+				unless ($force) {
+					$skipped++;
+					next;
+				}
 			}
 			if ( $update_bucket eq 'none' ) {
 				$Entry->bucket( q() );
@@ -1236,15 +1236,9 @@ sub run_metadata_actions {
 			}
 			$count++;
 		}
-		print "  updated the bucket name for $count entries\n";
+		print " updated the bucket name for $count entries\n";
 		if ($skipped) {
-			print "  ! skipped $skipped entries with existing S3 path (use --force)\n";
-		}
-		if ($nocore) {
-			print "  skipped $nocore entries with no CORE lab assignment\n";
-		}
-		if ($uploaded) {
-			print "  skipped $uploaded entries already uploaded\n";
+			print " ! skipped $skipped entries for reasons (use --force)\n";
 		}
 	}
 
@@ -1260,14 +1254,19 @@ sub run_metadata_actions {
 		my $id = $action_list[0];
 		my $Entry = $Catalog->entry($id);
 		if ($Entry) {
+			my $bad = 0;
 			if ( not $Entry->core_lab ) {
-				print " ! Project $id is not assigned to a CORE lab\n";
+				print "  ! Project $id is not assigned to a CORE lab\n";
+				$bad++ unless $force;
 			}
-			elsif ( $Entry->upload_datestamp > 1000 ) {
-				print " ! Project $id has already been uploaded, cannot change\n";
+			if ( $Entry->upload_datestamp > 1000 ) {
+				print "  ! Project $id has already been uploaded\n";
+				$bad++ unless $force;
+			}
+			if ($bad) {
+				print "    cannot update prefix (use --force)\n";
 			}
 			else {
-				# must be ok
 				$Entry->prefix($update_prefix);
 				print "  updated prefix for $id\n";
 			}
