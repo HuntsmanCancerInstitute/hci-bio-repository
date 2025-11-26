@@ -152,6 +152,8 @@ OPTIONS
     --update_complete         Mark an erroneous Request metadata as 'COMPLETE'
     --generate_s3             Generate default AWS S3 bucket/prefix
     --delete_entry            Delete catalog entry
+    --reset                   Reset datestamps, manifest, file lists for an
+                                expired project to prepare for new files
   
   Actions on catalog file:
     --export <path>           Dump the contents to tab-delimited text file
@@ -222,6 +224,7 @@ my $update_prefix;
 my $update_aa;
 my $update_complete;
 my $generate_s3_path;
+my $reset_project;
 my $project_scan;
 my $project_upload;
 my $project_zip;
@@ -322,6 +325,7 @@ if (scalar(@ARGV) > 1) {
 		'update_complete!'      => \$update_complete,
 		'generate_s3!'          => \$generate_s3_path,
 		'update_size|update_age!' => \$scan_size_age,
+		'reset!'                => \$reset_project,
 		'export_file=s'         => \$dump_file,
 		'import_file=s'         => \$import_file,
 		'force!'                => \$force,
@@ -975,6 +979,36 @@ sub generate_list {
 
 
 sub run_metadata_actions {
+	
+	# reset a project, for example new Fastq files added to an expired project
+	if ($reset_project) {
+		unless (@action_list) {
+			die "No list of projects provided to reset!\n";
+		}
+		my $count = 0;
+		foreach my $id (@action_list) {
+			my $Entry   = $Catalog->entry($id) or next;
+			my $Project = RepoProject->new($Entry->path) or next;
+			my $success = $Project->reset_list_files;
+			if ($success) {
+				$Entry->upload_datestamp(0);
+				$Entry->autoanal_up_datestamp(0);
+				$Entry->hidden_datestamp(0);
+				$Entry->deleted_datestamp(0);
+				$Entry->emailed_datestamp(0);
+				printf " > Reset project %s\n", $id;
+				$count++;
+			}
+			else {
+				printf " ! Failed to reset project %s\n", $id;
+			}
+		}
+		# skip any further metadata actions in case they were specified
+		undef $update_upload_date;
+		undef $update_hide_date;
+		undef $update_delete_date;
+		undef $update_aa_upload_date;
+	}
 	
 	# rescan the project file size and age on the server
 	if ($scan_size_age) {
