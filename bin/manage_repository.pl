@@ -1899,7 +1899,12 @@ sub run_email_notifications {
 	if ($email_req_del) {
 		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
-		
+			
+			if ( $Entry->emailed_datestamp and not $force ) {
+				printf " ! Skipping subsequent email notification for %s without force\n",
+					$id;
+				next;
+			}
 			my $result = $Email->send_request_deletion_email($Entry, 'mock' => $mock);
 			if ($result) {
 				printf " > Sent Request deletion email for $id: %s\n", 
@@ -1927,6 +1932,11 @@ sub run_email_notifications {
 				printf " ! Skipping subsequent email notification for %s\n", $id;
 				next;
 			}
+			elsif ( $Entry->emailed_datestamp and not $force ) {
+				printf " ! Skipping subsequent email notification for %s without force\n",
+					$id;
+				next;
+			}
 			my $result = $Email->send_request_upload_email( $Entry, 'mock' => $mock );
 			if ($result) {
 				printf " > Sent Request AWS upload email for $id: %s\n", 
@@ -1944,6 +1954,11 @@ sub run_email_notifications {
 		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
 		
+			if ( $Entry->emailed_datestamp and not $force ) {
+				printf " ! Skipping subsequent email notification for %s without force\n",
+					$id;
+				next;
+			}
 			my $result = $Email->send_analysis_deletion_email($Entry, 'mock' => $mock);
 			if ($result) {
 				printf " > Sent Analysis deletion email for $id: %s\n", 
@@ -1960,6 +1975,16 @@ sub run_email_notifications {
 	if ($email_anal_up) {
 		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
+		
+			if ( $project_upload and $Entry->emailed_datestamp ) {
+				printf " ! Skipping subsequent email notification for %s\n", $id;
+				next;
+			}
+			elsif ( $Entry->emailed_datestamp and not $force ) {
+				printf " ! Skipping subsequent email notification for %s without force\n",
+					$id;
+				next;
+			}
 		
 			my $result = $Email->send_analysis_upload_email($Entry, 'mock' => $mock);
 			if ($result) {
