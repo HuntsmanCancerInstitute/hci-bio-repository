@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 7.7;
+our $VERSION = 7.9;
 
 ### Initialize
 
@@ -92,20 +92,22 @@ sub new {
 	};
 	
 	# project files
-	$self->{manifest}     = $project . "_MANIFEST.csv";
-	$self->{prevmanifest} = $project . "_PREVIOUS_MANIFEST.csv";
-	$self->{remove}       = $project . "_REMOVE_LIST.txt";
-	$self->{ziplist}      = $project . "_ARCHIVE_LIST.txt";
-	$self->{zip}          = $project . "_ARCHIVE.zip";
+	$self->{manifest}     = $project . '_MANIFEST.csv';
+	$self->{prevmanifest} = $project . '_PREVIOUS_MANIFEST.csv';
+	$self->{remove}       = $project . '_REMOVE_LIST.txt';
+	$self->{prevremove}   = $project . '_PREVIOUS_REMOVE_LIST.txt';
+	$self->{ziplist}      = $project . '_ARCHIVE_LIST.txt';
+	$self->{prevziplist}  = $project . '_PREVIOUS_ARCHIVE_LIST.txt';
+	$self->{zip}          = $project . '_ARCHIVE.zip';
 	$self->{notice}       = 'where_are_my_files.txt';
 
 	# hidden file names in parent directory
 	if ($parent_dir) {
-		$self->{alt_remove}  = File::Spec->catfile($parent_dir, $project . "_REMOVE_LIST.txt");
-		$self->{alt_zip}     = File::Spec->catfile($parent_dir, $project . "_ARCHIVE.zip");
-		$self->{alt_ziplist} = File::Spec->catfile($parent_dir, $project . "_ARCHIVE_LIST.txt");
-		$self->{zipfolder}   = File::Spec->catfile($parent_dir, $project . "_ZIPPED_FILES");
-		$self->{delfolder}   = File::Spec->catfile($parent_dir, $project . "_DELETED_FILES");
+		$self->{alt_remove}  = File::Spec->catfile($parent_dir, $project . '_REMOVE_LIST.txt');
+		$self->{alt_zip}     = File::Spec->catfile($parent_dir, $project . '_ARCHIVE.zip');
+		$self->{alt_ziplist} = File::Spec->catfile($parent_dir, $project . '_ARCHIVE_LIST.txt');
+		$self->{zipfolder}   = File::Spec->catfile($parent_dir, $project . '_ZIPPED_FILES');
+		$self->{delfolder}   = File::Spec->catfile($parent_dir, $project . '_DELETED_FILES');
 	}
 	else {
 		$self->{alt_remove}  = $self->{remove};
@@ -117,14 +119,14 @@ sub new {
 
 	# notification file
 	if ($parent_dir =~ /MicroarrayData/) {
-		$self->{notice_source} = "/Repository/MicroarrayData/missing_file_notice.txt";
+		$self->{notice_source} = '/Repository/MicroarrayData/missing_file_notice.txt';
 	}
 	elsif ($parent_dir =~ /AnalysisData/) {
-		$self->{notice_source} = "/Repository/AnalysisData/missing_file_notice.txt";
+		$self->{notice_source} = '/Repository/AnalysisData/missing_file_notice.txt';
 	}
 	else {
 		# primarily for testing purposes
-		$self->{notice_source} = "~/missing_file_notice.txt";
+		$self->{notice_source} = File::Spec->catfile( $ENV{HOME}, 'missing_file_notice.txt' );
 	}
 
 	return bless $self, $class;
@@ -163,6 +165,10 @@ sub remove_file {
 	return shift->{remove};
 }
 
+sub previous_remove_file {
+	return shift->{prevremove};
+}
+
 sub zip_file {
 	return shift->{zip};
 }
@@ -173,6 +179,10 @@ sub ziplist_file {
 
 sub alt_ziplist_file {
 	return shift->{alt_ziplist};
+}
+
+sub previous_ziplist_file {
+	return shift->{prevziplist};
 }
 
 sub notice_file {
@@ -576,6 +586,8 @@ sub get_size_age {
 		$self->ziplist_file,
 		$self->remove_file,
 		$self->previous_manifest_file,
+		$self->previous_remove_file,
+		$self->previous_ziplist_file,
 		$self->notice_file,
 	);
 	
@@ -622,6 +634,39 @@ sub has_fastq {
 	else {
 		return 0;
 	}
+}
+
+sub reset_list_files {
+	my $self = shift;
+	my $curdir = getcwd();
+	chdir $self->given_dir;
+	if ( -e $self->previous_manifest_file ) {
+		printf "  ! project %s already reset, unable to continue\n", $self->project;
+		chdir $curdir;
+		return;
+	}
+	if ( -e $self->manifest_file ) {
+		move( $self->manifest_file, $self->previous_manifest_file ) or do {
+			printf "  ! Failed to move %s: %s\n", $self->manifest_file, $OS_ERROR;
+		}	
+	}
+	else {
+		printf "  ! project %s not scanned, unable to reset\n", $self->project;
+		chdir $curdir;
+		return;
+	}
+	if ( -e $self->remove_file ) {
+		move( $self->remove_file, $self->previous_remove_file ) or do {
+			printf "  ! Failed to move %s: %s\n", $self->remove_file, $OS_ERROR;
+		}	
+	}
+	if ( -e $self->ziplist_file ) {
+		move( $self->ziplist_file, $self->previous_ziplist_file ) or do {
+			printf "  ! Failed to move %s: %s\n", $self->ziplist_file, $OS_ERROR;
+		}	
+	}
+	chdir $curdir;
+	return 1;
 }
 
 
@@ -838,6 +883,25 @@ Returns name of the notice file. Example F<where_are_my_files.txt>
 Returns path and name of alternate or hidden remove list file. Example: 
 F</Repository/MicroarrayData/2019/1234R_REMOVE_LIST.txt>
 
+=item alt_ziplist_file
+
+Returns path and name of alternate or zip archive list file. Example: 
+F</Repository/MicroarrayData/2019/1234R_ARCHIVE_LIST.txt>
+
+=item previous_manifest_file
+
+Returns name of the previous manifest file. Example: F<1234R_PREVIOUS_MANIFEST.csv>.
+
+=item previous_remove_file
+
+Returns name of the previous_remove list file.
+Example: F<1234R_PREVIOUS_REMOVE_LIST.txt>
+
+=item previous_ziplist_file
+
+Returns name of the previous zip archive list file.
+Example: F<1234R_PREVIOUS_ARCHIVE_LIST.txt>.
+
 =item zip_folder
 
 Returns path to the hidden zip folder where files are moved to after 
@@ -1009,6 +1073,13 @@ notice file in the project folder.
 Executes an external C<find> command in a sub shell to recursively 
 search for and delete empty subdirectories. Pass the directory to 
 search. Returns the return status from the C<find> command.
+
+=item reset_list_files
+
+Renames existing manifest, remove list, and archive list files
+to new names with "_PREVIOUS" prefix. These are ignored when
+scanning and effectively resets a project while maintaining a
+history.
 
 =back
 
