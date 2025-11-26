@@ -22,7 +22,7 @@ use constant {
 	TEN_MB => 10485760
 };
 
-our $VERSION = 7.9;
+our $VERSION = 8.0;
 
 
 
@@ -248,6 +248,8 @@ if ( -e $Project->zip_folder or -e $Project->zip_file ) {
 # project manifest files
 my $project_manifest_file      = $Project->manifest_file;
 my $project_prev_manifest_file = $Project->previous_manifest_file;
+my $project_prev_remove_file   = $Project->previous_remove_file;
+my $project_prev_zip_file      = $Project->previous_ziplist_file;
 
 
 
@@ -491,6 +493,36 @@ sub scan_directory {
 	if ($removed_file_count) {
 		printf "  > Removed %d files from manifest\n", $removed_file_count;
 	}
+
+	# add contents of previous manifest file if it exists
+	if ( scalar(@manifest) and -e $Project->previous_manifest_file ) {
+		my $csv = Text::CSV->new();
+		my $fh  = IO::File->new( $Project->previous_manifest_file );
+		if ($fh) {
+			my $header = $csv->getline($fh);
+			while ( my $data = $csv->getline($fh) ) {
+				my %file = mesh $header, $data;
+				push @manifest, join(
+					',',
+					sprintf( qq("%s"), $file{File} ),
+					$file{Type}     || q(),
+					$file{Archived} || q(),
+					$file{Size}     || q(),
+					sprintf( qq("%s"), $file{Date} || q() ),
+					$file{MD5}        || q(),
+					$file{sample_id}  || q(),
+					$file{paired_end} || q(),
+					sprintf( qq("%s"), $file{platform} || q() ),
+					$file{platform_unit_id} || q()
+				);
+			}
+			$fh->close;
+		}
+		else {
+			printf " ! Cannot read previous manifest file %s: %s\n",
+				$Project->previous_manifest_file, $OS_ERROR;
+		}
+	}
 	
 	### Write files
 	# manifest
@@ -578,6 +610,12 @@ sub callback {
 		return;
 	}
 	elsif ($file eq $project_prev_manifest_file) {
+		return;
+	}
+	elsif ($file eq $project_prev_remove_file) {
+		return;
+	}
+	elsif ($file eq $project_prev_zip_file) {
 		return;
 	}
 	elsif ($file eq 'where_are_my_files.txt') {
