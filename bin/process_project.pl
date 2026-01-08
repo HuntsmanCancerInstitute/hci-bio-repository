@@ -293,7 +293,7 @@ else {
 				if ($xenium_warning) {
 					if ( not $Entry->autoanal_folder ) {
 						$Entry->autoanal_folder( $xenium_warning );
-						print " > Set AutoAnalysis folder to the Xenium folder %s\n",
+						printf " > Setting AutoAnalysis folder to the Xenium folder %s\n",
 							$xenium_warning;
 					}
 					elsif ( $Entry->autoanal_folder ne $xenium_warning ) {
