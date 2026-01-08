@@ -709,8 +709,8 @@ sub open_import_catalog {
 						if ($Entry->autoanal_folder ) {
 							if ( $aa_folder ne $Entry->autoanal_folder ) {
 								printf
-								"  ! Updated AutoAnalysis folder from '%s' to '%s'\n",
-									$Entry->autoanal_folder, $aa_folder;
+								"  ! Updated AutoAnalysis folder for %s from '%s' to '%s'\n",
+									$id, $Entry->autoanal_folder, $aa_folder;
 								$Entry->autoanal_folder($aa_folder);
 								$do_scan += 1;
 							}
@@ -730,8 +730,8 @@ sub open_import_catalog {
 					}
 					elsif ( not $aa_folder and $Entry->autoanal_folder ) {
 						if ($Entry->autoanal_folder =~ /AutoAnalysis/ ) {
-							printf "  ! AutoAnalysis folder '%s' was removed\n",
-								$Entry->autoanal_folder;
+							printf "  ! AutoAnalysis folder '%s' for %s was removed\n",
+								$Entry->autoanal_folder, $id;
 							$Entry->autoanal_folder( q() );
 							$do_scan += 1;
 						}
@@ -743,8 +743,8 @@ sub open_import_catalog {
 							# likely already scanned
 						}
 						else {
-							printf "  ! AutoAnalysis folder '%s' was removed\n",
-								$Entry->autoanal_folder;
+							printf "  ! AutoAnalysis folder '%s' for %s was removed\n",
+								$Entry->autoanal_folder, $id;
 							$Entry->autoanal_folder( q() );
 							$do_scan += 1;
 						}
