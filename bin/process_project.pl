@@ -1522,6 +1522,25 @@ sub analysis_callback {
 		$filetype = 'Analysis';
 		$zip = 1;
 	}
+	elsif ($file =~ /\. bismark \. cov $/xi) {
+		my $command = sprintf "%s \"%s\"", $gzipper, $file;
+		if (system($command)) {
+			print "   ! failed to automatically compress '$clean_name': $OS_ERROR\n";
+			$zip = 1; 
+		}
+		else {
+			# succesfull compression! update values
+			print "   > automatically gzip compressed $clean_name\n";
+			$file  .= '.gz';
+			$clean_name .= '.gz';
+			($date, $size) = get_file_stats($file);
+			$zip = 0;
+		}
+	}
+	elsif ($file =~ /\. bismark \. cov \.gz $/xi) {
+		$filetype = 'Analysis';
+		$zip = 0;
+	}
 	elsif ($file =~ /\. ( mpileup | motif | cov | mtx | mtx\.gz | mat | mat\.gz ) $/xin) {
 		$filetype = 'Analysis';
 		$zip = 1;
@@ -1558,26 +1577,6 @@ sub analysis_callback {
 			$filetype = 'Results';
 			$zip = 0;
 		}
-	}
-	elsif ($file =~ /\. bismark \. cov $/xi) {
-		$filetype = 'Analysis';
-		my $command = sprintf "%s \"%s\"", $gzipper, $file;
-		if (system($command)) {
-			print "   ! failed to automatically compress '$clean_name': $OS_ERROR\n";
-			$zip = 1; 
-		}
-		else {
-			# succesfull compression! update values
-			print "   > automatically gzip compressed $clean_name\n";
-			$file  .= '.gz';
-			$clean_name .= '.gz';
-			($date, $size) = get_file_stats($file);
-			$zip = 0;
-		}
-	}
-	elsif ($file =~ /\. bismark \. cov \.gz $/xi) {
-		$filetype = 'Analysis';
-		$zip = 0;
 	}
 	elsif ($file =~ /\. [cv] loupe $/xi) {
 		# 10X genomics loupe file
