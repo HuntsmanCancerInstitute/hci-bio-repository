@@ -19,10 +19,13 @@ use RepoProject;
 use constant {
 	ONE_KB => 1024,
 	ONE_MB => 1048576,
-	TEN_MB => 10485760
+	TEN_MB => 10485760,
+	FIFTY_MB => 52428800,
+	HUNDRED_MB => 104857600,
+	ONE_GB => 1073741824,
 };
 
-our $VERSION = 8.0;
+our $VERSION = 8.1;
 
 
 
@@ -106,7 +109,7 @@ my $autoanal_warning  = 0; # warnings about AutoAnalysis folders
 my $upload_warning    = 0; # GNomEx upload folder
 my $xenium_warning    = 0; # Xenium folder
 my $post_zip_size     = 0;
-my $max_zip_size      = 200000000; # 200 MB
+my $max_zip_size      = HUNDRED_MB;
 
 # our sequence machine IDs to platform technology lookup
 my %machinelookup = (
@@ -1502,7 +1505,13 @@ sub analysis_callback {
 	elsif ($file =~ /\. ( txt | tsv | tab | csv | cdt | counts | results | cns | cnr | cnn | md | log | biotypes | summary | out | err ) (\.gz)? $/xin) {
 		# general analysis text files, may be compressed
 		$filetype = 'Text';
-		$zip = 1;
+		if ($file =~ /\.gz$/ and $size > HUNDRED_MB) {
+			# do not archive if compressed and bigger 100 MB
+			$zip = 0;
+		}
+		else {
+			$zip = 1;
+		}
 	}
 	elsif ($file =~ /\. ( rna_metrics | idxstats? | flagstats? | stats? ) (\.gz)? $/xin) {
 		# QC text files, may be compressed
@@ -1511,7 +1520,13 @@ sub analysis_callback {
 	}
 	elsif ($file =~ /\. ( wig | bg | bdg | bedgraph ) (\.gz)? $/xin) {
 		$filetype = 'Analysis';
-		$zip = 1;
+		if ($file =~ /\.gz$/ and $size > FIFTY_MB) {
+			# do not archive if compressed and bigger 50 MB
+			$zip = 0;
+		}
+		else {
+			$zip = 1;
+		}
 	}
 	elsif ($file =~ /\. mpileup.* \.gz $/xi) {
 		# compressed mpileup files ok?, some people stick in text between mpileup and gz
@@ -1522,28 +1537,34 @@ sub analysis_callback {
 		$filetype = 'Analysis';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. bismark \. cov $/xi) {
-		my $command = sprintf "%s \"%s\"", $gzipper, $file;
-		if (system($command)) {
-			print "   ! failed to automatically compress '$clean_name': $OS_ERROR\n";
-			$zip = 1; 
+	elsif ($file =~ /\. bismark \. cov (\.gz)? $/xi) {
+		if ($file !~ /\.gz$/) {
+			my $command = sprintf "%s \"%s\"", $gzipper, $file;
+			if (system($command)) {
+				print "   ! failed to automatically compress '$clean_name': $OS_ERROR\n";
+				$zip = 1; 
+			}
+			else {
+				# succesfull compression! update values
+				print "   > automatically gzip compressed $clean_name\n";
+				$file  .= '.gz';
+				$clean_name .= '.gz';
+				($date, $size) = get_file_stats($file);
+				$zip = 0;
+			}
 		}
-		else {
-			# succesfull compression! update values
-			print "   > automatically gzip compressed $clean_name\n";
-			$file  .= '.gz';
-			$clean_name .= '.gz';
-			($date, $size) = get_file_stats($file);
-			$zip = 0;
-		}
-	}
-	elsif ($file =~ /\. bismark \. cov \.gz $/xi) {
 		$filetype = 'Analysis';
 		$zip = 0;
 	}
 	elsif ($file =~ /\. ( mpileup | motif | cov | mtx | mtx\.gz | mat | mat\.gz ) $/xin) {
 		$filetype = 'Analysis';
-		$zip = 1;
+		if ($file =~ /\.gz$/ and $size > HUNDRED_MB) {
+			# do not archive if compressed and bigger 100 MB
+			$zip = 0;
+		}
+		else {
+			$zip = 1;
+		}
 	}
 	elsif ($file =~ /\. ( xls | ppt | pptx | doc | docx | rout | rda | rdata | rds | rproj | xml | yaml | json | json\.gz | geojson | seg | pzfx ) $/xin) {
 		$filetype = 'Results';
