@@ -7,7 +7,7 @@ use Carp;
 use IO::File;
 use DBM::Deep;
 
-our $VERSION = 7.6;
+our $VERSION = 7.7;
 
 
 # General private values
@@ -959,8 +959,8 @@ sub size {
 		my $cursize = $self->{data}->[SIZE] || 0;
 		if ($cursize) {
 			my $delta = abs($cursize - $newsize);
-			if ($delta > 25_000_000 or ($delta / $cursize) > 0.1) {
-				# there's a significant change of greater than 25 MB or 10%
+			if ($delta > 1024) {
+				# there's a significant change of greater than 1Kb
 				# then store the last size
 				$self->{data}->[LASTSIZE] = $cursize;
 			}
