@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 8.5;
+our $VERSION = 8.6;
 
 
 ######## Documentation
@@ -601,26 +601,30 @@ sub open_import_catalog {
 					# Check if needs to be scanned
 					if ($project_scan) {
 						my $do_scan = 0;
-						if ( $Entry->scan_datestamp > 1 and
-							( time - $Entry->scan_datestamp ) > 3600 and
-							( $datestamp - time ) > 3600
-						) {
-							# previously scanned at least an hour ago and
-							# files are at least an hour old
-							$do_scan += 1;
+						if ( $Entry->scan_datestamp > 1 ) {
+							
+							# previously scanned before, check if needs rescanned
+							if (
+								$datestamp > $Entry->scan_datestamp and
+								( time - $datestamp ) > 3600 )
+							{
+								# there is a newer file than the last scan and
+								# file is at least an hour old
+								$do_scan += 1;
+							}
+							elsif ( abs( $prev_size - $size ) >= 1024 ) {
+
+								# odd situation where size changes by 1 KiB in size
+								# with files that don't trigger an age change
+								$do_scan += 1;
+							}
+
 						}
 						elsif ( $Entry->scan_datestamp == 0 and
 								($Entry->age and $Entry->age >= 7 )
 						) {
 							# otherwise wait for project to "settle" for at least
 							# one week before scanning
-							$do_scan += 1;
-						}
-						elsif ( abs($prev_size - $size) >= 1024 and
-								$Entry->scan_datestamp > 0
-						) {
-							# odd situation where size changes by 1 KiB in size
-							# with files that don't trigger an age change
 							$do_scan += 1;
 						}
 
@@ -716,10 +720,10 @@ sub open_import_catalog {
 							}
 							if (
 								(time - $aa_datestamp) > 3600 and
-								($aa_datestamp - $Entry->scan_datestamp) > 3600
+								$aa_datestamp > $Entry->scan_datestamp
 							) {
 								# youngest autoanal file is at least 1 hour old
-								# and older than the last scan by 1 hour
+								# and older than the last scan
 								$do_scan += 1;
 							}
 						}
@@ -751,11 +755,15 @@ sub open_import_catalog {
 					}
 
 					# Check if needs to be scanned, only if there are fastq files present
-					# or the project is unusual size > 10 GB, like Xenium
-					if ( $project_scan and ($Project->has_fastq or $size > 10000000000) ) {
+					# or the project is unusual size > 1 GB, like Xenium
+					if ( 
+						$project_scan and
+						( $Project->has_fastq or $size > 1000000000 ) and
+						(time - $datestamp) > 3600
+					) {
 						if ( $Entry->scan_datestamp > 1 ) {
-							if ( $datestamp - $Entry->scan_datestamp > 3600 ) {
-								# there is a younger file than last scan by 1 hour
+							if ( $datestamp > $Entry->scan_datestamp ) {
+								# there is a newer file since last scan
 								$do_scan += 1;
 							}
 						}
