@@ -669,12 +669,6 @@ sub callback {
 		}
 		return;
 	}
-	elsif ( $file =~ /^\./ ) {
-		# hidden files
-		print "   ! deleting hidden file $clean_name\n";
-		push @removelist, $clean_name;
-		return;
-	}
 	elsif ( -l $file  ) {
 		if ( $request and $clean_name =~ /^ AutoAnalysis_\w+ \/ /x ) {
 			# autoanalysis symlinks are temporary and should automatically be cleaned up
@@ -750,7 +744,13 @@ sub request_callback {
 	my ($type, $sample, $machineID, $laneID, $pairedID);
 	
 	# check file
-	if ($clean_name =~ /^ \w+ _AutoAnalysis _ \w+/x) {
+	if ( $file =~ /^\./ ) {
+		# hidden files probably shouldn't exist in a request project
+		print "   ! deleting hidden file $clean_name\n";
+		push @removelist, $clean_name;
+		return;
+	}
+	elsif ($clean_name =~ /^ \w+ _AutoAnalysis _ \w+/x) {
 		# usually an unwanted or depreciated AutoAnalysis
 		# david puts 'depreciated' or 'DontUse' or some other prefix
 		# print a warning, but only once
@@ -1235,6 +1235,17 @@ sub analysis_callback {
 	# this should catch most files, but there's always weirdos and miscellaneous files
 	# this will also dictate zip file status
 	
+	if ( $file =~ /^\./ ) {
+		# hidden files
+		$filetype = 'Hidden';
+		if ($size > HUNDRED_MB) {
+			# good lord this is a HUGE hidden file, do not zip I guess?
+			$zip = 0;
+		}
+		else {
+			$zip = 1;
+		}
+	}
 	if ($file =~ /\. (bw | bigwig | bb | bigbed | hic) $/xin) {
 		# an indexed analysis file
 		$filetype = 'BrowserTrack';
