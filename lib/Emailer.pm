@@ -9,8 +9,9 @@ use Email::Sender::Transport::SMTP;
 # default values
 my $default_from_email = 'Timothy Parnell <timothy.parnell@hci.utah.edu>';
 my $default_smtp = 'smtp.utah.edu';
+my $glacier_cost = 0.001; # in $ per GB/month
 
-our $VERSION = 7.0;
+our $VERSION = 7.1;
 
 
 sub new {
@@ -44,16 +45,25 @@ sub send_request_upload_email {
 	# options
 	my $opt = $self->_process_options(@_);
 	
+	my $aa_text = "\n";
+	if ($opt->{aafold}) {
+		$aa_text = <<DOC;
+The current AutoAnalysis folder ‘$opt->{aafold}’ will be uploaded prior to removal from GNomEx.
+DOC
+	}
+	
+	
 	# compose body
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, has been uploaded to your Amazon Web Services (AWS) account ‘$opt->{core}’. You may view the files using the CORE Browser application (https://hci-apps-ext.hci.utah.edu/core-browser). They are located in the bucket ‘$opt->{bucket}’ in the folder prefix ‘$opt->{prefix}’; this is based on the Group folder and metadata in the GNomEx database.
+Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, has been uploaded to your Amazon Web Services (AWS) account ‘$opt->{core}’. The current anticipated cost for storing this project will be $opt->{cost} per year.
 
-The standard bucket lifecycle policies will archive the Fastq files to Deep Glacier within 3 days, unless the bucket is configured otherwise. This is meant for long-term storage (>6 months) at the lowest cost available (currently \$0.001 per GB per month). Archived files will need to be temporarily restored before they can be viewed or downloaded; this will incur a small fee per standard AWS cost policies. 
+You may view the files using the CORE Browser application (https://hci-apps-ext.hci.utah.edu/core-browser). They are located in the bucket ‘$opt->{bucket}’ in the folder prefix ‘$opt->{prefix}’; this is based on the Group folder and metadata in the GNomEx database. Please contact Cancer Bioinformatics if you do not yet have access to your account.
 
-Your files will continue to remain on GNomEx for your convenience as space allows (about six months) before being silently removed. A manifest of the files will always remain on GNomEx, as well as the record of your sequencing request and samples in the GNomEx database.
+By default (unless otherwise configured), the files will be transitioned within a few days into the Deep Glacier storage tier for long-term storage at the lowest cost. Archived files will need to be temporarily restored before they can be viewed or downloaded; this will incur a small fee per standard AWS cost policies. 
 
+Your files will continue to remain on GNomEx for your convenience as space allows (about six months) before being silently removed. A manifest of the files will always remain on GNomEx, as well as the record of your sequencing request and samples in the GNomEx database. $aa_text
 For more information, see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage.  
 
 DOC
@@ -75,11 +85,13 @@ sub send_analysis_upload_email {
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Analysis project ‘$opt->{id}’, ‘$opt->{name}’, is $opt->{age} days old and has reached the age limits for storage on GNomEx. The files have been uploaded to your Amazon Web Services (AWS) account ‘$opt->{core}’. You may view the files using the CORE Browser application (https://hci-apps-ext.hci.utah.edu/core-browser). They are located in the bucket ‘$opt->{bucket}’ in the folder prefix ‘$opt->{prefix}’; this is based on the Group folder and metadata in the GNomEx database.
+Your GNomEx Analysis project ‘$opt->{id}’, ‘$opt->{name}’, has been removed from GNomEx and uploaded to your Amazon Web Services (AWS) account ‘$opt->{core}’. The expected cost for storing this project will be $opt->{cost} per year.
 
-The standard bucket lifecycle policies will archive large files to Deep Glacier within 3 days, unless the bucket is configured otherwise. This is meant for long-term storage (>6 months) at the lowest cost available (currently \$0.001 per GB per month). Archived files will need to be temporarily restored before they can be viewed or downloaded; this will incur a small fee per standard AWS cost policies. 
+You may view the files using the CORE Browser application (https://hci-apps-ext.hci.utah.edu/core-browser). They are located in the bucket ‘$opt->{bucket}’ in the folder prefix ‘$opt->{prefix}’; this is based on the Group folder and metadata in the GNomEx database. Please contact Cancer Bioinformatics if you do not yet have access to your account.
 
-The files on GNomEx have been removed, although a manifest of the files will always remain, as well as the database entry for the project. Certain analysis files may remain as a courtesy for serving to genome browsers.
+By default (unless otherwise configured), the files will be transitioned within a few days into the Deep Glacier storage tier for long-term storage at the lowest cost. Archived files will need to be temporarily restored before they can be viewed or downloaded; this will incur a small fee per standard AWS cost policies. 
+
+While the files on GNomEx have been removed, a manifest of the files will always remain, as well as the database entry for the project. Certain analysis files may remain as a courtesy for serving to genome browsers.
 
 For more information, see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage.  
 
@@ -97,6 +109,8 @@ sub send_request_deletion_email {
 	
 	# options
 	my $opt = $self->_process_options(@_);
+	my $url = sprintf "https://hci-bio-app.hci.utah.edu/gnomex/?requestNumber=%s",
+		$opt->{id};
 	
 	# compose body
 	my $body = <<DOC;
@@ -104,13 +118,11 @@ Hello $opt->{username} and $opt->{piname},
 
 Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED.
 
-Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files, especially Fastq files.
+If you do not have current plans for long-term storage, our recommendation is to sign up for an Amazon Web Services (AWS) account. The anticipated cost for this project would be $opt->{cost} per year. Please see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage for more information.
 
-Files will be removed in one week.
+Otherwise, we urge you to download your files as soon as possible from $url. Files will be removed in about one week. Many journals require making raw data available upon publication.
 
-A manifest of the files will remain on GNomEx, as well as the record of your sequencing request and samples. 
-
-For more information, including long-term cloud storage options, please see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage. Please contact us if you have any questions or would like to set up an AWS cloud storage account.
+A manifest of the files will always remain on GNomEx, as well as the record of your sequencing request and samples. 
 
 Cancer Bioinformatics Shared Resource
 https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi. 
@@ -129,20 +141,20 @@ sub send_analysis_deletion_email {
 	
 	# options
 	my $opt = $self->_process_options(@_);
+	my $url = sprintf "https://hci-bio-app.hci.utah.edu/gnomex/?analysisNumber=%s",
+		$opt->{id};
 	
 	# compose body
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED.
+Your GNomEx Analysis project ‘$opt->{id}’, ‘$opt->{name}’, is $opt->{age} days old and has reached the age limits for storage on GNomEx and WILL BE DELETED.
 
-Long-term storage is no longer available on the GNomEx server. We urge you to make sure these data files are secured offsite. In many cases, publications and granting agencies require that genomic data be made available or retained for a certain time. Please verify that you have a copy of these files, especially Fastq files.
+If you do not have current plans for long-term storage, our recommendation is to sign up for an Amazon Web Services (AWS) account. The anticipated cost for this project would be $opt->{cost} per year. Please see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage for more information.
 
-Files will be removed in one week.
+Otherwise, we urge you to download your files as soon as possible from $url. Files will be removed in about one week.
 
-A manifest of the files will always remain on GNomEx, as well as the database entry for the project. Certain analysis files may remain as a courtesy for serving to genome browsers.
-
-For more information, including long-term cloud storage options, please see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage. Please contact us if you have any questions or would like to set up an AWS cloud storage account.
+A manifest of the files will always remain on GNomEx, as well as the record of your sequencing request and samples. Certain analysis files may remain as a courtesy for serving to genome browsers.
 
 Cancer Bioinformatics Shared Resource
 https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi. 
@@ -174,6 +186,7 @@ sub _process_options {
 		$opt{prefix}    = $E->prefix;
 		$opt{size}      = $E->size;
 		$opt{age}       = $E->age;
+		$opt{aafold}    = $E->autoanal_folder;
 		
 		if (@_) {
 			# can't rely on a recent version of List::Util being installed,
@@ -199,11 +212,20 @@ sub _process_options {
 		$opt{prefix}    ||= q();
 		$opt{size}      ||= q();
 		$opt{age}       ||= '?';
+		$opt{aafold}    ||= q();
 	}
 	unless (exists $opt{from}) {
 		$opt{from}      = $self->from;
 	}
 	
+	# calculate yearly cost
+	if ( $opt{size} ) {
+		$opt{cost} = sprintf "\$%.2f", ( $opt{size} / 1073741824) * $glacier_cost * 12;
+	}
+	else {
+		$opt{cost} = 'undetermined';
+	}
+
 	return \%opt;
 }
 
@@ -333,6 +355,10 @@ Size of project in bytes
 =item age
 
 Age of project in days
+
+=item aafold
+
+The AutoAnalysis folder, if present
 
 =back
 
