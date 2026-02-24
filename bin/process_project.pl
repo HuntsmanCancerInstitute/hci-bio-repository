@@ -1074,10 +1074,8 @@ m/^ ( \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (sum)? .* \. (txt |
 	}
 	else {
 		# programmer error!
-		print "   ! unrecognized file $clean_name\n";
+		print "   ! Unrecognized Request file $clean_name\n";
 		$type = 'document';
-# 		$failure_count++;
-# 		return;
 	}
 	
 	# stats on the file
@@ -1499,7 +1497,7 @@ sub analysis_callback {
 		push @removelist, $clean_name;
 		return;
 	}
-	elsif ($file =~ /\. ( bed | bed\d+ | gtf | gff | gff\d | narrowpeak | broadpeak | gappedpeak | refflat | genepred | ucsc | saf ) (\.gz)? $/xin) {
+	elsif ($file =~ /\. ( bed | bed\d+ | bedpe | gtf | gff | gff\d | narrowpeak | broadpeak | gappedpeak | refflat | genepred | ucsc | saf ) (\.gz)? $/xin) {
 		$filetype = 'Annotation';
 		if ($file =~ /\.gz$/ and $size > TEN_MB) {
 			# do not archive if compressed and bigger 10 MB
@@ -1606,7 +1604,11 @@ sub analysis_callback {
 			$filetype = 'QC';
 			$zip = 1;
 		}
-		elsif ($file =~ / (?: multiqc | metrics | screen )/xi) {
+		elsif ($file =~ / _screen \./x or $clean_name =~ / fastqscreen /xi) {
+			$filetype = 'QC';
+			$zip = 1;
+		}
+		elsif ($file =~ / multiqc | metrics /xi) {
 			$filetype = 'QC';
 			$zip = 0;
 		}
@@ -1637,6 +1639,11 @@ sub analysis_callback {
 	}
 	elsif ($file =~ /\. czi $/xi) {
 		# Xenium archive file
+		$filetype = 'Analysis';
+		$zip = 0;
+	}
+	elsif ($file =~ /\. pb $/xi) {
+		# Cellranger VDJ binary but mostly text file
 		$filetype = 'Analysis';
 		$zip = 0;
 	}
@@ -1688,7 +1695,8 @@ sub analysis_callback {
 		$filetype = 'Other';
 		if ($size > $max_zip_size) {
 			# it's too big to zip
-			printf "   ! Large unknown file $clean_name at %.1fG\n", $size / 1073741824;
+			printf "   ! Large unknown Analysis file $clean_name at %.1f GB\n",
+				$size / ONE_GB;
 			$zip = 0;
 		}
 		else {
