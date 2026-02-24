@@ -714,7 +714,7 @@ sub callback {
 				# need to store the parent directory for recording later
 				# split path into parts, just need first item, ignore filename
 				my @bits = File::Spec->splitdir($clean_name);
-				printf "   ! Detected a Xenium results folder in %s\n", $bits[0];
+				printf "   ! Detected a Xenium results folder in '%s'\n", $bits[0];
 				$xenium_warning = $bits[0];
 			}
 			return analysis_callback($file, $clean_name);
@@ -722,6 +722,11 @@ sub callback {
 		elsif ($clean_name =~ / [\w\s\&]+ image s? \/ /xi) {
 			# top level images folder, probably Xenium images
 			# this may be a non-standard folder name, so this may change
+			return analysis_callback($file, $clean_name);
+		}
+		elsif ($clean_name =~ / ( \.tiff | \.czi ) $/xin) {
+			# yet more likely top level Xenium files, sigh....
+			# not inside a recognizable Xenimum folder
 			return analysis_callback($file, $clean_name);
 		}
 		else {
@@ -1626,6 +1631,11 @@ sub analysis_callback {
 		$zip = 0;
 	}
 	elsif ($file =~ /\. zarr \. zip $/xi) {
+		# Xenium archive file
+		$filetype = 'Analysis';
+		$zip = 0;
+	}
+	elsif ($file =~ /\. czi $/xi) {
 		# Xenium archive file
 		$filetype = 'Analysis';
 		$zip = 0;
