@@ -121,6 +121,7 @@ my %machinelookup = (
 	'DQNZZQ1'    => 'Illumina HiSeq 2000',
 	'HWI-ST1117' => 'Illumina HiSeq 2000',
 	'LH00227'    => 'Illumina NovaSeq X',
+	'SL00506'    => 'Illumina MiSeq i100'
 );
 
 # hash of files and data collected from scanning
@@ -860,7 +861,7 @@ sub request_callback {
 		$type = 'zip';
 	}
 	# ora reference compressed interleaved fastq file
-	elsif ($file =~ m/^ (\d{4,5} [xXPG] \d+ ) _+\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ .* _S\d+ _L(\d+) _R\-interleaved_001 \.fastq\.ora $/x) {
+	elsif ($file =~ m/^ (\d{4,5} [xXPG] \d+ ) _+\d+ _( [SLHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ .* _S\d+ _L(\d+) _R\-interleaved_001 \.fastq\.ora $/x) {
 		$type   = 'Fastq';
 		$sample = $1;
 		$machineID = $2;
@@ -871,7 +872,8 @@ sub request_callback {
 	# 15945X8_190320_M05774_0049_MS7833695-50V2_S1_L001_R2_001.fastq.gz
 	# new style: 16013X1_190529_D00550_0563_BCDLULANXX_S12_L001_R1_001.fastq.gz
 	# NovoaSeqX: 21185X1_20230810_LH00227_0005_A227HG7LT3_S42_L004_R1_001.fastq.gz
-	elsif ($file =~ m/^ (\d{4,5} [xXPG] \d+ ) _+\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ .* _S\d+ _L(\d+) _R(\d) _001 \. fastq \. (?: gz | ora ) $/x) {
+	# new Miseq: 27005X10_20260217_SL00506_0001_ASC2174408-SC3_S10_L001_R1_001.fastq.gz
+	elsif ($file =~ m/^ (\d{4,5} [xXPG] \d+ ) _+\d+ _( [SLHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ .* _S\d+ _L(\d+) _R(\d) _001 \. fastq \. (?: gz | ora ) $/x) {
 		$type = 'Fastq';
 		$sample = $1;
 		$machineID = $2;
@@ -906,7 +908,7 @@ sub request_callback {
 		}
 	}
 	# new style index: 15603X1_181116_A00421_0025_AHFM7FDSXX_S4_L004_I1_001.fastq.gz
-	elsif ($file =~ m/^ (\d{4,5} [xX] \d+) _\d+ _( [LHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _I(\d) _001 \. fastq \. (?: gz | ora ) $/x) {
+	elsif ($file =~ m/^ (\d{4,5} [xX] \d+) _\d+ _( [SLHADM]{1,2}\d+ ) _\d+ _[A-Z\d\-]+ _S\d+ _L(\d+) _I(\d) _001 \. fastq \. (?: gz | ora ) $/x) {
 		$type = 'Fastq';
 		$sample = $1;
 		$machineID = $2;
