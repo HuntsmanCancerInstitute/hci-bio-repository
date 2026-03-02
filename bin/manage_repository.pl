@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 8.6;
+our $VERSION = 'v9.0.0';
 
 
 ######## Documentation
@@ -67,9 +67,12 @@ OPTIONS
   Required:
     -c --cat <file>           Provide the path to a catalog database file
   
-  Import from GNomEx:
+  Import Project and accounts:
     --import_anal             Fetch and update Analysis projects from GNomEx DB
     --import_req              Fetch and update Request projects from GNomEx DB
+    --import_file <path>      Import an exported table, requires non-transformed
+    --import_lab <file>       Import/update lab information from file
+    --import_acct <file>      Import/update AWS account information from file
   
   Catalog entry selection: 
     --list <file>             File of project identifiers to work on
@@ -105,7 +108,8 @@ OPTIONS
     --info                    Print basic information of listed projects
     --aastat                  Print status of Request AutoAnalysis projects
     --path                    Print the local repository path of listed project
-    --url                     Print the S3 URL of listed projects
+    --url                     Print the CORE Browser URL of listed projects
+    --uri                     Print the S3 URI of listed projects
     --print                   Print all the information of listed projects
                                 tab-delimited format with header
   
@@ -135,7 +139,8 @@ OPTIONS
   
   Actions to update catalog entries:
        For the <date> value, use 'YYYYMMDD' for specific date, 'now'
-       for the current time and date, or '0' to clear.
+         for the current time and date, or '0' to clear.
+       For the <text> value, use 'none' to clear.
     --update_scan <date>      Update project scan timestamp
     --update_del <date>       Update project deletion timestamp
     --update_hide <date>      Update project hide timestamp
@@ -144,8 +149,7 @@ OPTIONS
     --update_em <date>        Update project email timestamp
     --update_size --update_age Update project size and age from file server
                                 ignores QC and AutoAnalysis folders
-    --update_core <text>      Update CORE lab name. Use 'none' to clear.
-    --update_profile <text>   Update the AWS IAM profile
+    --update_core <text>      Update CORE lab name.
     --update_bucket <text>    Update the AWS S3 bucket
     --update_prefix <text>    Update the AWS prefix (only one project)
     --update_aa <text>        Update the Request AutoAnalysis folder
@@ -157,20 +161,16 @@ OPTIONS
   
   Actions on catalog file:
     --export <path>           Dump the contents to tab-delimited text file
-    --import_file <path>      Import an exported table, requires non-transformed
     --optimize                Run the db file optimize routine (!?)
   
-  File paths:
-    --labinfo <path>          Path to Lab Information file with CORE lab info
-    --cred <path>             Path to AWS credentials file. 
-                                Default is ~/.aws/credentials. 
-
   General:
     --mock                    For scan, upload, zip, and email functions only,
                                  print command or output, but perform no work
     --forks <int>             Number of parallel forks for uploads
     --transform               When exporting transform to human conventions
     --biggest                 Print the biggest size in status (current or previous)
+    --cred <path>             Path to AWS credentials file. 
+                                Default is ~/.aws/credentials. 
     -v --verbose              Print additional output for some functions
     -h --help                 Print documentation
   
@@ -183,6 +183,10 @@ END
 ####### Global variables
 
 my $cat_file;
+my $fetch_analysis;
+my $fetch_request;
+my $labinfo_path;
+my $acct_path;
 my $list_req_upload = 0;
 my $list_req_hide = 0;
 my $list_req_delete = 0;
@@ -208,6 +212,7 @@ my $show_info = 0;
 my $show_aa_status = 0;
 my $show_path = 0;
 my $show_url = 0;
+my $show_uri = 0;
 my $print_info = 0;
 my $delete_entry = 0;
 my $scan_size_age = 0;
@@ -218,7 +223,6 @@ my $update_aa_upload_date;
 my $update_delete_date;
 my $update_email_date;
 my $update_core_lab;
-my $update_profile;
 my $update_bucket;
 my $update_prefix;
 my $update_aa;
@@ -243,8 +247,6 @@ my $email_anal_up = 0;
 my $email_req_del = 0;
 my $email_req_up = 0;
 my $mock;
-my $fetch_analysis;
-my $fetch_request;
 my $dump_file;
 my $transform = 0;
 my $biggest_size;
@@ -252,7 +254,6 @@ my $import_file;
 my $run_optimize;
 my $force;
 my $forks;
-my $labinfo_path;
 my $cred_path;
 my $verbose;
 my $help;
@@ -264,6 +265,10 @@ my $help;
 if (scalar(@ARGV) > 1) {
 	GetOptions(
 		'c|catalog=s'           => \$cat_file,
+		'import_anal!'          => \$fetch_analysis,
+		'import_req!'           => \$fetch_request,
+		'import_lab=s'          => \$labinfo_path,
+		'import_acct=s'         => \$acct_path,
 		'list_req_up!'          => \$list_req_upload,
 		'list_req_hide!'        => \$list_req_hide,
 		'list_req_delete!'      => \$list_req_delete,
@@ -289,6 +294,7 @@ if (scalar(@ARGV) > 1) {
 		'aastatus!'             => \$show_aa_status,
 		'path!'                 => \$show_path,
 		'url!'                  => \$show_url,
+		'uri!'                  => \$show_uri,
 		'print!'                => \$print_info,
 		'delete_entry!'         => \$delete_entry,
 		'scan!'                 => \$project_scan,
@@ -309,8 +315,6 @@ if (scalar(@ARGV) > 1) {
 		'email_req_del!'        => \$email_req_del,
 		'email_req_up!'         => \$email_req_up,
 		'mock!'                 => \$mock,
-		'import_anal!'          => \$fetch_analysis,
-		'import_req!'           => \$fetch_request,
 		'update_scan=s'         => \$update_scan_date,
 		'update_hide=s'         => \$update_hide_date,
 		'update_up=s'           => \$update_upload_date,
@@ -318,7 +322,6 @@ if (scalar(@ARGV) > 1) {
 		'update_del=s'          => \$update_delete_date,
 		'update_email=s'        => \$update_email_date,
 		'update_core=s'         => \$update_core_lab,
-		'update_profile=s'      => \$update_profile,
 		'update_bucket=s'       => \$update_bucket,
 		'update_prefix=s'       => \$update_prefix,
 		'update_aa=s'           => \$update_aa,
@@ -334,7 +337,6 @@ if (scalar(@ARGV) > 1) {
 		'optimize!'             => \$run_optimize,
 		'biggest!'              => \$biggest_size,
 		'cred=s'                => \$cred_path,
-		'labinfo=s'             => \$labinfo_path,
 		'v|verbose!'            => \$verbose,
 		'h|help!'               => \$help,
 	) or die "please recheck your options!\n\n";
@@ -352,9 +354,10 @@ if ($help) {
 
 
 #### Main functions
-check_options();
 my @action_list;
-my $Catalog = open_import_catalog();
+my $Catalog;
+check_options();
+open_import_catalog();
 unless (@action_list) {
 	@action_list = generate_list();
 }
@@ -387,10 +390,13 @@ sub check_options {
 			# catalog file path is not from root
 			$cat_file = File::Spec->rel2abs($cat_file);
 		}
-		if ( not -e $cat_file and
-			(not $import_file and not $fetch_analysis and not $fetch_request )
+		if ( not -e $cat_file and not $import_file and not $fetch_analysis
+			and not $fetch_request and not $labinfo_path and not $acct_path
 		) {
 			printf "FATAL: '%s' cannot be found!\n", $cat_file;
+			print " If creating a new Catalog file, provide \n";
+			print
+" --import_file, --import_anal, --import_req, --import_lab, or --import_acct\n";
 			exit 1;
 		}
 	}
@@ -422,7 +428,7 @@ sub check_options {
 	# print function
 	$sanity = 0;
 	$sanity = $show_status + $show_info + $show_aa_status + $show_path + $show_url + 
-		$print_info;
+		$show_uri + $print_info;
 	if ($sanity > 1) {
 		print "FATAL: Only 1 printing function allowed at a time!\n";
 		exit 1;
@@ -449,10 +455,6 @@ sub check_options {
 		my $n = $fetch_analysis ? 94608000 : 63072000; # 3 years Analysis, 2 Request
 		my @t = localtime(time - $n);
 		$year = $t[5] + 1900;
-	}
-	if (($fetch_analysis or $fetch_request) and not $labinfo_path) {
-		print "FATAL: Must provide lab information file!\n";
-		exit 1;
 	}
 
 	# external
@@ -504,12 +506,34 @@ sub check_options {
 sub open_import_catalog {
 	
 	# open catalog
-	my $Cat = RepoCatalog->new($cat_file) or 
+	$Catalog = RepoCatalog->new($cat_file) or 
 		die "Cannot open catalog file '$cat_file'!\n";
 
+	# import/update lab information
+	if ($labinfo_path) {
+		my $success = $Catalog->import_labs($labinfo_path);
+		if ($success) {
+			printf " Imported (or replaced) %s lab metadata records\n", $success;
+		}
+		else {
+			print " Problem with importing lab metadata from '$labinfo_path'!\n";
+		}
+	}
+	
+	# import/update account information
+	if ($acct_path) {
+		my $success = $Catalog->import_accounts($acct_path);
+		if ($success) {
+			printf " Imported (or replaced) %s AWS account records\n", $success;
+		}
+		else {
+			print " Problem with importing AWS accounts from '$acct_path'!\n";
+		}
+	}
+	
 	# import catalog 
 	if ($import_file) {
-		my $n = $Cat->import_from_file($import_file, $force);
+		my $n = $Catalog->import_from_file($import_file, $force);
 		if ($n) {
 			print " Imported $n records from file '$import_file'\n";
 		}
@@ -522,6 +546,7 @@ sub open_import_catalog {
 	}
 	
 	# import from database
+	my $GNomEx;
 	if ($fetch_analysis or $fetch_request) {
 		
 		# Initialize the GNomEx database adapter
@@ -530,286 +555,280 @@ sub open_import_catalog {
 			require Gnomex;
 			$gnomex_good = 1;
 		};
-		my $GNomEx;
 		if ($gnomex_good) {
 			$GNomEx = Gnomex->new(
-				catalog => $Cat,
-				lab     => $labinfo_path,
+				catalog => $Catalog,
 			) or die "can't instantiate Gnomex object!\n";
 		}
 		else {
 			die "problem! $EVAL_ERROR\n";
 		}
+	}
 		
-			
-		### Analysis
-		if ($fetch_analysis) {
-			print " Fetching new analysis projects from database...\n";
-			my ($update_list, $new_list, $nochange_list, $skip_count) = 
-				$GNomEx->fetch_analyses($year);
-			printf " Finished processing %d Analysis project database entries\n", 
-				scalar(@{$update_list}) + scalar(@{$new_list}) + scalar(@{$nochange_list});
-			
-			# update information from the repository file server
-			print " Updating project sizes and ages....\n";
-			ANALYSIS_FETCH_LOOP:
-			foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
-				my $Entry = $Cat->entry($id);
-				my $path  = $Entry->path;
-				unless (-e $path) {
-					print "  ! $id missing project file path: $path\n";
+	### Analysis
+	if ($fetch_analysis) {
+		print " Fetching new analysis projects from database...\n";
+		my ($update_list, $new_list, $nochange_list, $skip_count) = 
+			$GNomEx->fetch_analyses($year);
+		printf " Finished processing %d Analysis project database entries\n", 
+			scalar(@{$update_list}) + scalar(@{$new_list}) + scalar(@{$nochange_list});
+		
+		# update information from the repository file server
+		print " Updating project sizes and ages....\n";
+		ANALYSIS_FETCH_LOOP:
+		foreach my $id (@{$update_list}, @{$new_list}, @{$nochange_list}) {
+			my $Entry = $Catalog->entry($id);
+			my $path  = $Entry->path;
+			unless (-e $path) {
+				print "  ! $id missing project file path: $path\n";
+				next ANALYSIS_FETCH_LOOP;
+			}
+			my $Project = RepoProject->new($Entry->path);
+			if ($Project) {
+				my $prev_size = $Entry->size;
+				my ($size, $datestamp, $aa_datestamp) = $Project->get_size_age;
+				if ($size) {
+					$Entry->size($size);
+				}
+				else {
+					# no file sizes!? must be cleaned out, update and move on
+					if ( $Entry->size >= 1048576 and $Entry->hidden_datestamp == 0 ) {
+						print "  ! $id was forcefully emptied without plan\n";
+					}
+					$Entry->size(0);
 					next ANALYSIS_FETCH_LOOP;
 				}
-				my $Project = RepoProject->new($Entry->path);
-				if ($Project) {
-					my $prev_size = $Entry->size;
-					my ($size, $datestamp, $aa_datestamp) = $Project->get_size_age;
-					if ($size) {
-						$Entry->size($size);
-					}
-					else {
-						# no file sizes!? must be cleaned out, update and move on
-						if ( $Entry->size >= 1048576 and $Entry->hidden_datestamp == 0 ) {
-							print "  ! $id was forcefully emptied without plan\n";
+				if ($datestamp) {
+					$Entry->youngest_datestamp($datestamp);
+				}
+
+				# print warnings if something seems amiss
+				# this is entirely dependent on file ages, not on size
+				if ( $Entry->deleted_datestamp > 1 and
+					$datestamp > $Entry->deleted_datestamp
+				) {
+					print "  ! New files added to deleted project $id\n";
+					next ANALYSIS_FETCH_LOOP;
+				}
+				elsif ( $Entry->hidden_datestamp > 1 and
+					$datestamp > $Entry->hidden_datestamp
+				) {
+					print "  ! New files added to hidden project $id\n";
+					next ANALYSIS_FETCH_LOOP;
+				}
+
+				# skip remainder of loop if project hidden or deleted
+				next ANALYSIS_FETCH_LOOP if $Entry->deleted_datestamp;
+				next ANALYSIS_FETCH_LOOP if $Entry->hidden_datestamp;
+
+				# Check if needs to be scanned
+				if ($project_scan) {
+					my $do_scan = 0;
+					if ( $Entry->scan_datestamp > 1 ) {
+						
+						# previously scanned before, check if needs rescanned
+						if (
+							$datestamp > $Entry->scan_datestamp and
+							( time - $datestamp ) > 3600 )
+						{
+							# there is a newer file than the last scan and
+							# file is at least an hour old
+							$do_scan += 1;
 						}
-						$Entry->size(0);
-						next ANALYSIS_FETCH_LOOP;
-					}
-					if ($datestamp) {
-						$Entry->youngest_datestamp($datestamp);
-					}
+						elsif ( abs( $prev_size - $size ) >= 1024 ) {
 
-					# print warnings if something seems amiss
-					# this is entirely dependent on file ages, not on size
-					if ( $Entry->deleted_datestamp > 1 and
-						$datestamp > $Entry->deleted_datestamp
-					) {
-						print "  ! New files added to deleted project $id\n";
-						next ANALYSIS_FETCH_LOOP;
-					}
-					elsif ( $Entry->hidden_datestamp > 1 and
-						$datestamp > $Entry->hidden_datestamp
-					) {
-						print "  ! New files added to hidden project $id\n";
-						next ANALYSIS_FETCH_LOOP;
-					}
-
-					# skip remainder of loop if project hidden or deleted
-					next ANALYSIS_FETCH_LOOP if $Entry->deleted_datestamp;
-					next ANALYSIS_FETCH_LOOP if $Entry->hidden_datestamp;
-
-					# Check if needs to be scanned
-					if ($project_scan) {
-						my $do_scan = 0;
-						if ( $Entry->scan_datestamp > 1 ) {
-							
-							# previously scanned before, check if needs rescanned
-							if (
-								$datestamp > $Entry->scan_datestamp and
-								( time - $datestamp ) > 3600 )
-							{
-								# there is a newer file than the last scan and
-								# file is at least an hour old
-								$do_scan += 1;
-							}
-							elsif ( abs( $prev_size - $size ) >= 1024 ) {
-
-								# odd situation where size changes by 1 KiB in size
-								# with files that don't trigger an age change
-								$do_scan += 1;
-							}
-
-						}
-						elsif ( $Entry->scan_datestamp == 0 and
-								($Entry->age and $Entry->age >= 7 )
-						) {
-							# otherwise wait for project to "settle" for at least
-							# one week before scanning
+							# odd situation where size changes by 1 KiB in size
+							# with files that don't trigger an age change
 							$do_scan += 1;
 						}
 
-						# print verbose message
-						if ($do_scan) {
-							printf "  > will scan %s, age %s, last scanned %s days ago\n",
-								$id, $Entry->age || '0', $Entry->scan_datestamp ? 
-								sprintf("%.0f",
-								(time - $Entry->scan_datestamp) / 86400) : '-';
-							push @action_list, $id;
-						}
 					}
-				}
-				else {
-					printf " ERROR! unable to generate RepoProject object for %s!\n ",
-						$path;
-					next ANALYSIS_FETCH_LOOP;
+					elsif ( $Entry->scan_datestamp == 0 and
+							($Entry->age and $Entry->age >= 7 )
+					) {
+						# otherwise wait for project to "settle" for at least
+						# one week before scanning
+						$do_scan += 1;
+					}
+
+					# print verbose message
+					if ($do_scan) {
+						printf "  > will scan %s, age %s, last scanned %s days ago\n",
+							$id, $Entry->age || '0', $Entry->scan_datestamp ? 
+							sprintf("%.0f",
+							(time - $Entry->scan_datestamp) / 86400) : '-';
+						push @action_list, $id;
+					}
 				}
 			}
-			
-			# print report
-			printf
-"\n Analysis project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
-				$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
-				scalar(@{$new_list});
+			else {
+				printf " ERROR! unable to generate RepoProject object for %s!\n ",
+					$path;
+				next ANALYSIS_FETCH_LOOP;
+			}
 		}
 		
-		### Request
-		if ($fetch_request) {
-			print " Fetching new request projects from database...\n";
-			my ($update_list, $new_list, $nochange_list, $skip_count) = 
-				$GNomEx->fetch_requests($year);
-			printf " Finished processing %d Experiment Request project database entries\n", 
-				scalar(@{$update_list}) + scalar(@{$new_list}) + scalar(@{$nochange_list});
-			
-			# update information from the repository file server
-			print " Updating project sizes and ages....\n";
-			REQUEST_FETCH_LOOP:
-			foreach my $id ( @{$update_list}, @{$new_list}, @{$nochange_list} ) {
-				my $Entry = $Cat->entry($id);
-				my $path  = $Entry->path;
-				unless (-e $path) {
-					print "  ! $id missing project file path: $path\n";
+		# print report
+		printf
+"\n Analysis project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
+			$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
+			scalar(@{$new_list});
+	}
+		
+	### Request
+	if ($fetch_request) {
+		print " Fetching new request projects from database...\n";
+		my ($update_list, $new_list, $nochange_list, $skip_count) = 
+			$GNomEx->fetch_requests($year);
+		printf " Finished processing %d Experiment Request project database entries\n", 
+			scalar(@{$update_list}) + scalar(@{$new_list}) + scalar(@{$nochange_list});
+		
+		# update information from the repository file server
+		print " Updating project sizes and ages....\n";
+		REQUEST_FETCH_LOOP:
+		foreach my $id ( @{$update_list}, @{$new_list}, @{$nochange_list} ) {
+			my $Entry = $Catalog->entry($id);
+			my $path  = $Entry->path;
+			unless (-e $path) {
+				print "  ! $id missing project file path: $path\n";
+				next REQUEST_FETCH_LOOP;
+			}
+			my $Project = RepoProject->new($path);
+			if ($Project) {
+				my $do_scan = 0;
+				my ($size, $datestamp, $aa_datestamp) = $Project->get_size_age;
+				if ($size) {
+					$Entry->size($size);
+				}
+				else {
+					# no size!? Someone must have emptied it
+					if ( $Entry->size >= 1048576 and $Entry->hidden_datestamp == 0 ) {
+						print "  ! $id was forcefully emptied without plan\n";
+					}
+					$Entry->size(0);
 					next REQUEST_FETCH_LOOP;
 				}
-				my $Project = RepoProject->new($path);
-				if ($Project) {
-					my $do_scan = 0;
-					my ($size, $datestamp, $aa_datestamp) = $Project->get_size_age;
-					if ($size) {
-						$Entry->size($size);
-					}
-					else {
-						# no size!? Someone must have emptied it
-						if ( $Entry->size >= 1048576 and $Entry->hidden_datestamp == 0 ) {
-							print "  ! $id was forcefully emptied without plan\n";
-						}
-						$Entry->size(0);
-						next REQUEST_FETCH_LOOP;
-					}
-					if ($datestamp) {
-						$Entry->youngest_datestamp($datestamp);
-					}
+				if ($datestamp) {
+					$Entry->youngest_datestamp($datestamp);
+				}
 
-					# print warnings if something seems amiss and skip remainder of loop
-					if ($Entry->deleted_datestamp and 
-						$datestamp > $Entry->deleted_datestamp
-					) {
-						print "  ! New files added to deleted project $id\n";
-						next REQUEST_FETCH_LOOP;
-					}
-					elsif ($Entry->hidden_datestamp and 
-						$datestamp > $Entry->hidden_datestamp
-					) {
-						print "  ! New files added to hidden project $id\n";
-						next REQUEST_FETCH_LOOP;
-					}
+				# print warnings if something seems amiss and skip remainder of loop
+				if ($Entry->deleted_datestamp and 
+					$datestamp > $Entry->deleted_datestamp
+				) {
+					print "  ! New files added to deleted project $id\n";
+					next REQUEST_FETCH_LOOP;
+				}
+				elsif ($Entry->hidden_datestamp and 
+					$datestamp > $Entry->hidden_datestamp
+				) {
+					print "  ! New files added to hidden project $id\n";
+					next REQUEST_FETCH_LOOP;
+				}
 
-					# skip remainder of loop if project hidden or deleted
-					next REQUEST_FETCH_LOOP if $Entry->deleted_datestamp;
-					next REQUEST_FETCH_LOOP if $Entry->hidden_datestamp;
+				# skip remainder of loop if project hidden or deleted
+				next REQUEST_FETCH_LOOP if $Entry->deleted_datestamp;
+				next REQUEST_FETCH_LOOP if $Entry->hidden_datestamp;
 
-					# AutoAnalysis folder
-					my $aa_folder = $Project->get_autoanal_folder;
-					if ($aa_folder) {
-						if ($Entry->autoanal_folder ) {
-							if ( $aa_folder ne $Entry->autoanal_folder ) {
-								printf
-								"  ! Updated AutoAnalysis folder for %s from '%s' to '%s'\n",
-									$id, $Entry->autoanal_folder, $aa_folder;
-								$Entry->autoanal_folder($aa_folder);
-								$do_scan += 1;
-							}
-							if (
-								(time - $aa_datestamp) > 3600 and
-								$aa_datestamp > $Entry->scan_datestamp
-							) {
-								# youngest autoanal file is at least 1 hour old
-								# and older than the last scan
-								$do_scan += 1;
-							}
-						}
-						else {
+				# AutoAnalysis folder
+				my $aa_folder = $Project->get_autoanal_folder;
+				if ($aa_folder) {
+					if ($Entry->autoanal_folder ) {
+						if ( $aa_folder ne $Entry->autoanal_folder ) {
+							printf
+							"  ! Updated AutoAnalysis folder for %s from '%s' to '%s'\n",
+								$id, $Entry->autoanal_folder, $aa_folder;
 							$Entry->autoanal_folder($aa_folder);
 							$do_scan += 1;
 						}
-					}
-					elsif ( not $aa_folder and $Entry->autoanal_folder ) {
-						if ($Entry->autoanal_folder =~ /AutoAnalysis/ ) {
-							printf "  ! AutoAnalysis folder '%s' for %s was removed\n",
-								$Entry->autoanal_folder, $id;
-							$Entry->autoanal_folder( q() );
-							$do_scan += 1;
-						}
-						elsif (
-							 -e File::Spec->catfile($Entry->path, $Entry->autoanal_folder)
+						if (
+							(time - $aa_datestamp) > 3600 and
+							$aa_datestamp > $Entry->scan_datestamp
 						) {
-							# non-standard folder masquerading as an Analysis folder
-							# folder exists so keep it
-							# likely already scanned
-						}
-						else {
-							printf "  ! AutoAnalysis folder '%s' for %s was removed\n",
-								$Entry->autoanal_folder, $id;
-							$Entry->autoanal_folder( q() );
+							# youngest autoanal file is at least 1 hour old
+							# and older than the last scan
 							$do_scan += 1;
 						}
 					}
-
-					# Check if needs to be scanned, only if there are fastq files present
-					# or the project is unusual size > 1 GB, like Xenium
-					if ( 
-						$project_scan and
-						( $Project->has_fastq or $size > 1000000000 ) and
-						(time - $datestamp) > 3600
-					) {
-						if ( $Entry->scan_datestamp > 1 ) {
-							if ( $datestamp > $Entry->scan_datestamp ) {
-								# there is a newer file since last scan
-								$do_scan += 1;
-							}
-						}
-						else {
-							$do_scan += 1;
-						}
-						if ($do_scan) {
-							printf
-								"  > will scan %s, age %3s, last scanned %3s days ago\n",
-								$id, $Entry->age || 0,
-								$Entry->scan_datestamp ? sprintf("%.0f",
-								(time - $Entry->scan_datestamp) / 86400) : '-';
-							push @action_list, $id;
-						}
-						# check S3 information
-						if ( $Entry->core_lab and not $Entry->bucket ) {
-							generate_bucket($Entry);
-							generate_prefix($Entry);
-						}
+					else {
+						$Entry->autoanal_folder($aa_folder);
+						$do_scan += 1;
 					}
 				}
-				else {
-					printf " ERROR! unable to generate RepoProject object for %s!\n ",
-						$path;
-					next REQUEST_FETCH_LOOP;
+				elsif ( not $aa_folder and $Entry->autoanal_folder ) {
+					if ($Entry->autoanal_folder =~ /AutoAnalysis/ ) {
+						printf "  ! AutoAnalysis folder '%s' for %s was removed\n",
+							$Entry->autoanal_folder, $id;
+						$Entry->autoanal_folder( q() );
+						$do_scan += 1;
+					}
+					elsif (
+						 -e File::Spec->catfile($Entry->path, $Entry->autoanal_folder)
+					) {
+						# non-standard folder masquerading as an Analysis folder
+						# folder exists so keep it
+						# likely already scanned
+					}
+					else {
+						printf "  ! AutoAnalysis folder '%s' for %s was removed\n",
+							$Entry->autoanal_folder, $id;
+						$Entry->autoanal_folder( q() );
+						$do_scan += 1;
+					}
+				}
+
+				# Check if needs to be scanned, only if there are fastq files present
+				# or the project is unusual size > 1 GB, like Xenium
+				if ( 
+					$project_scan and
+					( $Project->has_fastq or $size > 1000000000 ) and
+					(time - $datestamp) > 3600
+				) {
+					if ( $Entry->scan_datestamp > 1 ) {
+						if ( $datestamp > $Entry->scan_datestamp ) {
+							# there is a newer file since last scan
+							$do_scan += 1;
+						}
+					}
+					else {
+						$do_scan += 1;
+					}
+					if ($do_scan) {
+						printf
+							"  > will scan %s, age %3s, last scanned %3s days ago\n",
+							$id, $Entry->age || 0,
+							$Entry->scan_datestamp ? sprintf("%.0f",
+							(time - $Entry->scan_datestamp) / 86400) : '-';
+						push @action_list, $id;
+					}
+					# check S3 information
+					if ( $Entry->core_lab and not $Entry->bucket ) {
+						generate_bucket($Entry);
+						generate_prefix($Entry);
+					}
 				}
 			}
-			
-			# print report
-			printf
+			else {
+				printf " ERROR! unable to generate RepoProject object for %s!\n ",
+					$path;
+				next REQUEST_FETCH_LOOP;
+			}
+		}
+		
+		# print report
+		printf
 "\n Request project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
-				$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
-				scalar(@{$new_list});
-		}
-
-		# reset flag as this is already done
-		$scan_size_age = 0;
-
-		# print number of project to scan as final report
-		if (@action_list) {
-			printf "\n  %d projects to scan\n", scalar @action_list;
-		}
-
+			$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
+			scalar(@{$new_list});
 	}
 
-	return $Cat;
+	# reset flag as this is already done
+	$scan_size_age = 0;
+
+	# print number of project to scan as final report
+	if (@action_list) {
+		printf "\n  %d projects to scan\n", scalar @action_list;
+	}
 }
 
 
@@ -1227,24 +1246,6 @@ sub run_metadata_actions {
 		print "  updated division name for $count entries\n";
 	}
 	
-	# update the AWS IAM profile name
-	if (defined $update_profile) {
-		print " Setting AWS IAM profile name to $update_profile\n";
-		unless (@action_list) {
-			die "No list provided to update division name!\n";
-		}
-		if ($update_profile eq 'none') {
-			$update_profile = q();
-		}
-		my $count = 0;
-		foreach my $id (@action_list) {
-			my $Entry = $Catalog->entry($id) or next;
-			$Entry->profile($update_profile);
-			$count++;
-		}
-		print "  updated division name for $count entries\n";
-	}
-	
 	# update the S3 bucket
 	if ( defined $update_bucket ) {
 		unless (@action_list) {
@@ -1252,6 +1253,9 @@ sub run_metadata_actions {
 		}
 		$update_bucket =~ s|^s3://||;
 		$update_bucket =~ s|/$||;
+		if ( $update_bucket eq 'none' ) {
+			$update_bucket = q();
+		}
 		my $count    = 0;
 		my $skipped  = 0;
 		foreach my $id (@action_list) {
@@ -1270,12 +1274,7 @@ sub run_metadata_actions {
 					next;
 				}
 			}
-			if ( $update_bucket eq 'none' ) {
-				$Entry->bucket( q() );
-			}
-			else {
-				$Entry->bucket($update_bucket);
-			}
+			$Entry->bucket($update_bucket);
 			$count++;
 		}
 		print " updated the bucket name for $count entries\n";
@@ -1309,7 +1308,12 @@ sub run_metadata_actions {
 				print "    cannot update prefix (use --force)\n";
 			}
 			else {
-				$Entry->prefix($update_prefix);
+				if ($update_prefix eq 'none') {
+					$Entry->prefix( q() );
+				}
+				else {
+					$Entry->prefix($update_prefix);
+				}
 				print "  updated prefix for $id\n";
 			}
 		}
@@ -1329,7 +1333,12 @@ sub run_metadata_actions {
 		my $id = $action_list[0];
 		my $Entry = $Catalog->entry($id);
 		if ($Entry) {
-			$Entry->autoanal_folder($update_aa);
+			if ($update_aa eq 'none') {
+				$Entry->autoanal_folder( q() );
+			}
+			else {
+				$Entry->autoanal_folder($update_aa);
+			}
 		}
 		else {
 			print " no Catalog entry for '$id'!\n";
@@ -2163,7 +2172,7 @@ sub print_functions {
 		}
 	}
 	
-	# print the remote AWS S3 URI
+	# print the CORE Browser access URL
 	elsif ($show_url) {
 		unless (@action_list) {
 			die "No list provided to show URLs!\n";
@@ -2171,7 +2180,7 @@ sub print_functions {
 		my $missing = 0;
 		foreach my $id (@action_list) {
 			my $Entry = $Catalog->entry($id) or next;
-			my $url = $Entry->project_url;
+			my $url = $Entry->project_core_url;
 			if ($url) {
 				printf "%s\t%s\n", $id, $url;
 			}
@@ -2182,6 +2191,28 @@ sub print_functions {
 		}
 		if ($missing) {
 			printf STDERR " ! There were %d projects without URLs\n", $missing;
+		}
+	}
+	
+	# print the remote AWS S3 URI
+	elsif ($show_uri) {
+		unless (@action_list) {
+			die "No list provided to show URIs!\n";
+		}
+		my $missing = 0;
+		foreach my $id (@action_list) {
+			my $Entry = $Catalog->entry($id) or next;
+			my $uri = $Entry->project_s3_uri;
+			if ($uri) {
+				printf "%s\t%s\n", $id, $uri;
+			}
+			else {
+				printf "%s\t\n", $id;
+				$missing++;
+			}
+		}
+		if ($missing) {
+			printf STDERR " ! There were %d projects without URIs\n", $missing;
 		}
 	}
 	
