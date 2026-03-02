@@ -752,7 +752,12 @@ sub request_callback {
 	# check file
 	if ( $file =~ /^\./ ) {
 		# hidden files probably shouldn't exist in a request project
-		print "   ! deleting hidden file $clean_name\n";
+		if ( $file =~ / \. \w{1,3} \. \w{5} $/xi ) {
+			print "   ! possible rsync temp file '$clean_name'\n";
+		}
+		else {
+			print "   ! deleting hidden file $clean_name\n";
+		}
 		push @removelist, $clean_name;
 		return;
 	}
@@ -1242,6 +1247,9 @@ sub analysis_callback {
 	
 	if ( $file =~ /^\./ ) {
 		# hidden files
+		if ( $file =~ / \. \w{1,3} \. \w{5} $/xi ) {
+			print "   ! possible rsync temp file '$clean_name'\n";
+		}
 		$filetype = 'Hidden';
 		if ($size > HUNDRED_MB) {
 			# good lord this is a HUGE hidden file, do not zip I guess?
