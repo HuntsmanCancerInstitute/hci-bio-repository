@@ -6,22 +6,32 @@ use English qw(-no_match_vars);
 use Carp;
 use IO::File;
 use DBM::Deep;
+use constant {
+	LAB_UPLOAD  => 1,     # Boolean whether uploads allowed
+	LAB_ACCT    => 2,     # CORE lab account name
+};
 
-our $VERSION = 7.7;
+our $VERSION = 'v9.0.0';
 
 
-# General private values
+### General private values
 
-my $DEFAULT_PATH  = "~/test/repository.db";
-my $HEADER = "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tPIEmail\tCORELab\tProfile\tBucket\tPrefix\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\tAAUpload\tQCScan\tAutoAnalysisFolder\n";
-my $ARRAY_SIZE = 31;  # size of DB Entry array, see RepoEntry index list
+# Catalog definition
+my $HEADER = "ID\tPath\tName\tDate\tGroup\tUserEmail\tUserFirst\tUserLast\tLabFirst\tLabLast\tCORELab\tBucket\tPrefix\tExternal\tStatus\tApplication\tOrganism\tGenome\tSize\tLastSize\tAge\tScan\tUpload\tHidden\tDeleted\tEmailed\tAAUpload\tQCScan\tAutoAnalysisFolder\n";
+my $ARRAY_SIZE = 29;  # size of DB Entry array, see RepoEntry index list
+my $REQUIRED_INTS = q(18 19 20 21 22 23 24 25 26 27);
+
+my $LAB_INFO_HEADER = "Name\tEmail\tAllow Upload\tCORE Lab\n";
+my $LAB_SIZE        = 4;
+my $ACCOUNT_HEADER  = "CORE_Lab\tProfile\tAWS_Account\n";
+my $ACCOUNT_SIZE    = 3;
 
 # default search values
 my $repo_epoch = 2005;
 my $internal_org = qr/(?: Bioinformatics \s Shared \s Resource | HTG \s Core \s Facility | SYSTEM )/x;
 my $req_up_min_size    = 26214400;  # minimum Request size to upload, 25 MB
 my $req_up_min_age     = 0;         # minimum age for request upload
-my $req_up_max_age     = 360;       # maximum age for request upload
+my $req_up_max_age     = 730;       # maximum age for request upload
 my $req_hide_min_age   = 180;       # minimum age for hiding request
 my $req_hide_max_age   = 100000;    # maximum age for hiding request
 my $req_del_min_age    = 30;        # minimum age to delete hidden request
@@ -36,34 +46,56 @@ my $anal_del_min_age   = 60;        # minimum age to delete hidden analysis
 
 sub new {
 	my $class = shift;
-	my $path  = shift || $DEFAULT_PATH;
+	my $path  = shift;
+	unless ($path) {
+		croak "FATAL: No database file provided!!";
+	}
 	
 	# open the database file
 	my $db;
 	if (-e $path) {
 		$db = DBM::Deep->new($path) or 
-			croak "unable to open database file '$path'! $OS_ERROR";
+			croak "FATAL: unable to open database file '$path'! $OS_ERROR";
+
 		# check if current version
-		my $first = $db->first_key or
-			croak "uninitialized or corrupt database file!";
-		my $data = $db->get($first)or
-			croak "uninitialized or corrupt database file!";
-		if ( scalar @{ $data } != $ARRAY_SIZE ) {
-			croak "Database first entry does not have $ARRAY_SIZE fields! Old database?";
+		my $head = $db->get('HEADER') || undef;
+		my $headstr;
+		if ($head) {
+			$headstr = sprintf "%s\n", join( "\t", @{$head} );
+		}
+		unless ( $head and scalar( @{$head} ) == $ARRAY_SIZE and $headstr eq $HEADER ) {
+			print " Incorrect version catalog!!!\n This is likely an old version.\n";
+			print " Update an old exported table file and import into a new catalog\n";
+			print " Current header is the following:\n$HEADER";
+			croak "ERROR";
 		}
 	}
 	else {
 		# make a new database file
+		# use the DBM::Deep defaults which use a file backing and hash format
 		$db = DBM::Deep->new(
 			file     => $path,
-		) or croak "unable to initialize database file '$path'! $OS_ERROR";
+		) or croak "FATAL: unable to initialize database file '$path'! $OS_ERROR";
+		
+		# default entries
+		my @header = split /\t/, $HEADER;
+		chomp $header[-1];
+		$db->put( 'HEADER', \@header );
+		my $lab = { 'default' => [ map { q() } (1 .. $LAB_SIZE) ] };
+		$db->put( 'LABS', $lab );
+		my $acct = { 'default' => [ map { q() } (1 .. $ACCOUNT_SIZE) ] };
+		$db->put( 'ACCOUNTS', $acct );
 	}
 		
+	# return
+	my $lab = $db->get('LABS');
+	my $act = $db->get('ACCOUNTS');
 	my $self = {
 		file    => $path,
 		db      => $db,
+		lab     => $lab,
+		account => $act
 	};
-	
 	return bless $self, $class;
 }
 
@@ -76,11 +108,16 @@ sub db {
 }
 
 sub entry {
-	my ($self, $project) = @_;
+	my ( $self, $project ) = @_;
 	confess "no project provided!" unless defined $project;
 	if ( $self->{db}->exists($project) ) {
+
 		# return existing project
-		return RepoEntry->new( $self->{db}->get($project) );
+		return RepoEntry->new(
+			$self->{db}->get($project),
+			$self->{lab},
+			$self->{account}
+		);
 	}
 	else {
 		return;
@@ -96,16 +133,27 @@ sub new_entry {
 	if ( $self->{db}->exists($project) ) {
 		carp (" project $project exists!\n");
 		# go ahead and return the entry
-		return RepoEntry->new( $self->{db}->get($project) );
+		return RepoEntry->new(
+			$self->{db}->get($project),
+			$self->{lab},
+			$self->{account}
+		);
 	}
 	else {
 		# make a new entry
 		# the project ID is always the first element in the array
 		my @data = ( map { q() } (1 .. $ARRAY_SIZE) );
 		$data[0] = $project;
+		foreach my $n (split /\s/, $REQUIRED_INTS) {
+			$data[$n] = 0;
+		}
 		my $p = $self->{db}->put($project, \@data);
 		if ($p) {
-			return RepoEntry->new( $self->{db}->get($project) );
+			return RepoEntry->new(
+				$self->{db}->get($project),
+				$self->{lab},
+				$self->{account}
+			);
 		}
 		else {
 			confess("unable to store a new entry in database!");
@@ -138,9 +186,17 @@ sub list_all {
 	# scan through list
 	my @list;
 	my $key = $self->{db}->first_key;
+	
 	while ($key) {
-		my $E = $self->entry($key);
 
+		# skip metadata keys
+		if ( $key eq 'HEADER' or $key eq 'LABS' or $key eq 'ACCOUNTS' ) {
+			$key = $self->{db}->next_key($key);
+			next;
+		}
+		
+		# process catalog entries
+		my $E = $self->entry($key);
 		if (
 			substr($E->date, 0, 4) >= $year and
 			$E->age >= $min_age and
@@ -194,6 +250,14 @@ sub list_projects_for_pi {
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
+
+		# skip metadata keys
+		if ( $key eq 'HEADER' or $key eq 'LABS' or $key eq 'ACCOUNTS' ) {
+			$key = $self->{db}->next_key($key);
+			next;
+		}
+		
+		# process catalog entries
 		my $E = $self->entry($key);
 
 		# calculate size
@@ -236,7 +300,9 @@ sub export_to_file {
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
-		push @list, $key;
+		unless ( $key eq 'HEADER' or $key eq 'LABS' or $key eq 'ACCOUNTS' ) {
+			push @list, $key;
+		}
 		$key = $self->{db}->next_key($key);
 	}
 	my $sorted = $self->sort_list(\@list);
@@ -261,12 +327,23 @@ sub import_from_file {
 	$fh->binmode(':utf8');
 	my $firstline = $fh->getline;
 	unless ( $firstline eq $HEADER ) {
-		croak "header doesn't match an exported file format!\n";
+		my $n = scalar( split /\t/, $firstline );
+		print " Import file '$file' doesn't match the expected format!!\n";
+		print " Expecting $ARRAY_SIZE elements and this has $n elements\n";
+		print " Current header is the following:\n$HEADER";
+		print "\n Please update the table.\n";
+		croak "FAILURE to import!\n";
 	}
 	
 	# check catalog
+	my $count = 0;
 	my $key = $self->{db}->first_key || undef;
-	if ($key) {
+	while ($key) {
+		$count++;
+		$key = $self->{db}->next_key($key);
+	}
+	if ($count > 3) {
+		# even a new catalog now has 3 default keys
 		carp "\nWARNING! Catalog file is not new!\n";
 		if ($force) {
 			print "\nWARNING! Forcibly importing data into an existing database! Existing entries will be overwritten!\n";
@@ -278,13 +355,22 @@ sub import_from_file {
 	}
 	
 	# load table into file structure - this may be big
-	my $i = 0;
+	my @check = split /\s/, $REQUIRED_INTS;
+	my $i = 1;
 	my %import;
 	while (my $line = $fh->getline) {
 		my @data = split /\t/, $line;
 		unless (scalar @data == $ARRAY_SIZE) {
 			$i++;
-			croak " ! line $i does not have $ARRAY_SIZE fields!";
+			croak " ! lab information line $i does not have $ARRAY_SIZE fields!\n";
+		}
+		foreach my $n (@check) {
+			if ($data[$n] =~ /\d+/) {
+				$data[$n] = int $data[$n];
+			}
+			else {
+				$data[$n] = 0;
+			}
 		}
 		chomp $data[-1];
 		my $id = $data[0];
@@ -296,7 +382,64 @@ sub import_from_file {
 	return $i;
 }
 
+sub import_labs {
+	my $self = shift;
+	my $file = shift;
+	croak "no lab information file provided!\n" unless defined $file;
+	my $fh = IO::File->new($file, '<') or 
+		croak "unable to open $file for reading! $OS_ERROR\n";
+	my $firstline = $fh->getline;
+	unless ( $firstline eq $LAB_INFO_HEADER ) {
+		croak "header doesn't match an expected file format! Should be\n$LAB_INFO_HEADER\n";
+	}
+	my %lab;
+	my $i = 1;
+	while (my $line = $fh->getline) {
+		my @data = split /\t/, $line;
+		unless (scalar @data == $LAB_SIZE) {
+			$i++;
+			croak " ! account information line $i does not have $LAB_SIZE fields!\n";
+		}
+		chomp $data[-1];
+		my $name = shift @data;
+		$lab{$name} = \@data;
+		$i++;
+	}
+	$fh->close;
+	$self->{db}->put( 'LABS', \%lab );
+	return $i;
+}
 
+sub import_accounts {
+	my $self = shift;
+	my $file = shift;
+	croak "no account information file provided!\n" unless defined $file;
+	my $fh = IO::File->new($file, '<') or 
+		croak "unable to open $file for reading! $OS_ERROR\n";
+	my $firstline = $fh->getline;
+	unless ( $firstline eq $ACCOUNT_HEADER ) {
+		croak "header doesn't match an expected file format! Should be\n$ACCOUNT_HEADER\n";
+	}
+	my %acct;
+	my $i = 0;
+	while (my $line = $fh->getline) {
+		my @data = split /\t/, $line;
+		unless (scalar @data == $ACCOUNT_SIZE) {
+			$i++;
+			croak " ! line $i does not have $ACCOUNT_SIZE fields!";
+		}
+		
+		# check for a valid profile name and store in hash
+		next unless $data[1] =~ /[a-z]+/i;
+		chomp $data[-1];
+		my $name = shift @data;
+		$acct{$name} = \@data;
+		$i++;
+	}
+	$fh->close;
+	$self->{db}->put( 'ACCOUNTS', \%acct );
+	return $i;
+}
 
 sub find_requests_to_upload {
 	my $self = shift;
@@ -314,6 +457,14 @@ sub find_requests_to_upload {
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
+
+		# skip metadata keys
+		if ( $key eq 'HEADER' or $key eq 'LABS' or $key eq 'ACCOUNTS' ) {
+			$key = $self->{db}->next_key($key);
+			next;
+		}
+		
+		# process catalog entries
 		my $E = $self->entry($key);
 		if (
 			$E->is_request and
@@ -373,6 +524,14 @@ sub find_requests_to_hide {
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
+
+		# skip metadata keys
+		if ( $key eq 'HEADER' or $key eq 'LABS' or $key eq 'ACCOUNTS' ) {
+			$key = $self->{db}->next_key($key);
+			next;
+		}
+		
+		# process catalog entries
 		my $E = $self->entry($key);
 		if (
 			$E->is_request and
@@ -424,6 +583,14 @@ sub find_requests_to_delete {
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
+
+		# skip metadata keys
+		if ( $key eq 'HEADER' or $key eq 'LABS' or $key eq 'ACCOUNTS' ) {
+			$key = $self->{db}->next_key($key);
+			next;
+		}
+		
+		# process catalog entries
 		my $E = $self->entry($key);
 		if (
 			$E->is_request and
@@ -474,6 +641,14 @@ sub find_analysis_to_upload {
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
+
+		# skip metadata keys
+		if ( $key eq 'HEADER' or $key eq 'LABS' or $key eq 'ACCOUNTS' ) {
+			$key = $self->{db}->next_key($key);
+			next;
+		}
+		
+		# process catalog entries
 		my $E = $self->entry($key);
 		if (
 			not $E->is_request and
@@ -515,6 +690,14 @@ sub find_analysis_to_hide {
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
+
+		# skip metadata keys
+		if ( $key eq 'HEADER' or $key eq 'LABS' or $key eq 'ACCOUNTS' ) {
+			$key = $self->{db}->next_key($key);
+			next;
+		}
+		
+		# process catalog entries
 		my $E = $self->entry($key);
 		if (
 			not $E->is_request and
@@ -566,6 +749,14 @@ sub find_analysis_to_delete {
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
+
+		# skip metadata keys
+		if ( $key eq 'HEADER' or $key eq 'LABS' or $key eq 'ACCOUNTS' ) {
+			$key = $self->{db}->next_key($key);
+			next;
+		}
+		
+		# process catalog entries
 		my $E = $self->entry($key);
 		if (
 			not $E->is_request and
@@ -600,6 +791,7 @@ sub find_analysis_to_delete {
 }
 
 sub find_autoanal_req {
+# !!!!! This needs a core lab option!!!!!
 	my $self = shift;
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
@@ -612,6 +804,14 @@ sub find_autoanal_req {
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
+
+		# skip metadata keys
+		if ( $key eq 'HEADER' or $key eq 'LABS' or $key eq 'ACCOUNTS' ) {
+			$key = $self->{db}->next_key($key);
+			next;
+		}
+		
+		# process catalog entries
 		my $E = $self->entry($key);
 		if (
 			$E->is_request and
@@ -643,6 +843,14 @@ sub find_autoanal_to_upload {
 	my @list;
 	my $key = $self->{db}->first_key;
 	while ($key) {
+
+		# skip metadata keys
+		if ( $key eq 'HEADER' or $key eq 'LABS' or $key eq 'ACCOUNTS' ) {
+			$key = $self->{db}->next_key($key);
+			next;
+		}
+		
+		# process catalog entries
 		my $E = $self->entry($key);
 		if (
 			$E->is_request and
@@ -704,7 +912,68 @@ sub sort_list {
 	return \@s;
 }
 
-# search for other things? projects to upload, hide, delete?
+sub check_lab {
+	my $self = shift;
+	my $name = shift || undef;
+	return 0 unless $name;
+	if ( ref($name) eq 'RepoEntry' ) {
+		$name = sprintf "%s %s", $name->lab_first, $name->lab_last;
+	}
+	if ( exists $self->{lab}->{$name} ) {
+		return 1;
+	}
+	else {
+		return 0;
+	}
+}
+
+sub allow_upload {
+	my $self = shift;
+	my $name = shift || undef;
+	return unless $name;
+	if ( ref($name) eq 'RepoEntry' ) {
+		$name = sprintf "%s %s", $name->lab_first, $name->lab_last;
+	}
+	if ( exists $self->{lab}->{$name} ) {
+		my $v = $self->{lab}->{$name}->[LAB_UPLOAD];
+		if ($v eq 'Y') {
+			return 1;
+		}
+		elsif ($v eq 'N') {
+			return 0;
+		}
+		else {
+			print " ! lab '$name' has an invalid upload response '$v'\n";
+			return 0;
+		}
+	}
+	else {
+		return 0;
+	}
+}
+
+sub get_upload_account {
+	my $self = shift;
+	my $name = shift || undef;
+	return unless $name;
+	if ( ref($name) eq 'RepoEntry' ) {
+		$name = sprintf "%s %s", $name->lab_first, $name->lab_last;
+	}
+	if ( exists $self->{lab}->{$name} ) {
+		my $v = $self->{lab}->{$name}->[LAB_UPLOAD];
+		if ($v eq 'Y') {
+			return $self->{lab}->{$name}->[LAB_ACCT];
+		}
+		else {
+			return;
+		}
+	}
+	else {
+		return;
+	}
+}
+
+
 1;
 
 
@@ -725,43 +994,48 @@ use constant {
 	USERLAST    => 7,     # user last name
 	LABFIRST    => 8,     # PI first name
 	LABLAST     => 9,     # PI last name
-	PIEMAIL     => 10,    # PI email address
-	CORELAB     => 11,    # name of CORE lab
-	PROFILE     => 12,    # IAM profile name for access
-	BUCKET      => 13,    # s3 bucket name
-	PREFIX      => 14,    # s3 prefix
-	EXTERNAL    => 15,    # y or n boolean
-	STATUS      => 16,    # gnomex request status
-	APPLICATION => 17,    # gnomex request application type
-	ORGANISM    => 18,    # gnomex organism string
-	GENOME      => 19,    # gnomex genome build
-	SIZE        => 20,    # current project file size total in bytes
-	LASTSIZE    => 21,    # previous project file size total in bytes
-	AGE         => 22,    # unix timestamp for youngest observed file in project
-	SCAN        => 23,    # unix timestamp for scanning
-	UPLOAD      => 24,    # unix timestamp for uploading
-	HIDDEN      => 25,    # unix timestamp for hiding
-	DELETED     => 26,    # unix timestamp for deleting
-	EMAILED     => 27,    # unix timestamp for emailing
-	AAUPLOAD    => 28,    # unix timestamp for Request AutoAnalysis upload
-	QCSCAN      => 29,    # unix timestamp for request QC folder scan
-	AAFOLD      => 30,    # Request AutoAnalysis folder name
+	CORELAB     => 10,    # name of CORE lab
+	BUCKET      => 11,    # s3 bucket name
+	PREFIX      => 12,    # s3 prefix
+	EXTERNAL    => 13,    # y or n boolean
+	STATUS      => 14,    # gnomex request status
+	APPLICATION => 15,    # gnomex request application type
+	ORGANISM    => 16,    # gnomex organism string
+	GENOME      => 17,    # gnomex genome build
+	SIZE        => 18,    # current project file size total in bytes
+	LASTSIZE    => 19,    # previous project file size total in bytes
+	AGE         => 20,    # unix timestamp for youngest observed file in project
+	SCAN        => 21,    # unix timestamp for scanning
+	UPLOAD      => 22,    # unix timestamp for uploading
+	HIDDEN      => 23,    # unix timestamp for hiding
+	DELETED     => 24,    # unix timestamp for deleting
+	EMAILED     => 25,    # unix timestamp for emailing
+	AAUPLOAD    => 26,    # unix timestamp for Request AutoAnalysis upload
+	QCSCAN      => 27,    # unix timestamp for request QC folder scan
+	AAFOLD      => 28,    # Request AutoAnalysis folder name
+	LAB_EMAIL   => 0,     # Email address for the PI
+	LAB_UPLOAD  => 1,     # Boolean whether uploads allowed
+	LAB_ACCT    => 2,     # CORE lab account name
+	ACT_PROFILE => 0,     # service account profile name for accessing account
+	ACT_NUMBER  => 1,     # AWS account number used for lab uploads
 	DAY         => 86400, # 60 seconds * 60 minutes * 24 hours
 	KB          => 1024,  # binary size prefixes
 	MB          => 1048576,
 	GB          => 1073741824,
 	TB          => 1099511627776,
 };
-
+my $BASE_URL = 'https://hci-apps-ext.hci.utah.edu/core-browser';
 
 sub new {
-	my ($class, $data) = @_;
+	my ($class, $data, $lab, $account) = @_;
 	if (ref($data) !~ /DBM..Deep/) {
 		confess "not a DBM::Deep reference!";
 		return;
 	}
 	my $self = {
-		data => $data,
+		data    => $data,
+		lab     => $lab,
+		account => $account
 	};
 	return bless $self, $class;
 }
@@ -868,11 +1142,38 @@ sub lab_last {
 sub pi_email {
 	my $self = shift;
 	if (@_) {
-		$self->{data}->[PIEMAIL] = $_[0];
+		carp 'pi_email() is a read-only method!';
 	}
-	return $self->{data}->[PIEMAIL];
+	my $labname = sprintf "%s %s", $self->lab_first, $self->lab_last;
+	if ( $labname and exists $self->{lab}->{$labname} ) {
+		return $self->{lab}->{$labname}->[LAB_EMAIL];
+	}
+	else {
+		print " ! No lab information available for '$labname'\n";
+		return;
+	}
 }
 
+sub allow_upload {
+	my $self = shift;
+	my $labname = sprintf "%s %s", $self->lab_first, $self->lab_last;
+	if ( $labname and exists $self->{lab}->{$labname} ) {
+		my $v = $self->{lab}->{$labname}->[LAB_UPLOAD];
+		if ($v eq 'Y') {
+			return $self->{lab}->{$labname}->[LAB_ACCT];
+		}
+		elsif ($v eq 'N') {
+			return 0;
+		}
+		else {
+			print " ! lab '$labname' has an invalid upload response '$v'\n";
+			return 0;
+		}
+	}
+	else {
+		return 0;
+	}
+}
 
 sub core_lab {
 	my $self = shift;
@@ -885,9 +1186,33 @@ sub core_lab {
 sub profile {
 	my $self = shift;
 	if (@_) {
-		$self->{data}->[PROFILE] = $_[0];
+		carp 'profile() is a read-only method!';
 	}
-	return $self->{data}->[PROFILE];
+	my $core = $self->core_lab;
+	return unless $core;
+	if ( exists $self->{account}->{$core} ) {
+		return $self->{account}->{$core}->[ACT_PROFILE];
+	}
+	else {
+		print " ! No account information available for '$core'\n";
+		return;
+	}
+}
+
+sub account_number {
+	my $self = shift;
+	if (@_) {
+		carp 'account_number() is a read-only method!';
+	}
+	my $core = $self->core_lab;
+	return unless $core;
+	if ( exists $self->{account}->{$core} ) {
+		return $self->{account}->{$core}->[ACT_NUMBER];
+	}
+	else {
+		print " ! No account information available for '$core'\n";
+		return 0;
+	}
 }
 
 sub bucket {
@@ -1094,14 +1419,30 @@ sub autoanal_folder {
 	return $self->{data}->[AAFOLD];
 }
 
-sub project_url {
+sub project_s3_uri {
 	my $self = shift;
-	my $b = $self->{data}->[BUCKET];
-	my $p = $self->{data}->[PREFIX];
-	return unless ( length $b and length $p );
-	return sprintf("s3://%s/%s/", $b, $p );
+	my $bucket = $self->bucket;
+	my $prefix = $self->prefix;
+	return q() unless ( $bucket and $prefix );
+	return sprintf("s3://%s/%s/", $bucket, $prefix );
 }
 
+sub project_core_url {
+	my $self   = shift;
+	my $org    = $self->core_lab;
+	my $number = $self->account_number;
+	my $bucket = $self->bucket;
+	my $prefix = $self->prefix;
+	return q() unless ( $org and $number and $bucket and $prefix );
+
+	# escape spaces
+	$org =~ s/\ /%20/g;
+
+	# generate url to CORE Browser - this assumes always AWS accounts
+	my $url = sprintf "%s/goto?organization=%s&account=AWS%%20%s&path=/%s/%s", $BASE_URL,
+		$org, $number, $bucket, $prefix;
+	return $url;
+}
 
 
 
@@ -1122,9 +1463,7 @@ sub print_string {
 		$self->user_last,
 		$self->lab_first,
 		$self->lab_last,
-		$self->pi_email || q(),
 		$self->core_lab || q(),
-		$self->profile || q(),
 		$self->bucket || q(),
 		$self->prefix || q(),
 		$self->external || q(),
@@ -1185,7 +1524,6 @@ sub print_string {
 	return sprintf("%s\n", join("\t", @data));
 }
 
-
 1;
 
 __END__
@@ -1207,6 +1545,35 @@ GNomEx ID, and each value is an anonymous array. When iterating or
 querying the database file, a L<RepoEntry> object is returned for each 
 database entry, i.e. GNomEx project. This object has functions to get/set 
 specific values in the database entry. 
+
+There are three special keys in the database catalog file corresponding
+to metadata about labs and AWS CORE lab accounts. This avoids storing
+redundant information in each project entry.
+
+=over 4
+
+=item header
+
+This is stored under the C<HEADER> key and points to an array of the current
+project table column header names.
+
+=item lab information
+
+This is stored under the C<LABS> key, and the value is an anonymous hash,
+the keys of which are the "First Last" names of the lab Principal Investigator
+as indicated in the GNomEx database. The value is an anonymous array of the
+PI email address, a boolean (Y or N) whether uploads are allowed, and the name
+of the default CORE lab account name, usually "First Last Lab".
+
+=item AWS accounts
+
+This is stored under the C<ACCOUNTS> key, and the value is another anonymous
+hash, the keys of which are the CORE Lab name, usually "First Last Lab", and the
+value an array of two values, the IAM service account profile name and the
+AWS account number. Some labs have multiple accounts, but usually only one is
+designated for GNomEx uploads.
+
+=back 
 
 =head1 FUNCTIONS
 
@@ -1260,10 +1627,41 @@ new, i.e. it contains data, then the file will not be loaded. A second,
 true boolean value must be provided to force the file to be loaded and
 overwrite any existing data. A warning will be given.
 
+item import_labs
+
+Import a lab information file. This is a tab-delimited text file used to
+populate the lab information metadata key in the database. Pass the path
+to the file. It will always import all records (as opposed to updating
+each individually). It returns the number of records imported. 
+
+=item import_accounts
+
+Import CORE lab account information. This is a tab-delimited text file
+used to populate the account information metadata key in the database.
+Pass the path to the file. It will always import all records (as
+opposed to updating each individually). It returns the number of
+records imported. 
+
 =item header
 
 Returns the standard header line used in printing and exporting 
 files.
+
+=item check_lab
+
+Pass a lab name ("First Last") or a RepoEntry object to the method to
+check whether information metadata about the lab is present in the
+database. Returns 1 (true) or 0 (false).
+
+=item allow_upload
+
+Pass a lab name ("First Last") or a RepoEntry object to determine
+whether a lab is allowed to upload or not. Returns 1 (true) or 0 (false).
+
+=item get_upload_account
+
+Pass a lab name ("First Last") or a RepoEntry object, and if the lab
+has a default CORE lab account name, it is returned.
 
 =back
 
@@ -1399,9 +1797,19 @@ and the recorded date time stamp.
 
 =item pi_email
 
+This is now a read-only function.
+
+=item allow_upload
+
 =item core_lab
 
 =item profile
+
+This is now a read-only function.
+
+=item account_number
+
+This is a read-only function.
 
 =item bucket
 
@@ -1419,11 +1827,18 @@ and the recorded date time stamp.
 
 =item size
 
+This gets/sets the current size of the project in bytes. When setting, the
+previous size is automatically stored as the last size.
+
 =item last_size
+
+This a read-only function.
 
 =item youngest_datestamp
 
 =item age
+
+Calculates the age in days from the youngest datestamp to now.
 
 =item scan_datestamp
 
@@ -1439,9 +1854,23 @@ and the recorded date time stamp.
 
 =item autoanal_upload_age
 
+Calculates the age in days for the autoanalysis folder.
+
 =item qc_scan_datestamp
 
 =item autoanal_folder
+
+=item project_s3_uri
+
+=item project_core_url
+
+=item print_string
+
+Returns a printable, tab-delimited string with new line ending
+representation of the project. Pass a true/false value to transform
+datestamps from Unix epoch integers to date-time formatted strings,
+and sizes in bytes to a magnitude suffix (K, M, G, T) using binary
+(base 2, instead of base 10) transformations.
 
 =back
 
