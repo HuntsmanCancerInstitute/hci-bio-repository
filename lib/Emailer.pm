@@ -11,7 +11,7 @@ my $default_from_email = 'Timothy Parnell <timothy.parnell@hci.utah.edu>';
 my $default_smtp = 'smtp.utah.edu';
 my $glacier_cost = 0.001; # in $ per GB/month
 
-our $VERSION = 7.1;
+our $VERSION = 'v9.0.0';
 
 
 sub new {
@@ -45,6 +45,7 @@ sub send_request_upload_email {
 	# options
 	my $opt = $self->_process_options(@_);
 	
+	# autoanalysis
 	my $aa_text = "\n";
 	if ($opt->{aafold}) {
 		$aa_text = <<DOC;
@@ -59,12 +60,14 @@ Hello $opt->{username} and $opt->{piname},
 
 Your GNomEx Request project ‘$opt->{id}’, ‘$opt->{name}’, has been uploaded to your Amazon Web Services (AWS) account ‘$opt->{core}’. The current anticipated cost for storing this project will be $opt->{cost} per year.
 
-You may view the files using the CORE Browser application (https://hci-apps-ext.hci.utah.edu/core-browser). They are located in the bucket ‘$opt->{bucket}’ in the folder prefix ‘$opt->{prefix}’; this is based on the Group folder and metadata in the GNomEx database. Please contact Cancer Bioinformatics if you do not yet have access to your account.
-
-By default (unless otherwise configured), the files will be transitioned within a few days into the Deep Glacier storage tier for long-term storage at the lowest cost. Archived files will need to be temporarily restored before they can be viewed or downloaded; this will incur a small fee per standard AWS cost policies. 
+$opt->{location}
+By default (unless otherwise configured), the files will be archived within a few days into the Deep Glacier storage tier for long-term storage at the lowest cost. Archived files will need to be temporarily restored before they can be viewed or downloaded; this will incur a fee per standard AWS cost policies. 
 
 Your files will continue to remain on GNomEx for your convenience as space allows (about six months) before being silently removed. A manifest of the files will always remain on GNomEx, as well as the record of your sequencing request and samples in the GNomEx database. $aa_text
-For more information, see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage.  
+
+HCI Cancer Bioinformatics Shared Resource
+University of Utah
+https://huntsmancancer.org/cbi
 
 DOC
 		
@@ -85,15 +88,16 @@ sub send_analysis_upload_email {
 	my $body = <<DOC;
 Hello $opt->{username} and $opt->{piname},
 
-Your GNomEx Analysis project ‘$opt->{id}’, ‘$opt->{name}’, has been removed from GNomEx and uploaded to your Amazon Web Services (AWS) account ‘$opt->{core}’. The expected cost for storing this project will be $opt->{cost} per year.
+Your GNomEx Analysis project ‘$opt->{id}’, ‘$opt->{name}’, has been uploaded to your Amazon Web Services (AWS) account ‘$opt->{core}’. The expected cost for storing this project will be $opt->{cost} per year.
 
-You may view the files using the CORE Browser application (https://hci-apps-ext.hci.utah.edu/core-browser). They are located in the bucket ‘$opt->{bucket}’ in the folder prefix ‘$opt->{prefix}’; this is based on the Group folder and metadata in the GNomEx database. Please contact Cancer Bioinformatics if you do not yet have access to your account.
+$opt->{location}
+By default (unless otherwise configured), the files will be archived within a few days into the Deep Glacier storage tier for long-term storage at the lowest cost. Archived files will need to be temporarily restored before they can be viewed or downloaded; this will incur a fee per standard AWS cost policies. 
 
-By default (unless otherwise configured), the files will be transitioned within a few days into the Deep Glacier storage tier for long-term storage at the lowest cost. Archived files will need to be temporarily restored before they can be viewed or downloaded; this will incur a small fee per standard AWS cost policies. 
+The files on GNomEx have now been removed; however, a manifest of the files will always remain, as well as the database entry for the project. Certain analysis files may remain as a courtesy for serving to genome browsers.
 
-While the files on GNomEx have been removed, a manifest of the files will always remain, as well as the database entry for the project. Certain analysis files may remain as a courtesy for serving to genome browsers.
-
-For more information, see our website at https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage.  
+HCI Cancer Bioinformatics Shared Resource
+University of Utah
+https://huntsmancancer.org/cbi
 
 DOC
 		
@@ -124,8 +128,9 @@ Otherwise, we urge you to download your files as soon as possible from $url. Fil
 
 A manifest of the files will always remain on GNomEx, as well as the record of your sequencing request and samples. 
 
-Cancer Bioinformatics Shared Resource
-https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi. 
+HCI Cancer Bioinformatics Shared Resource
+University of Utah
+https://huntsmancancer.org/cbi 
 
 DOC
 		
@@ -156,8 +161,9 @@ Otherwise, we urge you to download your files as soon as possible from $url. Fil
 
 A manifest of the files will always remain on GNomEx, as well as the record of your sequencing request and samples. Certain analysis files may remain as a courtesy for serving to genome browsers.
 
-Cancer Bioinformatics Shared Resource
-https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi. 
+HCI Cancer Bioinformatics Shared Resource
+University of Utah
+https://huntsmancancer.org/cbi
 
 DOC
 		
@@ -187,6 +193,7 @@ sub _process_options {
 		$opt{size}      = $E->size;
 		$opt{age}       = $E->age;
 		$opt{aafold}    = $E->autoanal_folder;
+		$opt{url}       = $E->project_core_url;
 		
 		if (@_) {
 			# can't rely on a recent version of List::Util being installed,
@@ -213,6 +220,7 @@ sub _process_options {
 		$opt{size}      ||= q();
 		$opt{age}       ||= '?';
 		$opt{aafold}    ||= q();
+		$opt{url}       ||= q();
 	}
 	unless (exists $opt{from}) {
 		$opt{from}      = $self->from;
@@ -226,6 +234,20 @@ sub _process_options {
 		$opt{cost} = 'undetermined';
 	}
 
+	# upload location text
+	if ($opt{url}) {
+		$opt{location} = <<DOC;
+You may view the files using the CORE Browser application by following this URL:
+$opt{url}
+If you do not see anything, you may not have access to your lab account; please contact Cancer Bioinformatics to gain access to your account.
+DOC
+	}
+	else {
+		$opt{location} = <<DOC;
+The files were uploaded to the bucket ‘$opt{bucket}’ in the folder prefix ‘$opt{prefix}’.
+DOC
+	}
+	
 	return \%opt;
 }
 
