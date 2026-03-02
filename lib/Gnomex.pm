@@ -9,7 +9,7 @@ use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
 use hciCore qw( generate_prefix generate_bucket );
 
-our $VERSION = 7.4;
+our $VERSION = 'v9.0.0';
 
 
 
@@ -114,36 +114,6 @@ sub new {
 		}
 	}
 	
-	# lab information
-	$opts{lab} ||= undef;
-	if ($opts{lab} and -e $opts{lab}) {
-		# open file
-		my $fh = IO::File->new($opts{lab}) or 
-			croak "unable to open $opts{lab}! $OS_ERROR";
-		my $header = $fh->getline;
-		
-		# check header
-		unless ($header =~ /^ Name \t Email \t Allow.Upload \t CORE.Lab \t Profile $/x) {
-			croak "lab information file must have file columns: Name, Email, Allow_Upload, CORE_Lab, Profile\n";
-		}
-		
-		# load lab information
-		my %lab2info;
-		while (my $line = $fh->getline) {
-			chomp $line;
-			my @bits = split /\t/, $line;
-			my $name = shift @bits;
-			$lab2info{$name} = \@bits;
-		}
-		printf " Loaded %d labs information\n", scalar(keys %lab2info);
-		$fh->close;
-		$opts{lab} = \%lab2info;
-	}
-	else {
-		carp "Must pass a lab information file!";
-		return;
-	}
-	
 	# open database handle
 	if ($opts{user} and $opts{pass}) {
 		my $dsn = sprintf "dbi:ODBC:driver=%s;database=%s;Server=%s;port=%d;uid=%s;pwd=%s",
@@ -163,7 +133,6 @@ sub new {
 	# Return successfully built object
 	my $self = {
 		catalog => $opts{catalog},
-		lab     => $opts{lab},
 		dbh     => $opts{dbh},
 	};
 	
@@ -174,7 +143,6 @@ sub fetch_analyses {
 	my $self = shift;
 	my $year_to_pull = shift || $default_year;
 	my $Catalog  = $self->{catalog};
-	my $lab2info = $self->{lab};
 	
 	# prepare and execute query
 	my $sth = $self->{dbh}->prepare($anal_query);
@@ -216,15 +184,19 @@ sub fetch_analyses {
 			# an existing project, just need to update 
 			my $u = 0;
 			
+			unless ( $Catalog->check_lab($E) ) {
+				printf "  ! no lab information for %s %s\n", $row[7], $row[8];
+			}
+
 			# reconfirm external status
 			if ( ( $row[9] eq 'Y' or $row[10] eq 'Y' ) and $E->external eq 'N' ) {
 				printf "  > updating %s to external status\n", $E->id;
 				$E->external('Y');
 				$u++;
 			}
-
-			# basically check to see if we have a CORE lab
-			if ($E->external eq 'N') {
+			
+			# check to see if we have a CORE lab
+			if ( $E->external eq 'N' and $Catalog->check_lab($E) ) {
 				# for university clients only
 
 				if ( $row[7] ne $E->lab_first or $row[8] ne $E->lab_last ) {
@@ -234,69 +206,63 @@ sub fetch_analyses {
 						$E->lab_last, $E->id;
 					$u++;
 				}
-				my $lab = sprintf("%s %s", $row[7], $row[8]);
-				my $alt_lab = sprintf("%s %s", $row[5], $row[6]);
-				if (exists $lab2info->{$lab}) {
+				
+				# collect the CORE labs for this project
+				my $default_lab = $Catalog->get_upload_account($E);
+				my $alt_lab = $Catalog->get_upload_account(
+					sprintf("%s %s", $row[5], $row[6]) ); # based on username
 					
-					# check CORE lab status
-					if (
-						# check length of values to ensure comparing real values
-						# also, skip if it's already been uploaded
-						(length($E->core_lab) > 1 or length($lab2info->{$lab}->[2]) > 1)
-						and $E->core_lab ne $lab2info->{$lab}->[2]
-						and not $E->upload_datestamp
-					) {
-						# there's a difference here
-						# we assume the lab information file is correct and updated
-						if ($lab2info->{$lab}->[1] eq 'Y') {
+				# check CORE lab status
+				if (
+					# check length of values to ensure comparing real values
+					# also skip if it's already been uploaded or hidden
+					( length($E->core_lab) > 1 or length($default_lab) > 1 )
+					and $E->core_lab ne $default_lab
+					and not $E->upload_datestamp and not $E->hidden_datestamp
+				) {
+					# there's a difference here
+					# we assume the lab information file is correct and updated
+					if ( $E->allow_upload) {
+						
+						# must be updated lab information
+						# only update if this project has not been hidden
+						if ( not $E->hidden_datestamp ) {
 							printf "  > updating CORE Lab for %s from '%s' to '%s'\n",
-								$row[0], $E->core_lab, $lab2info->{$lab}->[2];
-							$E->core_lab($lab2info->{$lab}->[2]);
-							$E->profile( $lab2info->{$lab}->[3] );
+								$row[0], $E->core_lab, $default_lab;
+							$E->core_lab($default_lab);
 							$u++;
 						}
-						elsif (
-							$lab2info->{$lab}->[1] eq 'N'
-							and length($E->core_lab) > 1
-							and not exists $lab2info->{$alt_lab}
-						) {
-							printf "  ! mismatched CORE Lab '%s' for %s\n", $E->core_lab, $row[0];
+					}
+					else {
+
+						# not supposed to be allowed to upload
+						# must have been manually set 
+						# give a warning
+						# but only if the alternate lab wasn't found 
+						if ( length($E->core_lab) > 1 and not $alt_lab ) {
+							printf "  ! mismatched CORE Lab '%s' for %s\n", $E->core_lab,
+								$row[0];
 						}
 					}
-					
-					# check alternate CORE lab
-					if ( 
-						not $E->core_lab and exists $lab2info->{$alt_lab}
-						and $lab2info->{$alt_lab}->[1] eq 'Y'
-						and not $E->upload_datestamp and not $E->hidden_datestamp
-					) {
-						# sometimes a PI with an AWS CORE lab account will submit a
-						# project under a collaborator's PI lab account without a CORE
-						# account, so in that case reassign to the submitting PI's account
-						# looking at you H***** and J** and D***** and....
-						printf 
-			"  > assigning CORE account for %s from PI %s %s to User's account '%s'\n",
-							$row[0], $row[7], $row[8], $lab2info->{$alt_lab}->[2];
-						$E->core_lab( $lab2info->{$alt_lab}->[2] );
-						$E->profile( $lab2info->{$alt_lab}->[3] );
-						$u++;
-					}
-					
-					# check lab PI email
-					if (
-						length($lab2info->{$lab}->[0]) > 1 and 
-						$lab2info->{$lab}->[0] ne $E->pi_email
-					) {
-						printf "  > updating PI %s %s email address for %s\n", $E->lab_first, 
-							$E->lab_last, $E->id;
-						$E->pi_email($lab2info->{$lab}->[0]);
-						$u++;
-					}
 				}
-				else {
-					print " ! Missing lab information for '$lab'!\n";
+				
+				# check alternate CORE lab
+				if ( 
+					not $E->core_lab and not $default_lab and $alt_lab
+					and not $E->upload_datestamp and not $E->hidden_datestamp
+				) {
+					# sometimes a PI with an AWS CORE lab account will submit a
+					# project under a collaborator's PI lab account without a CORE
+					# account, so in that case reassign to the submitting PI's account
+					# looking at you H***** and J** and D***** and....
+					printf 
+		"  > assigning CORE account for %s from PI %s %s to User's account '%s'\n",
+						$row[0], $row[7], $row[8], $alt_lab;
+					$E->core_lab( $alt_lab );
+					$u++;
 				}
 			}
+			
 			
 			# check user info
 			if ($row[4] ne $E->user_email) {
@@ -341,7 +307,7 @@ sub fetch_analyses {
 				}
 			}
 			
-			# update analysis organism
+			# update organism
 			if ( $row[11] ne $E->organism ) {
 				$E->organism($row[11]);
 				$u++;
@@ -389,21 +355,17 @@ sub fetch_analyses {
 			else {
 				# not an external lab
 				$E->external('N');
-				# check SB division information
-				my $lab = sprintf("%s %s", $row[7], $row[8]);
-				if (exists $lab2info->{$lab}) {
-					$E->pi_email($lab2info->{$lab}->[0]);
-					if ($lab2info->{$lab}->[1] eq 'Y') {
-						# we're allowed to upload
-						$E->core_lab($lab2info->{$lab}->[2]);
-						$E->profile( $lab2info->{$lab}->[3] );
-						# generate bucket and prefix
+				if ( $Catalog->check_lab($E) ) {
+					my $default_core = $Catalog->get_upload_account($E);
+					if ($default_core) {
+						# this lab has an account 
+						$E->core_lab($default_core);
 						generate_bucket($E);
 						generate_prefix($E);
 					}
 				}
 				else {
-					print " ! Missing lab information for '$lab'!\n";
+					printf " ! Missing lab information for '%s %s'!\n", $row[7], $row[8];
 				}
 			}
 		}
@@ -418,7 +380,6 @@ sub fetch_requests {
 	my $self = shift;
 	my $year_to_pull = shift || $default_year;
 	my $Catalog  = $self->{catalog};
-	my $lab2info = $self->{lab};
 	
 	# prepare and execute query
 	my $sth = $self->{dbh}->prepare($req_query);
@@ -453,6 +414,10 @@ sub fetch_requests {
 			# basically just two database fields we're really concerned about here
 			my $u = 0;
 			
+			unless ( $Catalog->check_lab($E) ) {
+				printf "  ! no lab information for %s %s\n", $row[7], $row[8];
+			}
+
 			# status
 			if ( $E->request_status ne 'COMPLETE' and $E->request_status ne $row[11] ) {
 				# do not update if already marked completed, because sometimes it's
@@ -468,8 +433,9 @@ sub fetch_requests {
 				$u++;
 			}
 
-			# sb lab division 
-			if ($E->external eq 'N') {
+
+			# check CORE lab status
+			if ( $E->external eq 'N' and $Catalog->check_lab($E) ) {
 				# for university clients only
 				
 				if ( $row[7] ne $E->lab_first or $row[8] ne $E->lab_last ) {
@@ -479,68 +445,56 @@ sub fetch_requests {
 						$E->lab_last, $E->id;
 					$u++;
 				}
-				my $lab = sprintf("%s %s", $row[7], $row[8]);
-				my $alt_lab = sprintf("%s %s", $row[5], $row[6]);
-				if (exists $lab2info->{$lab}) {
+
+				# collect the CORE labs for this project
+				my $default_lab = $Catalog->get_upload_account($E);
+				my $alt_lab = $Catalog->get_upload_account(
+					sprintf("%s %s", $row[5], $row[6]) ); # based on username
+
+
 					
-					# check AWS CORE lab division
-					if (
-						# check length of values to ensure comparing real values
-						# also, skip if it's already been uploaded
-						(length($E->core_lab) > 1 or length($lab2info->{$lab}->[2]) > 1)
-						and $E->core_lab ne $lab2info->{$lab}->[2]
-						and not $E->upload_datestamp
-					) {
-						# there's a difference here
-						# we assume the lab information file is correct and updated
-						if ($lab2info->{$lab}->[1] eq 'Y') {
-							printf "  > updating CORE lab for %s from '%s' to '%s'\n",
-								$row[0], $E->core_lab, $lab2info->{$lab}->[2];
-							$E->core_lab($lab2info->{$lab}->[2]);
-							$E->profile( $lab2info->{$lab}->[3] );
-							$u++;
-						}
-						elsif (
-							$lab2info->{$lab}->[1] eq 'N'
-							and length($E->core_lab) > 1
-							and not exists $lab2info->{$alt_lab}
-						) {
-							printf "  ! mismatched CORE Lab '%s' for %s\n", 
-								$E->core_lab, $row[0];
-						}
-					}
-					
-					# check alternate AWS Core lab division
-					if ( 
-						not $E->core_lab and exists $lab2info->{$alt_lab}
-						and $lab2info->{$alt_lab}->[1] eq 'Y'
-						and not $E->upload_datestamp and not $E->hidden_datestamp
-					) {
-						# sometimes a PI with an AWS CORE lab account will submit a
-						# project under a collaborator's PI lab account without a CORE
-						# account, so in that case reassign to the submitting PI's account
-						# looking at you H***** and J** and D***** and....
-						printf 
-			"  > assigning CORE account for %s from PI %s %s to User's account '%s'\n",
-							$row[0], $row[7], $row[8], $lab2info->{$alt_lab}->[2];
-						$E->core_lab( $lab2info->{$alt_lab}->[2] );
-						$E->profile( $lab2info->{$alt_lab}->[3] );
+				# check CORE lab status
+				if (
+					# check length of values to ensure comparing real values
+					# also skip if it's already been uploaded or hidden
+					( length($E->core_lab) > 1 or length($default_lab) > 1 )
+					and $E->core_lab ne $default_lab
+					and not $E->upload_datestamp and not $E->hidden_datestamp
+				) {
+					# there's a difference here
+					# we assume the lab information file is correct and updated
+					if ( $E->allow_upload ) {
+						printf "  > updating CORE lab for %s from '%s' to '%s'\n",
+							$row[0], $E->core_lab, $default_lab;
+						$E->core_lab($default_lab);
 						$u++;
 					}
-					
-					# check lab PI email
-					if (
-						length($lab2info->{$lab}->[0]) > 1 and 
-						$lab2info->{$lab}->[0] ne $E->pi_email
-					) {
-						printf "  > updating PI %s %s email address for %s\n", $E->lab_first, 
-							$E->lab_last, $E->id;
-						$E->pi_email($lab2info->{$lab}->[0]);
-						$u++;
+					else {
+						# not supposed to be allowed to upload
+						# must have been manually set
+						# give a warning
+						# but only if the alternate lab wasn't found
+						if ( length($E->core_lab) > 1 and not $alt_lab ) {
+							printf "  ! mismatched CORE Lab '%s' for %s\n", $E->core_lab,
+								$row[0];
+						}
 					}
 				}
-				else {
-					print " ! Missing lab information for '$lab'!\n";
+				
+				# check alternate Core lab division
+				if ( 
+					not $E->core_lab and not $default_lab and $alt_lab
+					and not $E->upload_datestamp and not $E->hidden_datestamp
+				) {
+					# sometimes a PI with an AWS CORE lab account will submit a
+					# project under a collaborator's PI lab account without a CORE
+					# account, so in that case reassign to the submitting PI's account
+					# looking at you H***** and J** and D***** and....
+					printf 
+		"  > assigning CORE account for %s from PI %s %s to User's account '%s'\n",
+						$row[0], $row[7], $row[8], $alt_lab;
+					$E->core_lab($alt_lab);
+					$u++;
 				}
 			}
 			
@@ -626,17 +580,17 @@ sub fetch_requests {
 				# not an external lab
 				$E->external('N');
 				# check CORE lab information
-				my $lab = sprintf("%s %s", $row[7], $row[8]);
-				if (exists $lab2info->{$lab}) {
-					$E->pi_email($lab2info->{$lab}->[0]);
-					if ($lab2info->{$lab}->[1] eq 'Y') {
-						# we're allowed to upload
-						$E->core_lab($lab2info->{$lab}->[2]);
-						$E->profile( $lab2info->{$lab}->[3] );
+				if ( $Catalog->check_lab($E) ) {
+					my $default_core = $Catalog->get_upload_account($E);
+					if ($default_core) {
+						# this lab has an account 
+						$E->core_lab($default_core);
+						generate_bucket($E);
+						generate_prefix($E);
 					}
 				}
 				else {
-					print " ! Missing lab information for '$lab'!\n";
+					printf " ! Missing lab information for '%s %s'!\n", $row[7], $row[8];
 				}
 			}
 		}
