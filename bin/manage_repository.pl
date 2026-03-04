@@ -1401,7 +1401,7 @@ sub run_metadata_actions {
 				$uploaded++;
 				next;
 			}
-			if ($Entry->project_url and not $force) {
+			if ($Entry->project_s3_uri and not $force) {
 				$skipped++;
 				next;
 			}
