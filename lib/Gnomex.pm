@@ -184,10 +184,15 @@ sub fetch_analyses {
 			# an existing project, just need to update 
 			my $u = 0;
 			
-			unless ( $Catalog->check_lab($E) ) {
-				printf "  ! no lab information for %s %s\n", $row[7], $row[8];
-			}
-
+			# check and update lab name
+			if ( $row[7] ne $E->lab_first or $row[8] ne $E->lab_last ) {
+				$E->lab_first($row[7]);
+				$E->lab_last($row[8]);
+				printf "  > updating lab name to '%s %s' for %s\n", $row[7], 
+					$row[8], $E->id;
+				$u++;
+			}			
+			
 			# reconfirm external status
 			if ( ( $row[9] eq 'Y' or $row[10] eq 'Y' ) and $E->external eq 'N' ) {
 				printf "  > updating %s to external status\n", $E->id;
@@ -199,14 +204,6 @@ sub fetch_analyses {
 			if ( $E->external eq 'N' and $Catalog->check_lab($E) ) {
 				# for university clients only
 
-				if ( $row[7] ne $E->lab_first or $row[8] ne $E->lab_last ) {
-					$E->lab_first($row[7]);
-					$E->lab_last($row[8]);
-					printf "  > updating lab name %s %s for %s\n", $E->lab_first, 
-						$E->lab_last, $E->id;
-					$u++;
-				}
-				
 				# collect the CORE labs for this project
 				my $default_lab = $Catalog->get_upload_account($E);
 				my $alt_lab = $Catalog->get_upload_account(
@@ -426,6 +423,15 @@ sub fetch_requests {
 				$u++;
 			}
 
+			# check lab name
+			if ( $row[7] ne $E->lab_first or $row[8] ne $E->lab_last ) {
+				$E->lab_first($row[7]);
+				$E->lab_last($row[8]);
+				printf "  > updating lab name to '%s %s' for %s\n", $row[7], 
+					$row[8], $E->id;
+				$u++;
+			}
+
 			# reconfirm external status
 			if ( ( $row[9] eq 'Y' or $row[10] eq 'Y' ) and $E->external eq 'N' ) {
 				printf "  > updating %s to external status\n", $E->id;
@@ -433,19 +439,10 @@ sub fetch_requests {
 				$u++;
 			}
 
-
 			# check CORE lab status
 			if ( $E->external eq 'N' and $Catalog->check_lab($E) ) {
 				# for university clients only
 				
-				if ( $row[7] ne $E->lab_first or $row[8] ne $E->lab_last ) {
-					$E->lab_first($row[7]);
-					$E->lab_last($row[8]);
-					printf "  > updating lab name %s %s for %s\n", $E->lab_first, 
-						$E->lab_last, $E->id;
-					$u++;
-				}
-
 				# collect the CORE labs for this project
 				my $default_lab = $Catalog->get_upload_account($E);
 				my $alt_lab = $Catalog->get_upload_account(
