@@ -227,6 +227,8 @@ sub fetch_analyses {
 							printf "  > updating CORE Lab for %s from '%s' to '%s'\n",
 								$row[0], $E->core_lab, $default_lab;
 							$E->core_lab($default_lab);
+							generate_bucket($E);
+							generate_prefix($E);
 							$u++;
 						}
 					}
@@ -256,8 +258,14 @@ sub fetch_analyses {
 		"  > assigning CORE account for %s from PI %s %s to User's account '%s'\n",
 						$row[0], $row[7], $row[8], $alt_lab;
 					$E->core_lab( $alt_lab );
+					generate_bucket($E);
+					generate_prefix($E);
 					$u++;
 				}
+			}
+			elsif ( not $Catalog->check_lab($E) ) {
+				printf "  ! no lab information for '%s %s' for %s\n", $E->lab_first,
+					$E->lab_last, $E->id;
 			}
 			
 			
@@ -354,15 +362,29 @@ sub fetch_analyses {
 				$E->external('N');
 				if ( $Catalog->check_lab($E) ) {
 					my $default_core = $Catalog->get_upload_account($E);
+					my $alt_core = $Catalog->get_upload_account(
+						sprintf("%s %s", $row[5], $row[6]) ); # based on username
 					if ($default_core) {
 						# this lab has an account 
 						$E->core_lab($default_core);
 						generate_bucket($E);
 						generate_prefix($E);
 					}
+					elsif ($alt_core) {
+						# user has a CORE lab account
+						# usually a PI submitting as a user under another PI lab
+						printf 
+			"  > assigning CORE account for %s from PI %s %s to User's account '%s'\n",
+							$row[0], $row[7], $row[8], $alt_core;
+						$E->core_lab($alt_core);
+						generate_bucket($E);
+						generate_prefix($E);
+					
+					}
 				}
 				else {
-					printf " ! Missing lab information for '%s %s'!\n", $row[7], $row[8];
+					printf " ! Missing lab information for '%s %s' for %s!\n", $row[7],
+						$row[8], $row[0];
 				}
 			}
 		}
@@ -411,10 +433,6 @@ sub fetch_requests {
 			# basically just two database fields we're really concerned about here
 			my $u = 0;
 			
-			unless ( $Catalog->check_lab($E) ) {
-				printf "  ! no lab information for %s %s\n", $row[7], $row[8];
-			}
-
 			# status
 			if ( $E->request_status ne 'COMPLETE' and $E->request_status ne $row[11] ) {
 				# do not update if already marked completed, because sometimes it's
@@ -494,6 +512,10 @@ sub fetch_requests {
 					$u++;
 				}
 			}
+			elsif ( not $Catalog->check_lab($E) ) {
+				printf "  ! no lab information for '%s %s' for %s\n", $E->lab_first,
+					$E->lab_last, $E->id;
+			}
 			
 			# check user info
 			if ($row[4] ne $E->user_email) {
@@ -515,7 +537,7 @@ sub fetch_requests {
 				printf "  > updating project name for %s\n", $E->id;
 				$E->name($row[1]);
 				$u++;
-				if ( $E->core_lab ) {
+				if ( $E->core_lab and $E->bucket ) {
 					if ( $E->upload_datestamp < 1000 ) {
 						generate_prefix($E);
 					}
@@ -528,7 +550,7 @@ sub fetch_requests {
 				printf "  > updating project group for %s\n", $E->id;
 				$E->group($row[3]);
 				$u++;
-				if ( $E->core_lab ) {
+				if ( $E->core_lab and $E->bucket ) {
 					if ( $E->upload_datestamp < 1000 ) {
 						generate_bucket($E);
 					}
@@ -579,15 +601,25 @@ sub fetch_requests {
 				# check CORE lab information
 				if ( $Catalog->check_lab($E) ) {
 					my $default_core = $Catalog->get_upload_account($E);
+					my $alt_core = $Catalog->get_upload_account(
+						sprintf("%s %s", $row[5], $row[6]) ); # based on username
 					if ($default_core) {
 						# this lab has an account 
 						$E->core_lab($default_core);
-						generate_bucket($E);
-						generate_prefix($E);
+					}
+					elsif ($alt_core) {
+						# user has a CORE lab account, but do not set buckets
+						# usually a PI submitting as a user under another PI lab
+						printf 
+			"  > assigning CORE account for %s from PI %s %s to User's account '%s'\n",
+							$row[0], $row[7], $row[8], $alt_core;
+						$E->core_lab($alt_core);
+					
 					}
 				}
 				else {
-					printf " ! Missing lab information for '%s %s'!\n", $row[7], $row[8];
+					printf " ! Missing lab information for '%s %s' for %s!\n", $row[7],
+						$row[8], $row[0];
 				}
 			}
 		}
