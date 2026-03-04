@@ -235,13 +235,7 @@ sub fetch_analyses {
 					else {
 
 						# not supposed to be allowed to upload
-						# must have been manually set 
-						# give a warning
-						# but only if the alternate lab wasn't found 
-						if ( length($E->core_lab) > 1 and not $alt_lab ) {
-							printf "  ! mismatched CORE Lab '%s' for %s\n", $E->core_lab,
-								$row[0];
-						}
+						# must have been manually deliberately set so leave it
 					}
 				}
 				
@@ -486,13 +480,7 @@ sub fetch_requests {
 					}
 					else {
 						# not supposed to be allowed to upload
-						# must have been manually set
-						# give a warning
-						# but only if the alternate lab wasn't found
-						if ( length($E->core_lab) > 1 and not $alt_lab ) {
-							printf "  ! mismatched CORE Lab '%s' for %s\n", $E->core_lab,
-								$row[0];
-						}
+						# must have been manually deliberately set so leave it
 					}
 				}
 				
@@ -604,7 +592,7 @@ sub fetch_requests {
 					my $alt_core = $Catalog->get_upload_account(
 						sprintf("%s %s", $row[5], $row[6]) ); # based on username
 					if ($default_core) {
-						# this lab has an account 
+						# this lab has an account, but do not set buckets
 						$E->core_lab($default_core);
 					}
 					elsif ($alt_core) {
