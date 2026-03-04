@@ -1288,24 +1288,33 @@ sub run_metadata_actions {
 		unless (@action_list) {
 			die "No list provided to update prefix!\n";
 		}
-		if (scalar @action_list > 1) {
-			print "! Only the first project will have its prefix updated!\n"
+		# since prefix is specific to a project cannot easily do this in bulk
+		# unless we are clearing
+		if (scalar @action_list > 1 and $update_prefix ne 'none') {
+			print " ! WARNING Multiple projects are indicated to update prefix!\n";
+			print "   This is normally a singular, project-specific update\n";
+			if ($force) {
+				printf " ! Forcing bulk changes for %s projects\n", scalar(@action_list);
+			}
 		}
 		$update_prefix =~ s|/$||;
-		my $id = $action_list[0];
-		my $Entry = $Catalog->entry($id);
-		if ($Entry) {
-			my $bad = 0;
+		my $count    = 0;
+		my $skipped  = 0;
+		foreach my $id (@action_list) {
+			my $Entry = $Catalog->entry($id) or next;
+			if (scalar(@action_list) > 1 and $update_prefix ne 'none') {
+				unless ($force) {
+					$skipped++;
+					next;
+				}
+			}
 			if ( not $Entry->core_lab ) {
 				print "  ! Project $id is not assigned to a CORE lab\n";
-				$bad++ unless $force;
+				$skipped++ unless $force;
 			}
-			if ( $Entry->upload_datestamp > 1000 ) {
+			elsif ( $Entry->upload_datestamp > 1000 ) {
 				print "  ! Project $id has already been uploaded\n";
-				$bad++ unless $force;
-			}
-			if ($bad) {
-				print "    cannot update prefix (use --force)\n";
+				$skipped++ unless $force;
 			}
 			else {
 				if ($update_prefix eq 'none') {
@@ -1314,11 +1323,12 @@ sub run_metadata_actions {
 				else {
 					$Entry->prefix($update_prefix);
 				}
-				print "  updated prefix for $id\n";
+				$count++;
 			}
 		}
-		else {
-			print " no Catalog entry for '$id'!\n";
+		print " updated the prefix name for $count entries\n";
+		if ($skipped) {
+			print " ! skipped $skipped entries for reasons above (use --force)\n";
 		}
 	}
 
