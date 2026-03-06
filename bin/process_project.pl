@@ -25,7 +25,7 @@ use constant {
 	ONE_GB => 1073741824,
 };
 
-our $VERSION = 8.1;
+our $VERSION = 'v9.0.0';
 
 
 
@@ -752,7 +752,7 @@ sub request_callback {
 	# check file
 	if ( $file =~ /^\./ ) {
 		# hidden files probably shouldn't exist in a request project
-		if ( $file =~ / \. \w{1,3} \. \w{5} $/xi ) {
+		if ( $file =~ / \. \w{1,4} \. \w{6} $/xi ) {
 			print "   ! possible rsync temp file '$clean_name'\n";
 		}
 		else {
@@ -1247,7 +1247,7 @@ sub analysis_callback {
 	
 	if ( $file =~ /^\./ ) {
 		# hidden files
-		if ( $file =~ / \. \w{1,3} \. \w{5} $/xi ) {
+		if ( $file =~ / \. \w{1,4} \. \w{6} $/xi ) {
 			print "   ! possible rsync temp file '$clean_name'\n";
 		}
 		$filetype = 'Hidden';
@@ -1259,7 +1259,7 @@ sub analysis_callback {
 			$zip = 1;
 		}
 	}
-	if ($file =~ /\. (bw | bigwig | bb | bigbed | hic) $/xin) {
+	elsif ($file =~ /\. (bw | bigwig | bb | bigbed | hic) $/xin) {
 		# an indexed analysis file
 		$filetype = 'BrowserTrack';
 		$zip = 0;
