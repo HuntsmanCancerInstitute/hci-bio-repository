@@ -237,7 +237,7 @@ sub _process_options {
 	# upload location text
 	if ($opt{url}) {
 		$opt{location} = <<DOC;
-You may view the files using the CORE Browser application by following this URL:
+You may view the files using CORE Browser by following this URL:
 $opt{url}
 If you do not see anything, you may not have access to your lab account; please contact Cancer Bioinformatics to gain access to your account.
 DOC
