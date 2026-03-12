@@ -10,8 +10,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw( generate_bucket generate_prefix cleanup );
 
-our $VERSION = 7.3;
-my  $net_loaded = 0;
+our $VERSION = 'v9.0.0';
 
 sub generate_bucket {
 	my $Entry = shift;
@@ -94,12 +93,11 @@ sub cleanup {
 	$name =~ s/\@/-at-/g;
 	$name =~ s/%/pct/g;
 	$name =~ s/\+\/\-/-/g;
-	$name =~ s/\+/plus-/g;
 
 	## no critic - it doesn't understand xx modifiers?
 
 	# just remove - most of these won't ever be seen but just in case
-	$name =~ s/[ ' " \# \! \^ \* \{ \} \[ \] \> \< ~ ]+ //gxx;
+	$name =~ s/[ ' " \# \! \^ \* \{ \} \[ \] \> \< ~ \+ ]+ //gxx;
 
 	# dash replacement
 	$name =~ s/[ \- : ; \| \( \) \/ ]+ /-/gxx;
@@ -116,29 +114,33 @@ sub cleanup {
 	$name =~ s/_{2,}/_/g;
 	$name =~ s/\._/_/g;
 	
+	# clean up stray beginning characters
+	## no critic
+	$name =~ s/^[ \s \- _ \. ]+//xx;
+	## use critic
+
 	# check length
 	if (length($name) > 30) {
-		# split naturally on a word after 20 characters
-		my $i = index $name, q(_), 20;
-		if ( $i > 19 and $i <= 31 ) {
+		# split naturally on a word after 25 characters
+		my $i = index $name, q(_), 25;
+		if ( $i > 24 and $i <= 35 ) {
 			$name = substr $name, 0, $i;
 		}
 		else {
-			# no word after 30 characters? try a dash delimiter
-			$i = index $name, q(-), 20;
-			if ( $i > 19 and $i <= 31 ) {
+			# no word after 35 characters? try a dash delimiter
+			$i = index $name, q(-), 25;
+			if ( $i > 24 and $i <= 35 ) {
 				$name = substr $name, 0, $i;
 			}
 			else {
-				# hard cutoff after 30 characters
-				$name = substr $name, 0, 30;
+				# hard cutoff after 36 characters
+				$name = substr $name, 0, 35;
 			}
 		}
 	}
 
-	# finally clean up stray beginning and ending characters
-	## no critic - it doesn't understand xx modifiers?
-	$name =~ s/^[ \s \- _ \. ]+//xx;
+	# clean up stray ending characters
+	## no critic
 	$name =~ s/[ \s \- _ \. ]+ $//xx;
 	## use critic
 
@@ -174,7 +176,9 @@ Pass a RepoEntry object from RepoCatalog. Generates a bucket name based on
 the Principal Investigator name and  based on the format C<cb-flast-group>,
 where "flast" is the first initial of the first name and the last name of
 the Principal Investigator, and "group" is the the project's group folder
-name in GNomEx. The RepoEntry bucket is automatically updated.
+name in GNomEx. If the PI has a hyphenated name, only the first part is used,
+so long as it E<gt> 6 characters, otherwise the entire last name is used.
+The RepoEntry bucket is automatically updated.
 
 =item generate_prefix
 
@@ -185,7 +189,7 @@ ID and Name with the format C<ID--Name>.
 
 A simple function to remove and/or substitute non-permitted characters in a string, 
 particularly for buckets and prefixes. The length is limited to no more than 30 
-characters, breaking on word boundaries after 20 characters.
+characters, breaking on word boundaries after 25 characters.
 The RepoEntry prefix is automatically updated.
 
 =back
