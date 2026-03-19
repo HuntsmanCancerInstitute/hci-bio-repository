@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 'v9.0.0';
+our $VERSION = 'v9.0.1';
 
 
 ######## Documentation
@@ -823,7 +823,7 @@ sub open_import_catalog {
 	}
 
 	# reset flag as this is already done
-	$scan_size_age = 0;
+	$scan_size_age = 0 if ( $fetch_analysis or $fetch_request );
 
 	# print number of project to scan as final report
 	if (@action_list) {
