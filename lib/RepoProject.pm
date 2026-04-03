@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 7.9;
+our $VERSION = 'v9.0.0';
 
 ### Initialize
 
@@ -26,7 +26,7 @@ my %ignore_files    = ();
 my $project_age     = 0;
 my $project_size    = 0;
 my $autoanal_age    = 0;
-
+my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 
 sub new {
 	my ($class, $path, $verbose) = @_;
@@ -286,8 +286,8 @@ sub hide_deleted_files {
 	# clean up empty directories
 	$failure_count += $self->clean_empty_directories($self->given_dir);
 	
-	# put in notice
-	$failure_count += $self->add_notice_file;
+	# we don't add a notice file here anymore because notice files are custom
+	# and we need to know whether it was uploaded or not, best done by caller
 	
 	return $failure_count;
 }
@@ -517,8 +517,8 @@ sub delete_project_files {
 		return 1;
 	}
 	
-	# put in notice
-	$failure_count += $self->add_notice_file;
+	# we don't add a notice file here anymore because notice files are custom
+	# and we need to know whether it was uploaded or not, best done by caller
 	
 	return $failure_count;
 }
@@ -540,22 +540,199 @@ sub delete_zipped_files {
 
 sub add_notice_file {
 	my $self = shift;
-	
-	if (not -e $self->notice_file) {
-		if (not -e $self->notice_source_file) {
-			print "   Notice file not present!\n";
-			return 1;
-		}
-		
-		my $command = sprintf("ln -s %s %s", $self->notice_source_file, $self->notice_file);
-		if (system($command)) {
-			print "    failed to link notice file! $OS_ERROR\n" ;
-			return 1;
-		}
-		else {
-			return 0;
-		}
+	carp " add_notice_file() is deprecated!";
+	return 1;
+}
+
+sub write_deleted_files_notice {
+	my $self  = shift;
+	my $Entry = shift;
+	unless ( $Entry and ref($Entry) eq 'RepoEntry' ) {
+		carp ' ! Must pass a Catalog RepoEntry object!';
+		return 1;
 	}
+	chdir $self->given_dir; # just in case
+	
+	# delete the old one, this might be a symbolic link
+	if ( -e $self->notice_file ) {
+		unlink $self->notice_file;
+	}
+	
+	# generate text
+	my $text1 = <<~DOC;
+	######## Where are my files? ###########
+	
+	The project %s, "%s", was removed on %s %02d, %d due to space limitations.
+	
+	The owners were notified of this on %s %02d, %d.
+	
+	See the policy on data storage at
+	https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage
+	
+	Several files may be retained here. These include the following:
+	
+	1. %s
+	
+	This is a comma-separated-value text file listing the files that were present
+	in this project, including the file name, date, size in bytes, and MD5 checksum.
+	
+	2. %s
+	
+	This is a list of the filenames that were removed from this project.
+	
+	DOC
+	
+	my $text2;
+	if ( $Entry->is_request ) {
+		$text2 = <<~DOC;
+		3. QC Files
+		
+		Certain Quality Control files, for example Sample QC and Library QC, are
+		always retained.
+		
+		DOC
+	}
+	else {
+		$text2 = <<~DOC;
+		3. Certain analysis files
+		
+		Certain indexed analysis files may be retained for the convenience of viewing
+		them distributed through GNomEx to genome browsers.
+		
+		DOC
+	}
+	
+	my $text3 = <<~DOC;
+	
+	####### Questions
+	
+	If you have any questions, please submit a ticket to the Cancer Bioinformatics
+	Shared Resource through our web page at
+	
+	https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi
+
+	DOC
+	
+	my $fh = IO::File->new( $self->notice_file, '>' );
+	unless ($fh) {
+		printf " ! unable to write notice file %s! %s\n", $self->notice_file, $OS_ERROR;
+		return 1;
+	}
+	my @hide  = localtime( $Entry->hidden_datestamp );
+	my @email = localtime( $Entry->emailed_datestamp );
+	$fh->printf( $text1, $Entry->id, $Entry->name, $months[ $hide[4] ], $hide[3],
+		$hide[5] + 1900, $months[ $email[4] ], $email[3], $email[5] + 1900,
+		$self->manifest_file, $self->remove_file,  );
+	$fh->print($text2);
+	$fh->print($text3);
+	$fh->close;
+	return 0;
+}
+
+sub write_uploaded_files_notice {
+
+	my $self  = shift;
+	my $Entry = shift;
+	unless ( $Entry and ref($Entry) eq 'RepoEntry' ) {
+		carp ' ! Must pass a Catalog RepoEntry object!';
+		return 1;
+	}
+	chdir $self->given_dir; # just in case
+	
+	# delete the old one, this might be a symbolic link
+	if ( -e $self->notice_file ) {
+		unlink $self->notice_file;
+	}
+	
+	# generate text
+	my $text1 = <<~DOC;
+	######## Where are my files? ###########
+	
+	The project %s, "%s", was removed on %s %02d, %d due to space limitations.
+	
+	The files have been uploaded to the AWS account "%s" in the bucket "%s".
+	
+	You may view these files in CORE Browser using the link below:
+	
+	%s
+	
+	Several files may be retained here. These include the following:
+	
+	1. %s
+	
+	This is a comma-separated-value text file listing the files that were present
+	in this project, including the file name, date, size in bytes, and MD5 checksum.
+	
+	2. %s
+	
+	This is a list of the filenames that were removed from this project.
+	
+	DOC
+	
+	my $text2;
+	if ( $Entry->is_request ) {
+		$text2 = <<~DOC;
+		3. QC Files
+		
+		Certain Quality Control files, for example Sample QC and Library QC, are
+		always retained.
+		
+		DOC
+	}
+	
+	my $text3;
+	if ( $Entry->is_request and $Entry->autoanal_folder ) {
+		$text3 = <<~DOC;
+		4. %s
+		
+		This is a text file containing the list of file names included in the Zip Archive file "%s".
+		This is a convenience file to identify the contents without opening the file.
+		
+		DOC
+	}
+	elsif ( not $Entry->is_request ) {
+		$text3 = <<~DOC;
+		3. %s
+		
+		This is a text file containing the list of file names included in the Zip Archive file "%s".
+		This is a convenience file to identify the contents without opening the file.
+		
+		4. Certain analysis files
+		
+		Certain indexed analysis files may be retained for the convenience of viewing
+		them distributed through GNomEx to genome browsers.
+		
+		DOC
+	}
+	
+	my $text4 = <<~DOC;
+	
+	####### Questions
+	
+	If you have any questions, please submit a ticket to the Cancer Bioinformatics
+	Shared Resource through our web page at
+	
+	https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi
+
+	DOC
+	
+	my $fh = IO::File->new( $self->notice_file, '>' );
+	unless ($fh) {
+		printf " ! unable to write notice file %s! %s\n", $self->notice_file, $OS_ERROR;
+		return 1;
+	}
+	my @hide  = localtime( $Entry->hidden_datestamp );
+	$fh->printf( $text1, $Entry->id, $Entry->name, $months[ $hide[4] ], $hide[3],
+		$hide[5] + 1900, $Entry->core_lab, $Entry->bucket, $Entry->project_core_url,
+		$self->manifest_file, $self->remove_file );
+	if ($text2) {
+		$fh->print($text2);
+	}
+	if ($text3) {
+		$fh->printf( $text3, $self->ziplist_file, $self->zip_file );
+	}
+	$fh->print($text4);
+	$fh->close;
 	return 0;
 }
 
@@ -995,6 +1172,10 @@ occur, file names are printed to standard out.
 B<IMPORTANT> These functions return a failure count. A return
 of zero is success. 
 
+B<IMPORTANT> These functions will change into the directory to
+perform the indicated action, but they do not change back to
+the previous directory. You should handle this as appropriate.
+
 =over 4
 
 =item zip_archive_files
@@ -1063,10 +1244,16 @@ Deletes the files listed in the archive list file from the
 project folder. Returns an integer for the number of failures to
 remove files; 0 is success. 
 
-=item add_notice_file
+=item write_deleted_files_notice($Entry)
 
-Inserts a symbolic link from the notice source file to the 
-notice file in the project folder.
+Write a custom notice file for deleted projects. A L<RepoEntry>
+object must be passed.
+
+=item write_uploaded_files_notice($Entry)
+
+Write a custom notice file for uploaded projects. Include information
+for archived files and direct link to CORE Browser. A L<RepoEntry>
+object must be passed.
 
 =item clean_empty_directories
 
