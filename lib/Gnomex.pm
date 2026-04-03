@@ -676,7 +676,7 @@ sub fetch_request_samples {
 		$samples{$n} = $d;
 	}
 	my @returnList;
-	push @returnList, [ qw(sampleNumber sampleName sampleType Organism Application
+	push @returnList, [ qw(SampleNumber SampleName SampleType Organism Application
 		QCFail PrepFail) ];
 	foreach my $n ( sort {$a <=> $b} keys %samples ) {
 		push @returnList, $samples{$n};
