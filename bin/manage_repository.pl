@@ -1809,6 +1809,15 @@ sub run_project_directory_actions {
 				if (not $failure) {
 					$Entry->hidden_datestamp(time);
 					print "    updated catalog hidden timestamp\n";
+					if ( $Entry->upload_datestamp ) {
+						$failure += $Project->write_uploaded_files_notice($Entry);
+					}
+					else {
+						$failure += $Project->write_deleted_files_notice($Entry);
+					}
+					unless ($failure) {
+						print "    wrote notification file\n";
+					}
 				}
 				$failure_count += $failure;
 			}
@@ -1836,6 +1845,15 @@ sub run_project_directory_actions {
 				if (not $failure) {
 					$Entry->deleted_datestamp(time);
 					print "    updated catalog deleted timestamp\n";
+					if ( $Entry->upload_datestamp ) {
+						$failure += $Project->write_uploaded_files_notice($Entry);
+					}
+					else {
+						$failure += $Project->write_deleted_files_notice($Entry);
+					}
+					unless ($failure) {
+						print "    wrote notification file\n";
+					}
 				}
 				$failure_count += $failure;
 			}
@@ -1847,14 +1865,31 @@ sub run_project_directory_actions {
 
 		# add notice file
 		if ($add_notice) {
-			printf " > Linking notice in %s\n", $Project->project;
-			$failure_count += $Project->add_notice_file;
+			my $failure;
+			if ( $Entry->upload_datestamp ) {
+				printf " > Writing upload notification in %s\n", $Project->project;
+				$failure += $Project->write_uploaded_files_notice($Entry);
+			}
+			else {
+				printf " > Writing delete notification in %s\n", $Project->project;
+				$failure += $Project->write_deleted_files_notice($Entry);
+			}
+			unless ($failure) {
+				print "    wrote notification file\n";
+			}
+			$failure_count += $failure;
 		}
 
 
 		# clean project files
 		if ($clean_project_files) {
 			printf " > Cleaning %s project files\n", $Project->project;
+
+			# notice file
+			if (-e $Project->notice_file) {
+				unlink $Project->notice_file;
+				printf "  Deleted %s\n", $Project->notice_file;
+			}
 
 			# zip archive
 			if (-e $Project->zip_file) {
@@ -1896,6 +1931,7 @@ sub run_project_directory_actions {
 				printf "  Deleted %s\n", $Project->manifest_file;
 				$Entry->scan_datestamp(0);
 			}
+			
 		}
 
 
