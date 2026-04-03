@@ -1545,9 +1545,16 @@ sub run_project_actions {
 				printf " ! %s has not been scanned\n", $id;
 				next;
 			}
-			unless ( -e $Project->alt_ziplist_file ) {
-				printf " ! %s does not have a zip list file\n", $id;
-				next;
+			if ( not -e $Project->alt_ziplist_file ) {
+				if ( -e $Project->manifest_file ) {
+					printf " ! %s has nothing to zip\n", $id;
+					push @success, $id;  # treat this as a non-failure
+					next;
+				}
+				else {
+					printf " ! %s has no manifest or zip list files\n", $id;
+					next;
+				}
 			}
 			if ( $Entry->scan_datestamp < $Entry->youngest_datestamp ) {
 				printf " ! %s has newer files since last scan\n", $id;
