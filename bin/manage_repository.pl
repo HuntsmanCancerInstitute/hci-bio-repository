@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 'v9.0.1';
+our $VERSION = 'v9.0.2';
 
 
 ######## Documentation
@@ -448,15 +448,6 @@ sub check_options {
 		exit 1;
 	}
 	
-	# import
-	if (($fetch_analysis or $fetch_request) and not $year) {
-		# set default year based on a calculation
-		# year is 60 * 60 * 24 * 365 = 31536000 seconds
-		my $n = $fetch_analysis ? 94608000 : 63072000; # 3 years Analysis, 2 Request
-		my @t = localtime(time - $n);
-		$year = $t[5] + 1900;
-	}
-
 	# external
 	if (defined $external) {
 		$external = $external ? 'Y' : 'N';
@@ -567,9 +558,18 @@ sub open_import_catalog {
 		
 	### Analysis
 	if ($fetch_analysis) {
-		print " Fetching new analysis projects from database...\n";
-		my ($update_list, $new_list, $nochange_list, $skip_count) = 
-			$GNomEx->fetch_analyses($year);
+		my $date;   # universal SQL date is YYYY-MM-DD
+		if ($year) {
+			$date = sprintf "%d-01-01", $year;
+		}
+		else {
+			# calculate based on 3 years prior from todays date
+			# 3 years is 3 * 60 * 60 * 24 * 365 = 94608000 seconds
+			my @t = localtime(time - 94608000);
+			$date = sprintf "%d-%02d-%02d", $t[5] + 1900, $t[4] + 1, $t[3];
+		}
+		printf " Fetching new analysis projects from database since %s...\n", $date;
+		my ($update_list, $new_list, $nochange_list) = $GNomEx->fetch_analyses($date);
 		printf " Finished processing %d Analysis project database entries\n", 
 			scalar(@{$update_list}) + scalar(@{$new_list}) + scalar(@{$nochange_list});
 		
@@ -670,16 +670,25 @@ sub open_import_catalog {
 		
 		# print report
 		printf
-"\n Analysis project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
-			$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
-			scalar(@{$new_list});
+"\n Analysis project import summary:\n  %d unchanged\n  %d updated\n  %d new\n", 
+			scalar(@{$nochange_list}), scalar(@{$update_list}), scalar(@{$new_list});
 	}
 		
 	### Request
 	if ($fetch_request) {
-		print " Fetching new request projects from database...\n";
-		my ($update_list, $new_list, $nochange_list, $skip_count) = 
-			$GNomEx->fetch_requests($year);
+		my $date;   # universal SQL date is YYYY-MM-DD
+		if ($year) {
+			# just use January 1st of specified year
+			$date = sprintf "%d-01-01", $year;
+		}
+		else {
+			# calculate based on 2 years prior from todays date
+			# 2 years is 2 * 60 * 60 * 24 * 365 = 63072000 seconds
+			my @t = localtime( time - 63072000 );
+			$date = sprintf "%d-%02d-%02d", $t[5] + 1900, $t[4] + 1, $t[3];
+		}
+		printf " Fetching new request projects from database since %s...\n", $date;
+		my ($update_list, $new_list, $nochange_list) = $GNomEx->fetch_requests($date);
 		printf " Finished processing %d Experiment Request project database entries\n", 
 			scalar(@{$update_list}) + scalar(@{$new_list}) + scalar(@{$nochange_list});
 		
@@ -817,9 +826,8 @@ sub open_import_catalog {
 		
 		# print report
 		printf
-"\n Request project import summary:\n  %d skipped\n  %d unchanged\n  %d updated\n  %d new\n", 
-			$skip_count, scalar(@{$nochange_list}), scalar(@{$update_list}), 
-			scalar(@{$new_list});
+"\n Request project import summary:\n  %d unchanged\n  %d updated\n  %d new\n", 
+			scalar(@{$nochange_list}), scalar(@{$update_list}), scalar(@{$new_list});
 	}
 
 	# reset flag as this is already done
