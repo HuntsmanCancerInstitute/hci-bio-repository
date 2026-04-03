@@ -573,12 +573,12 @@ sub write_deleted_files_notice {
 	
 	1. %s
 	
-	This is a comma-separated-value text file listing the files that were present
-	in this project, including the file name, date, size in bytes, and MD5 checksum.
+	   This is a comma-separated-value text file listing the files that were present
+	   in this project, including the file name, date, size in bytes, and MD5 checksum.
 	
 	2. %s
 	
-	This is a list of the filenames that were removed from this project.
+	   This is a list of the filenames that were removed from this project.
 	
 	DOC
 	
@@ -587,8 +587,8 @@ sub write_deleted_files_notice {
 		$text2 = <<~DOC;
 		3. QC Files
 		
-		Certain Quality Control files, for example Sample QC and Library QC, are
-		always retained.
+		   Certain Quality Control files, for example Sample QC and Library QC, are
+		   always retained.
 		
 		DOC
 	}
@@ -596,8 +596,8 @@ sub write_deleted_files_notice {
 		$text2 = <<~DOC;
 		3. Certain analysis files
 		
-		Certain indexed analysis files may be retained for the convenience of viewing
-		them distributed through GNomEx to genome browsers.
+		   Certain indexed analysis files may be retained for the convenience of viewing
+		   them distributed through GNomEx to genome browsers.
 		
 		DOC
 	}
@@ -660,12 +660,12 @@ sub write_uploaded_files_notice {
 	
 	1. %s
 	
-	This is a comma-separated-value text file listing the files that were present
-	in this project, including the file name, date, size in bytes, and MD5 checksum.
+	   This is a comma-separated-value text file listing the files that were present
+	   in this project, including the file name, date, size in bytes, and MD5 checksum.
 	
 	2. %s
 	
-	This is a list of the filenames that were removed from this project.
+	   This is a list of the filenames that were removed from this project.
 	
 	DOC
 	
@@ -674,8 +674,8 @@ sub write_uploaded_files_notice {
 		$text2 = <<~DOC;
 		3. QC Files
 		
-		Certain Quality Control files, for example Sample QC and Library QC, are
-		always retained.
+		   Certain Quality Control files, for example Sample QC and Library QC, are
+		   always retained.
 		
 		DOC
 	}
@@ -685,8 +685,9 @@ sub write_uploaded_files_notice {
 		$text3 = <<~DOC;
 		4. %s
 		
-		This is a text file containing the list of file names included in the Zip Archive file "%s".
-		This is a convenience file to identify the contents without opening the file.
+		   This is a text file containing the list of file names included in the Zip
+		   Archive file "%s".
+		   This is a convenience file to identify the contents without opening the file.
 		
 		DOC
 	}
@@ -694,13 +695,14 @@ sub write_uploaded_files_notice {
 		$text3 = <<~DOC;
 		3. %s
 		
-		This is a text file containing the list of file names included in the Zip Archive file "%s".
-		This is a convenience file to identify the contents without opening the file.
+		   This is a text file containing the list of file names included in the Zip
+		   Archive file "%s".
+		   This is a convenience file to identify the contents without opening the file.
 		
 		4. Certain analysis files
 		
-		Certain indexed analysis files may be retained for the convenience of viewing
-		them distributed through GNomEx to genome browsers.
+		   Certain indexed analysis files may be retained for the convenience of viewing
+		   them distributed through GNomEx to genome browsers.
 		
 		DOC
 	}
