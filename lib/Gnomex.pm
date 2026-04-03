@@ -701,6 +701,93 @@ Gnomex - HCI-specific library for interacting with the GNomEx database
 
 These are subroutines for fetching new data from the GNomEx database.
 
+=head1 FUNCTIONS
+
+=over 4
+
+=item new
+
+Instantiates a new Gnomex object. Several default parameters are
+assumed for the local instance of GNomEx SQL database. Pass an
+array of key =E<gt> value pairs to override default parameters.
+
+=over 4
+
+=item server
+
+The server name hosting the database.
+
+=item port
+
+Default port, usually 1433.
+
+=item driver
+
+Default driver, usually '{ODBC Driver 17 for SQL Server}'.
+
+=item database
+
+Default database name, usually 'GNomEx';
+
+=item user
+
+=item pass
+
+=item perm
+
+The database user name and password may be provided directly, or
+the path to database permission file may be provided, usually
+F<.gnomex> in the user's home directory root. This is a simple two
+line file with username and password on each line. This should be
+a read-only account, not that this module performs any writes.
+
+=item catalog
+
+Pass a L<RepoCatalog> object with an opened database file. This is
+required for fetching new projects. This is usually the only
+parameter that is required.
+
+=back
+
+An object is returned if the connection to the database can be
+established.
+
+=item fetch_analyses
+
+=item fetch_analyses($date)
+
+Collects new Analysis projects and populates and/or updates the entries
+in the Catalog object. A Catalog object is therefore required.
+
+Optionally pass a date string in the format C<YYYY-MM-DD> to restrict
+searches to projects with a creation date newer than this date. The
+default date is the '2018-01-01'. 
+
+Three array references are returned, each a list of Analysis project IDs:
+existing projects that have been updated, projects that are new to the
+Catalog, and existing projects that have not changed.
+
+=item fetch requests
+
+=item fetch requests($date)
+
+Same as L<fetch_analyses> except that Request projects are searched
+and retrieved.
+
+=item fetch_request_samples($id)
+
+Method to collect a list of the samples from the GNomEx database
+for the given ID. The Experiment Request ID must be provided.
+
+An array reference is returned. The first item in the array is an array
+reference to the attribute names, including 'SampleID', 'SampleName',
+'SampleType', etc. Subsequent array items are references to the value
+arrays, one for each sample. Samples are ordered in logical fashion
+(X1, X2, X3, etc).
+
+=back
+
+
 =head1 AUTHOR
 
  Timothy J. Parnell, PhD
