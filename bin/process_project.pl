@@ -25,7 +25,7 @@ use constant {
 	ONE_GB => 1073741824,
 };
 
-our $VERSION = 'v9.0.0';
+our $VERSION = 'v9.0.1';
 
 
 
@@ -1110,8 +1110,8 @@ m/^ ( \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (sum)? .* \. (txt |
 	$filedata{$clean_name}{Archive}          = 'N';   # not archiving any files here
 	$filedata{$clean_name}{status}           = $status;
 	if ($status == 3) {
-		$filedata{$clean_name}{ftime}      ||= $date;
-		$filedata{$clean_name}{Size}       ||= $size;
+		$filedata{$clean_name}{ftime}        = $date;
+		$filedata{$clean_name}{Size}         = $size;
 		$filedata{$clean_name}{MD5}          = q();   # this will be calculated later
 	}
 	if ($type eq 'Fastq') {
@@ -1743,8 +1743,8 @@ sub analysis_callback {
 	$filedata{$clean_name}{Archived}    = $zip ? 'Y' : 'N';
 	$filedata{$clean_name}{status}      = $status;
 	if ($status == 3) {
-		$filedata{$clean_name}{Size}  ||= $size;
-		$filedata{$clean_name}{ftime} ||= $date;
+		$filedata{$clean_name}{Size}    = $size;
+		$filedata{$clean_name}{ftime}   = $date;
 		$filedata{$clean_name}{MD5}     = $Project->calculate_file_checksum($file);
 	}
 	
