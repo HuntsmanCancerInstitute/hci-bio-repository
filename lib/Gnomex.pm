@@ -87,11 +87,7 @@ sub new {
 	$opts{port}     ||= $default_port;
 	$opts{driver}   ||= $default_driver;
 	$opts{database} ||= $default_database;
-	
-	# catalog must be present
-	unless (exists $opts{catalog} and ref($opts{catalog}) eq 'RepoCatalog') {
-		croak "Must initialize with catalog option to a RepoCatalog object!";
-	}
+	$opts{catalog}  ||= undef;
 	
 	# GNomEx database credentials
 	$opts{pass} ||= undef;
@@ -132,6 +128,13 @@ sub new {
 		return;
 	}
 	
+	# check database
+	if ( $opts{catalog} and ref( $opts{catalog} ) ne 'RepoCatalog' ) {
+		my $r = ref $opts{catalog};
+		carp "Catalog parameter is not a RepoCatalog object! It is a $r";
+		return;
+	}
+	
 	# Return successfully built object
 	my $self = {
 		catalog => $opts{catalog},
@@ -145,6 +148,10 @@ sub fetch_analyses {
 	my $self = shift;
 	my $date = shift || $default_date;
 	my $Catalog  = $self->{catalog} || undef;
+	unless ($Catalog) {
+		carp " Must initialize Gnomex object with a Catalog object!";
+		return;
+	}
 	unless ($date =~ /^\d{4} \- \d{2} \- \d{2} $/x) {
 		carp " Provided date must be YYYY-MM-DD!";
 		return;
@@ -395,6 +402,10 @@ sub fetch_requests {
 	my $self = shift;
 	my $date = shift || $default_date;
 	my $Catalog  = $self->{catalog} || undef;
+	unless ($Catalog) {
+		carp " Must initialize Gnomex object with a Catalog object!";
+		return;
+	}
 	unless ($date =~ /^\d{4} \- \d{2} \- \d{2} $/x) {
 		carp " Provided date must be YYYY-MM-DD!";
 		return;
