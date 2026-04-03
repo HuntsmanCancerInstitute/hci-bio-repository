@@ -77,6 +77,25 @@ ORDER BY request.number;
 QUERY
 # WHERE request.createDate > (select dateadd(year, -2, getdate()))
 
+my $sample_query = <<QUERY;
+SELECT sample.number, 
+sample.name,
+SampleType.sampleType,
+organism.organism,
+application.application,
+sample.qualFailed,
+sample.seqPrepFailed
+FROM request
+left join sample on sample.idrequest = request.idrequest
+left join SampleType on sample.idSampleType = SampleType.idSampleType
+left join organism on sample.idorganism = organism.idorganism
+left join seqlibprotocol on sample.idseqlibprotocol = seqlibprotocol.idseqlibprotocol
+left join seqlibprotocolapplication on seqlibprotocol.idseqlibprotocol = seqlibprotocolapplication.idseqlibprotocol
+left join application on seqlibprotocolapplication.codeapplication = application.codeapplication
+WHERE request.number like '%s%%';
+QUERY
+
+
 
 sub new {
 	my $class = shift;
@@ -628,6 +647,41 @@ sub fetch_requests {
 	
 	# finished
 	return (\@update_list, \@new_list, \@nochange_list);
+}
+
+sub fetch_request_samples {
+	my $self = shift;
+	my $id   = shift || q();
+	unless ( $id =~ /^\d+R$/ ) {
+		carp " Must provide a valid GNomEx Request ID to fetch_request_samples()!\n";
+	}
+	
+	# prepare and execute
+	my $query1 = sprintf $sample_query, $id;
+	my $sth = $self->{dbh}->prepare($query1);
+	$sth->execute();
+	my $data = $sth->fetchall_arrayref;
+	unless (scalar @{$data}) {
+		printf " ! Zero samples collected for %s %s\n", $id, $sth->errstr || q();
+		return;
+	}
+
+	# need to resort in a sane order
+	# GNomEx very occasionally returns duplicate samples for some strange unknown reason
+	# this helps to eliminate the duplicates
+	my %samples;
+	foreach my $d ( @{$data} ) {
+		my ($n) = ( $d->[0] =~ /X(\d+)$/ );
+		next if exists $samples{$n};
+		$samples{$n} = $d;
+	}
+	my @returnList;
+	push @returnList, [ qw(sampleNumber sampleName sampleType Organism Application
+		QCFail PrepFail) ];
+	foreach my $n ( sort {$a <=> $b} keys %samples ) {
+		push @returnList, $samples{$n};
+	}
+	return \@returnList;
 }
 
 sub DESTROY {
