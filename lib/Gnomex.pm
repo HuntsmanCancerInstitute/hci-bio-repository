@@ -9,7 +9,7 @@ use DBI;
 # DBD::ODBC and Microsoft ODBC SQL driver is required - see below
 use hciCore qw( generate_prefix generate_bucket );
 
-our $VERSION = 'v9.0.0';
+our $VERSION = 'v9.1.0';
 
 
 
@@ -20,7 +20,7 @@ my $default_port = 1433;
 my $default_driver = '{ODBC Driver 17 for SQL Server}';
 my $default_database = 'GNomEx';
 my $default_permfile = File::Spec->catfile($ENV{HOME}, '.gnomex');
-my $default_year = 2018;
+my $default_date = '2018-01-01';
 
 # GNomEx database queries 
 # these are a bit painful, but I'm getting out what I want
@@ -48,8 +48,10 @@ left join lab on lab.idlab = Analysis.idLab
 left join organism on organism.idorganism = Analysis.idorganism 
 left join AnalysisGenomeBuild on AnalysisGenomeBuild.idAnalysis = Analysis.idAnalysis 
 left join genomebuild on AnalysisGenomeBuild.idgenomebuild = genomebuild.idgenomebuild 
+WHERE Analysis.createDate >= '%s'
 order by Analysis.idAnalysis;
 QUERY
+# WHERE Analysis.createDate > (select dateadd(year, -3, getdate()))
 
 my $req_query = <<QUERY;
 SELECT request.number  RequestNumber, 
@@ -70,20 +72,20 @@ left join project on project.idproject = request.idproject
 left join lab on lab.idlab = request.idlab 
 left join appuser on appuser.idappuser = request.idappuser 
 left join application on application.codeapplication = request.codeapplication
-WHERE request.idCoreFacility = 1 
-ORDER BY request.createDate;
+WHERE request.idCoreFacility = 1 AND request.createDate > '%s'
+ORDER BY request.number;
 QUERY
+# WHERE request.createDate > (select dateadd(year, -2, getdate()))
 
-# WHERE request.createDate > (select dateadd(month, -30, getdate()))
 
 sub new {
 	my $class = shift;
 	my %opts = @_;
 	
 	# defaults
-	$opts{server} ||= $default_server;
-	$opts{port} ||= $default_port;
-	$opts{driver} ||= $default_driver;
+	$opts{server}   ||= $default_server;
+	$opts{port}     ||= $default_port;
+	$opts{driver}   ||= $default_driver;
 	$opts{database} ||= $default_database;
 	
 	# catalog must be present
@@ -141,16 +143,20 @@ sub new {
 
 sub fetch_analyses {
 	my $self = shift;
-	my $year_to_pull = shift || $default_year;
-	my $Catalog  = $self->{catalog};
+	my $date = shift || $default_date;
+	my $Catalog  = $self->{catalog} || undef;
+	unless ($date =~ /^\d{4} \- \d{2} \- \d{2} $/x) {
+		carp " Provided date must be YYYY-MM-DD!";
+		return;
+	}
 	
 	# prepare and execute query
-	my $sth = $self->{dbh}->prepare($anal_query);
+	my $query1 = sprintf $anal_query, $date;
+	my $sth = $self->{dbh}->prepare($query1);
 	$sth->execute();
 
 	
 	# walk through the database results
-	my $skip_count = 0;
 	my @update_list;
 	my @new_list;
 	my @nochange_list;
@@ -165,10 +171,6 @@ sub fetch_analyses {
 		# check date
 		$row[2] =~ s/\s+ \d\d: \d\d: \d\d \.\d+ $//x; # clean up time from date
 		my ($year) = $row[2] =~ /^(\d{4})/;
-		if ($year_to_pull and $year < $year_to_pull) {
-			$skip_count++;
-			next;
-		}
 		
 		# prefix Analysis number with A
 		$row[0] = 'A' . $row[0]; 
@@ -385,21 +387,25 @@ sub fetch_analyses {
 	} 
 	
 	# finished
-	return (\@update_list, \@new_list, \@nochange_list, $skip_count);
+	return (\@update_list, \@new_list, \@nochange_list);
 }
 
 
 sub fetch_requests {
 	my $self = shift;
-	my $year_to_pull = shift || $default_year;
-	my $Catalog  = $self->{catalog};
+	my $date = shift || $default_date;
+	my $Catalog  = $self->{catalog} || undef;
+	unless ($date =~ /^\d{4} \- \d{2} \- \d{2} $/x) {
+		carp " Provided date must be YYYY-MM-DD!";
+		return;
+	}
 	
 	# prepare and execute query
-	my $sth = $self->{dbh}->prepare($req_query);
+	my $query1 = sprintf $req_query, $date;
+	my $sth = $self->{dbh}->prepare($query1);
 	$sth->execute();
 	
 	# walk through the database results
-	my $skip_count = 0;
 	my @update_list;
 	my @new_list;
 	my @nochange_list;
@@ -408,10 +414,6 @@ sub fetch_requests {
 		# check date
 		$row[2] =~ s/\s+ \d\d: \d\d: \d\d \.\d+ $//x; # clean up time from date
 		my ($year) = $row[2] =~ /^(\d{4})/;
-		if ($year_to_pull and $year < $year_to_pull) {
-			$skip_count++;
-			next;
-		}
 		
 		# clean up things
 		$row[0] =~ s/\d+$//; # remove straggling number from request, ex 1234R1
@@ -614,7 +616,7 @@ sub fetch_requests {
 	}
 	
 	# finished
-	return (\@update_list, \@new_list, \@nochange_list, $skip_count);
+	return (\@update_list, \@new_list, \@nochange_list);
 }
 
 sub DESTROY {
