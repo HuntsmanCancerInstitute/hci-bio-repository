@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 'v9.0.3';
+our $VERSION = 'v9.0.4';
 
 
 ######## Documentation
@@ -1669,6 +1669,17 @@ sub run_project_actions {
 				push @success, $id;
 			}
 		}
+		
+		# set the readme file in the bucket
+		if ( @success and not $mock ) {
+			my $command = sprintf "%s/put_aws_project_readme.pl -c %s %s", $Bin,
+				$cat_file, join( q( ), @success );
+			printf "\n Executing '%s'\n", $command;
+			if ( system($command) ) {
+				print "\n ! Something went wrong with putting readme files\n";
+			}
+		}
+		
 		# reset the action list based on the success of this step
 		@action_list = @success;
 	}
