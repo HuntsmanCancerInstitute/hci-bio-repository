@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 'v9.0.2';
+our $VERSION = 'v9.0.3';
 
 
 ######## Documentation
@@ -1718,31 +1718,31 @@ sub run_project_directory_actions {
 		# hide the zipped files
 		if ($move_zip_files) {
 			if (-e $Project->ziplist_file) {
-				printf " > hiding %s zipped files to %s\n", $Project->project, 
+				printf "  > hiding %s zipped files to %s\n", $Project->project, 
 					$Project->zip_folder;
 				$failure_count += $Project->hide_zipped_files;
 			}
 			else {
-				printf " ! %s has no zipped files to move\n", $Project->project;
+				printf "  ! %s has no zipped files to move\n", $Project->project;
 			}
 		} 
 
 		# unhide files
 		if ($unhide_zip_files) {
 			if (-e $Project->zip_folder) {
-				printf " > unhiding %s zipped files from directory %s to %s\n",
+				printf "  > unhiding %s zipped files from directory %s to %s\n",
 					$Project->project, $Project->zip_folder, $Project->given_dir;
 				$failure_count += $Project->unhide_zip_files;
 			}
 			else {
-				printf " ! Zip folder %s doesn't exist!\n", $Project->zip_folder;
+				printf "  ! Zip folder %s doesn't exist!\n", $Project->zip_folder;
 			}
 		}
 
 		# restore hidden files
 		if ($unhide_del_files) {
 			if (-e $Project->delete_folder) {
-				printf " > unhiding %s deleted files from directory %s to %s\n",
+				printf "  > unhiding %s deleted files from directory %s to %s\n",
 					$Project->project, $Project->delete_folder, $Project->given_dir;
 				my $failure = $Project->unhide_deleted_files;
 				if (not $failure) {
@@ -1754,19 +1754,19 @@ sub run_project_directory_actions {
 				$failure_count += $failure;
 			}
 			else {
-				printf " ! Deleted folder %s doesn't exist!\n", $Project->delete_folder;
+				printf "  ! Deleted folder %s doesn't exist!\n", $Project->delete_folder;
 			}
 		}
 
 		# delete zipped files
 		if ($delete_zip_files) {
 			if (-e $Project->zip_folder) {
-				printf " > deleting %s zipped files in %s\n", $Project->project, 
+				printf "  > deleting %s zipped files in %s\n", $Project->project, 
 					$Project->zip_folder;
 				$failure_count += $Project->delete_zipped_files_folder;
 			}
 			else {
-				printf " ! no hidden zip folder for %s to delete\n", 
+				printf "  ! no hidden zip folder for %s to delete\n", 
 					$Project->project;
 			}
 		} 
@@ -1776,17 +1776,17 @@ sub run_project_directory_actions {
 		if ($restore_zip_files) {
 			if (-e $Project->zip_file) {
 				if (-e $Project->zip_folder) {
-					printf " ! %s hidden zip folder %s exists!\n", $Project->project, 
+					printf "  ! %s hidden zip folder %s exists!\n", $Project->project, 
 						$Project->zip_folder;
 					print  "    Restore from the zip folder\n";
 					$failure_count++;
 				}
 				else {
-					printf " > Restoring %s files from zip archive %s\n", $Project->project,
+					printf "  > Restoring %s files from zip archive %s\n", $Project->project,
 						$Project->zip_file;
 					chdir $Project->given_dir;
 					my $command = sprintf "unzip -n %s", $Project->zip_file;
-					print  "  > executing: $command\n";
+					print  "   > executing: $command\n";
 					my $result = system($command);
 					if ($result) {
 						print "     failed!\n";
@@ -1795,7 +1795,7 @@ sub run_project_directory_actions {
 				}
 			}
 			else {
-				printf " ! %s Zip archive not present!\n", $Project->project;
+				printf "  ! %s Zip archive not present!\n", $Project->project;
 			}
 		}
 
@@ -1803,7 +1803,7 @@ sub run_project_directory_actions {
 		# move the deleted files
 		if ($move_del_files) {
 			if (-e $Project->alt_remove_file) {
-				printf " > hiding %s deleted files to %s\n", $Project->project, 
+				printf "  > hiding %s deleted files to %s\n", $Project->project, 
 					$Project->delete_folder;
 				my $failure = $Project->hide_deleted_files;
 				if (not $failure) {
@@ -1822,7 +1822,7 @@ sub run_project_directory_actions {
 				$failure_count += $failure;
 			}
 			else {
-				printf " ! %s has no deleted files to hide!\n", $Project->project;
+				printf "  ! %s has no deleted files to hide!\n", $Project->project;
 			}
 		} 
 
@@ -1830,7 +1830,7 @@ sub run_project_directory_actions {
 		# actually delete the files
 		if ($delete_del_files) {
 			if (-e $Project->delete_folder and -e $Project->remove_file) {
-				printf " > deleting %s files in hidden delete folder %s\n", $Project->project, 
+				printf "  > deleting %s files in hidden delete folder %s\n", $Project->project, 
 					$Project->delete_folder;
 				my $failure = $Project->delete_hidden_deleted_files();
 				if (not $failure) {
@@ -1840,7 +1840,7 @@ sub run_project_directory_actions {
 				$failure_count += $failure;
 			}
 			else  {
-				printf " > deleting %s files in %s\n", $Project->project, $Project->given_dir;
+				printf "  > deleting %s files in %s\n", $Project->project, $Project->given_dir;
 				my $failure = $Project->delete_project_files();
 				if (not $failure) {
 					$Entry->deleted_datestamp(time);
@@ -1858,7 +1858,7 @@ sub run_project_directory_actions {
 				$failure_count += $failure;
 			}
 			if (-e $Project->zip_folder) {
-				print " ! Hidden zip folder also exists, use option --del_zip\n";
+				print "  ! Hidden zip folder also exists, use option --del_zip\n";
 			}
 		}
 
@@ -1866,16 +1866,22 @@ sub run_project_directory_actions {
 		# add notice file
 		if ($add_notice) {
 			my $failure;
-			if ( $Entry->upload_datestamp ) {
-				printf " > Writing upload notification in %s\n", $Project->project;
-				$failure += $Project->write_uploaded_files_notice($Entry);
+			if ( $Entry->hidden_datestamp or $Entry->deleted_datestamp ) {
+				if ( $Entry->upload_datestamp and $Entry->prefix ) {
+					printf "  > Writing upload notification file in %s\n",
+						$Project->project;
+					$failure += $Project->write_uploaded_files_notice($Entry);
+				}
+				else {
+					printf "  > Writing %s delete notification file in %s\n", $id,
+						$Project->project;
+					$failure += $Project->write_deleted_files_notice($Entry);
+				}
 			}
 			else {
-				printf " > Writing delete notification in %s\n", $Project->project;
-				$failure += $Project->write_deleted_files_notice($Entry);
-			}
-			unless ($failure) {
-				print "    wrote notification file\n";
+				printf "  ! Project %s not hidden/deleted, skipping writing notification\n",
+					$id;
+				$failure += 1;
 			}
 			$failure_count += $failure;
 		}
@@ -1883,12 +1889,12 @@ sub run_project_directory_actions {
 
 		# clean project files
 		if ($clean_project_files) {
-			printf " > Cleaning %s project files\n", $Project->project;
+			printf "  > Cleaning %s project files\n", $Project->project;
 
 			# notice file
 			if (-e $Project->notice_file) {
 				unlink $Project->notice_file;
-				printf "  Deleted %s\n", $Project->notice_file;
+				printf "    Deleted %s\n", $Project->notice_file;
 			}
 
 			# zip archive
@@ -1904,11 +1910,11 @@ sub run_project_directory_actions {
 			}
 			elsif (-e $Project->alt_ziplist_file) {
 				unlink $Project->alt_ziplist_file;
-				printf "  Deleted %s\n", $Project->alt_ziplist_file;
+				printf "    Deleted %s\n", $Project->alt_ziplist_file;
 			}
 			elsif (-e $Project->ziplist_file) {
 				unlink $Project->ziplist_file;
-				printf "  Deleted %s\n", $Project->ziplist_file;
+				printf "    Deleted %s\n", $Project->ziplist_file;
 			}
 
 			# remove lists
@@ -1918,17 +1924,17 @@ sub run_project_directory_actions {
 			}
 			elsif (-e $Project->remove_file) {
 				unlink $Project->remove_file;
-				printf "  Deleted %s\n", $Project->remove_file;
+				printf "    Deleted %s\n", $Project->remove_file;
 			}
 			if (-e $Project->alt_remove_file) {
 				unlink $Project->alt_remove_file;
-				printf "  Deleted %s\n", $Project->alt_remove_file;
+				printf "    Deleted %s\n", $Project->alt_remove_file;
 			}
 
 			# manifest
 			if (-e $Project->manifest_file) {
 				unlink $Project->manifest_file;
-				printf "  Deleted %s\n", $Project->manifest_file;
+				printf "    Deleted %s\n", $Project->manifest_file;
 				$Entry->scan_datestamp(0);
 			}
 			
@@ -1942,7 +1948,7 @@ sub run_project_directory_actions {
 		}
 		else {
 			printf " > finished with %s with 0 failures\n\n", $id;
-			push @success, $id
+			push @success, $id;
 		}
 
 	}
