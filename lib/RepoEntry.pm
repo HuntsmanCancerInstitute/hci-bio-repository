@@ -45,10 +45,12 @@ use constant {
 	TB          => 1099511627776,
 };
 
-our $VERSION = 'v9.0.0';
+our $VERSION = 'v9.1.0';
 
 
-my $BASE_URL = 'https://hci-apps-ext.hci.utah.edu/core-browser';
+# global private variables, including base urls to browsers
+my $CORE_URL    = 'https://hci-apps-ext.hci.utah.edu/core-browser';
+my $GBROWSE_URL = 'https://hci-bio-app.hci.utah.edu/gnomex';
 
 sub new {
 	my ($class, $data, $lab, $account) = @_;
@@ -463,12 +465,20 @@ sub project_core_url {
 	$org =~ s/\ /%20/g;
 
 	# generate url to CORE Browser - this assumes always AWS accounts
-	my $url = sprintf "%s/goto?organization=%s&account=AWS%%20%s&path=/%s/%s", $BASE_URL,
+	my $url = sprintf "%s/goto?organization=%s&account=AWS%%20%s&path=/%s/%s", $CORE_URL,
 		$org, $number, $bucket, $prefix;
 	return $url;
 }
 
-
+sub project_gnomex_url {
+	my $self = shift;
+	if ( $self->is_request ) {
+		return sprintf "%s/?requestNumber=%s", $GBROWSE_URL, $self->id;
+	}
+	else {
+		return sprintf "%s/?analysisNumber=%s", $GBROWSE_URL, $self->id;
+	}
+}
 
 sub print_string {
 	my $self = shift;
@@ -548,6 +558,7 @@ sub print_string {
 	return sprintf("%s\n", join("\t", @data));
 }
 
+
 1;
 
 =head1 NAME
@@ -558,6 +569,9 @@ RepoEntry - A Repository project entry in the catalog
 
 An object representing a project entry in the catalog. This is 
 what users interact with working with the catalog. 
+
+B<NOTE> This object should only be instantiated from a RepoCatalog
+object, as it is a representation of a L<DBM::Deep> entry object.
 
 =head1 FUNCTIONS
 
@@ -572,6 +586,10 @@ The age functions return the difference in days between the current time
 and the recorded date time stamp.
 
 =over 4
+
+=item new
+
+This should only be instantiated from an RepoCatalog object.
 
 =item is_request
 
