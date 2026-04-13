@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 'v9.0.0';
+our $VERSION = 'v9.0.1';
 
 ### Initialize
 
@@ -558,14 +558,13 @@ sub write_deleted_files_notice {
 		unlink $self->notice_file;
 	}
 	
-	# generate text
+	# generate notice text
+	# email notification date will be added later if available
 	my $text1 = <<~DOC;
 	######## Where are my files? ###########
 	
 	The project %s, "%s", was removed on %s %02d, %d due to space limitations.
-	
-	The owners were notified of this on %s %02d, %d.
-	
+	%s	
 	See the policy on data storage at
 	https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi/data-access-storage
 	
@@ -582,6 +581,7 @@ sub write_deleted_files_notice {
 	
 	DOC
 	
+	# additional files left behind depending on project
 	my $text2;
 	if ( $Entry->is_request ) {
 		$text2 = <<~DOC;
@@ -602,6 +602,7 @@ sub write_deleted_files_notice {
 		DOC
 	}
 	
+	# add questions
 	my $text3 = <<~DOC;
 	
 	####### Questions
@@ -612,17 +613,28 @@ sub write_deleted_files_notice {
 	https://uofuhealth.utah.edu/huntsman/shared-resources/gcb/cbi
 
 	DOC
+
+	# check whether we can put email notification and get times
+	my $notif = $Entry->emailed_datestamp;
+	if ( $notif > 1000 ) {
+		my @email = localtime($notif);
+		$notif = sprintf "\nThe owners were notified of this on %s %02d, %d.\n",
+			$months[ $email[4] ], $email[3], $email[5] + 1900;
+	}
+	else {
+		# external clients usually do not get notified
+		$notif = q();
+	}
+	my @hide  = localtime( $Entry->hidden_datestamp );
 	
+	# open and write file
 	my $fh = IO::File->new( $self->notice_file, '>' );
 	unless ($fh) {
 		printf " ! unable to write notice file %s! %s\n", $self->notice_file, $OS_ERROR;
 		return 1;
 	}
-	my @hide  = localtime( $Entry->hidden_datestamp );
-	my @email = localtime( $Entry->emailed_datestamp );
 	$fh->printf( $text1, $Entry->id, $Entry->name, $months[ $hide[4] ], $hide[3],
-		$hide[5] + 1900, $months[ $email[4] ], $email[3], $email[5] + 1900,
-		$self->manifest_file, $self->remove_file,  );
+		$hide[5] + 1900, $notif, $self->manifest_file, $self->remove_file,  );
 	$fh->print($text2);
 	$fh->print($text3);
 	$fh->close;
@@ -655,6 +667,10 @@ sub write_uploaded_files_notice {
 	You may view these files in CORE Browser using the link below:
 	
 	%s
+	
+	If you are unable to view the files (organization not found error), you
+	may not have access to your lab account. Submit a ticket to Cancer
+	Bioinformatics at the address below.
 	
 	Several files may be retained here. These include the following:
 	
@@ -718,6 +734,7 @@ sub write_uploaded_files_notice {
 
 	DOC
 	
+	# open and write file
 	my $fh = IO::File->new( $self->notice_file, '>' );
 	unless ($fh) {
 		printf " ! unable to write notice file %s! %s\n", $self->notice_file, $OS_ERROR;
