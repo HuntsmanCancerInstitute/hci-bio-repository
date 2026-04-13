@@ -1318,21 +1318,25 @@ sub run_metadata_actions {
 			}
 			if ( not $Entry->core_lab ) {
 				print "  ! Project $id is not assigned to a CORE lab\n";
-				$skipped++ unless $force;
+				unless ($force) {
+					$skipped++;
+					next;
+				}
 			}
-			elsif ( $Entry->upload_datestamp > 1000 ) {
+			if ( $Entry->upload_datestamp > 1000 ) {
 				print "  ! Project $id has already been uploaded\n";
-				$skipped++ unless $force;
+				unless ($force) {
+					$skipped++;
+					next;
+				}
+			}
+			if ($update_prefix eq 'none') {
+				$Entry->prefix( q() );
 			}
 			else {
-				if ($update_prefix eq 'none') {
-					$Entry->prefix( q() );
-				}
-				else {
-					$Entry->prefix($update_prefix);
-				}
-				$count++;
+				$Entry->prefix($update_prefix);
 			}
+			$count++;
 		}
 		print " updated the prefix name for $count entries\n";
 		if ($skipped) {
