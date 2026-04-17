@@ -19,7 +19,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 1.3;
+our $VERSION = 1.4;
 
 my $doc = <<END;
 
@@ -156,11 +156,16 @@ prepare_list();
 unless ($check_only) {
 	if ( scalar @upload_list ) {
 		upload_files_parallel();
+		exit 0;
 	}
 	else {
-		print " ! Nothing to upload\n";
+		print " ! Zero files found to upload\n";
 		# not necessarily an error per se, but this signals that no upload occurred
 		# necessary for downstream pipelining, for example not to send an email
+		# go ahead and set upload date stamp anyway to prevent repeat flagging for upload
+		if ($Entry) {
+			$Entry->upload_datestamp(time);
+		}
 		exit 2;
 	}
 }
@@ -659,8 +664,10 @@ sub upload_files_parallel {
 			if ( $include_autoanal and $Entry->is_request ) {
 				$Entry->autoanal_up_datestamp(time);
 
-				# also update standard upload date too if it's not set
-				unless ( $Entry->upload_datestamp ) {
+				# also update standard upload date if there were other files
+				my $aa = $Entry->autoanal_folder;
+				my @other = grep { !/^ $aa \/ /x && !/^ $project_id/x } @upload_list;
+				if ( scalar @other ) {
 					$Entry->upload_datestamp(time);
 				}
 			}
