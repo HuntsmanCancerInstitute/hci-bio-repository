@@ -11,7 +11,7 @@ use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use RepoCatalog;
 
-our $VERSION = 1.0;
+our $VERSION = 1.1;
 
 my $doc = <<END;
 
@@ -37,7 +37,12 @@ Usage:
 Options:
     -c --cat <path>         Path to metadata catalog database. Required.
     --list <file>           List of project IDs
-    --update                Update the Catalog metadata
+
+Fixes to problems:
+    --update                Update Catalog to remove missing bucket/prefix
+    --manifest              Upload a missing manifest file
+
+Other:
     --cred <path>           Path to AWS credentials file. 
                                Default is ~/.aws/credentials. 
     -h --help               Show this help
@@ -48,7 +53,8 @@ END
 my $cat_file;
 my @project_ids;
 my $list_file;
-my $update;
+my $update = 0;
+my $post_manifest = 0;
 my $aws_cred_file = sprintf "%s/.aws/credentials", $ENV{HOME};
 my $help;
 
@@ -58,6 +64,7 @@ if (@ARGV) {
 		'c|catalog=s'           => \$cat_file,
 		'list=s'                => \$list_file,
 		'update!'               => \$update,
+		'manifest!'             => \$post_manifest,
 		'cred=s'                => \$aws_cred_file,
 		'h|help!'               => \$help,
 	) or die " bad options! Please check\n $doc\n";
@@ -127,6 +134,9 @@ sub check_project {
 	my $status;
 	my $access_id;
 	my $secret;
+	my $bucket;
+
+	# check metadata first
 	if ( $Entry->external eq 'Y') {
 		$status = 'external';
 	}
@@ -150,6 +160,8 @@ sub check_project {
 			$status = 'no credentials';
 		}
 	}
+
+	# check remote if still good
 	unless ($status) {
 		my $aws = Net::Amazon::S3::Client->new(
 			aws_access_key_id     => $access_id,
@@ -159,7 +171,6 @@ sub check_project {
 
 		# check bucket
 		my $bucket_name = $Entry->bucket;
-		my $bucket;
 		my @buckets = $aws->buckets;
 		foreach my $b (@buckets) {
 			if ($b->name eq $bucket_name) {
@@ -188,16 +199,72 @@ sub check_project {
 					$status = 'ok';
 				}
 				else {
-					$status = 'manifest not found!';
+					$status = 'manifest not found';
 				}
 			}
 		}
 		else {
-			$status = 'bucket not found!'
+			$status = 'bucket not found';
 		}
 	}
 	local $OUTPUT_AUTOFLUSH = 1; # piping hot output
 	printf "%s\t%s\n", $id, $status;
+	
+	# update
+	if ( $update and $status eq 'bucket not found' ) {
+		$Entry->bucket( q() );
+		$Entry->prefix( q() );
+		printf " ! Removed bucket/prefix metadata from Catalog for %s\n", $id;
+	}
+	elsif ( $post_manifest and $status eq 'manifest not found' ) {
+		# first check that there are contents in the bucket
+		my $prefix = $Entry->prefix;
+		my $stream = $bucket->list( { prefix => $prefix } );
+		my $count = 0;
+		while ( my $object = $stream->items ) {
+			$count++;
+			last if $count > 2; # good enough
+		}
+		if ($count) {
+			# folder is not empty
+			my $destination;
+			my $source = sprintf "%s/%s_MANIFEST.csv", $Entry->path, $id;
+			if ( -e $source ) {
+				$destination = sprintf "s3://%s/%s/%s_MANIFEST.csv", $Entry->bucket,
+					$Entry->prefix, $id;
+			}
+			else {
+				$source = sprintf "%s/%s_MANIFEST.txt", $Entry->path, $id;
+				if ( -e $source ) {
+					$destination = sprintf "s3://%s/%s/%s_MANIFEST.txt", $Entry->bucket,
+						$Entry->prefix, $id;
+				}
+				else {
+					printf " ! No source manifest file available in %s, not uploading\n",
+						$Entry->path; 
+				}
+			}
+
+			# we have a source and destination
+			if ($destination) {
+				my $cmd = sprintf "aws s3 cp %s %s --profile %s --no-progress", $source,
+					$destination, $Entry->profile;
+				# printf " > Executing %s\n", $cmd;
+				my $result = qx($cmd);
+				chomp $result;
+				if ($result =~ m|\A upload: \s (?:[\.\/\w]+)? $source \s to \s $destination|x) {
+					printf " > Successfully uploaded %s\n", $destination;
+				}
+				else {
+					printf " ! Error: %s\n", $result;
+				}
+			}
+		}
+		else {
+			printf " ! Prefix %s/%s is empty, not uploading manifest\n", $Entry->bucket,
+				$Entry->prefix;
+		}
+	}
 }
 
 
