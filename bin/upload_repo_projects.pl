@@ -439,9 +439,9 @@ sub prepare_list {
 	}
 
 	# generate autoanalysis folder regex using generic or specific prefix
-	my $aa_match = qr/^ AutoAnalysis_ \w+\d{4} \/ /x;
+	my $aa_match = qr|^ AutoAnalysis_ \w+\d{4} / |x;
 	if ( $Entry and my $aa = $Entry->autoanal_folder ) {
-		$aa_match = qr/^ $aa \/ /x;
+		$aa_match = qr|^$aa/|;
 	}
 
 	# parse manifest
@@ -468,7 +468,7 @@ sub prepare_list {
 		# check if we need to skip this file
 		if ( not $include_autoanal and $fname =~ $aa_match ) {
 			if ($verbose) {
-				print "   > skipping autoanalysis file $fname\n";
+				print "   > skipping autoanalysis file '$fname'\n";
 			}
 			$skip++;
 			$aacnt++;
@@ -476,7 +476,7 @@ sub prepare_list {
 		}
 		if (exists $zipped{$fname}) {
 			if ($verbose) {
-				print "   > skipping zipped file $fname\n";
+				print "   > skipping zipped file '$fname'\n";
 			}
 			$skip++;
 			$zipcnt++;
@@ -498,7 +498,7 @@ sub prepare_list {
 			}
 			if ($remote_time > $local_time) {
 				if ($verbose) {
-					print "   > skipping uploaded file $fname\n";
+					print "   > skipping uploaded file '$fname'\n";
 				}
 				$skip++;
 				$upcnt++;
@@ -515,7 +515,7 @@ sub prepare_list {
 		# process file
 		push @upload_list, $fname;
 		if ($verbose) {
-			print "   > including file $fname\n";
+			print "   > including file '$fname'\n";
 		}
 		$count++;
 		$size += $file{Size};
