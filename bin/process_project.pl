@@ -25,7 +25,7 @@ use constant {
 	ONE_GB => 1073741824,
 };
 
-our $VERSION = 'v9.0.1';
+our $VERSION = 'v9.0.2';
 
 
 
@@ -661,6 +661,14 @@ sub callback {
 		}
 		return;
 	}
+	elsif ( $file =~ /^ \. nfs \w{24} $/x ) {
+		# strange NFS artifacts which shouldn't exist
+		print "   ! deleting NFS artifact file $clean_name\n" if $verbose;
+		unless (unlink $file) {
+			push @removelist, $clean_name;
+		}
+		return;
+	}
 	elsif ( $file =~ /~$/ ) {
 		# files ending in ~ are typically backup copies of an edited text file
 		# these can be safely deleted
@@ -1229,6 +1237,12 @@ sub analysis_callback {
 		push @removelist, $clean_name;
 		return;
 	}
+	elsif ( $clean_name =~ /\b te?mp \b/xi ) {
+		# some sort of temporary file
+		printf "   ! marking to delete temp file '%s'\n", $clean_name;
+		push @removelist, $clean_name;
+		return;
+	}
 	
 	### metadata and stats on the file
 	my ($filetype, $zip);
@@ -1299,7 +1313,12 @@ sub analysis_callback {
 			$zip = 0;
 		}
 	}
-	elsif ($file =~ /\.vcf.gz$/i) {
+	elsif ($file =~ /\.vcf\.gz$/i) {
+		# compressed variant file
+		$filetype = 'Variant';
+		$zip = 0;
+	}
+	elsif ($file =~ /\.bcf$/i) {
 		# compressed variant file
 		$filetype = 'Variant';
 		$zip = 0;
@@ -1517,7 +1536,7 @@ sub analysis_callback {
 			$zip = 1;
 		}
 	}
-	elsif ($file =~ /\. ( sh | pl | py | r | rmd | rscript | awk | sm | sing | slurm ) $/xin) {
+	elsif ($file =~ /\. ( sh | pl | py | r | rmd | rscript | awk | sm | sing | slurm | ipynb ) $/xin) {
 		$filetype = 'Script';
 		$zip = 1;
 	}
@@ -1526,7 +1545,7 @@ sub analysis_callback {
 		$filetype = 'Script';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. ( txt | tsv | tab | csv | cdt | counts | results | cns | cnr | cnn | md | log | biotypes | summary | out | err ) (\.gz)? $/xin) {
+	elsif ($file =~ /\. ( txt | tsv | tab | csv | cdt | counts | results | cns | cnr | cnn | md | log | biotypes | summary | out | rout | err ) (\.gz)? $/xin) {
 		# general analysis text files, may be compressed
 		$filetype = 'Text';
 		if ($file =~ /\.gz$/ and $size > HUNDRED_MB) {
@@ -1590,9 +1609,14 @@ sub analysis_callback {
 			$zip = 1;
 		}
 	}
-	elsif ($file =~ /\. ( xls | ppt | pptx | doc | docx | rout | rda | rdata | rds | rproj | xml | yaml | json | json\.gz | geojson | seg | pzfx ) $/xin) {
+	elsif ($file =~ /\. ( xls | ppt | pptx | doc | docx | rproj | seg | pzfx ) $/xin) {
 		$filetype = 'Results';
 		$zip = 1;
+	}
+	elsif ($file =~ /\. xlsx $/xi) {
+		# leave out Excel files from Zip file
+		$filetype = 'Results';
+		$zip = 0;
 	}
 	elsif ($file =~ /\. ome \. tif{1,2} $/x) {
 		# Xenium morphology images, typically huge, should not zip
@@ -1603,10 +1627,15 @@ sub analysis_callback {
 		$filetype = 'Image';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. ( xlsx | h5 | hd5 | hdf5 | h5ad ) $/xin) {
-		# leave out certain result files from zip archive just to be nice
-		$filetype = 'Results';
+	elsif ($file =~ /\. ( h5 | hd5 | hdf5 | h5ad ) $/xin) {
+		# leave HDF5 data files from zip archive just to be nice
+		$filetype = 'Data';
 		$zip = 0;
+	}
+	elsif ($file =~ /\. ( rda | rdata | rds | pickle | xml | yaml | json | json\.gz | geojson ) $/xin ) {
+		# go ahead and zip other data files
+		$filetype = 'Data';
+		$zip = 1;
 	}
 	elsif ($file =~ /\.html$/i) {
 		# try to discern what kind of html report we have and assign accordingly
