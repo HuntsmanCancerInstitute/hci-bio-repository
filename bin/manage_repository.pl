@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 'v9.0.4';
+our $VERSION = 'v9.0.5';
 
 
 ######## Documentation
@@ -1666,8 +1666,13 @@ sub run_project_actions {
 			my $command = sprintf "%s --project %s", $base_command, $id;
 			print "\n Executing '$command'\n";
 			my $r = system($command);
-			if ($r) {
-				print " \n ! Incomplete or no uploads of $id\n";
+			if ($r == 1) {
+				# some failure
+				print "\n ! Incomplete or problems uploading $id\n";
+			}
+			elsif ($r == 2) {
+				# special error where no files were found to upload
+				print "\n > No files to upload for $id\n";
 			}
 			else {
 				push @success, $id;
