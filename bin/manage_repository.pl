@@ -1685,8 +1685,8 @@ sub run_project_actions {
 		
 		# set the readme file in the bucket
 		if ( @success and not $mock ) {
-			my $command = sprintf "%s/put_aws_project_readme.pl -c %s %s", $Bin,
-				$cat_file, join( q( ), @success );
+			my $command = sprintf "%s/put_aws_project_readme.pl --catalog %s %s", $Bin,
+				$cat_file, join( q( ), map { "-p $_" } @success );
 			printf "\n Executing '%s'\n", $command;
 			if ( system($command) ) {
 				print "\n ! Something went wrong with putting readme files\n";
