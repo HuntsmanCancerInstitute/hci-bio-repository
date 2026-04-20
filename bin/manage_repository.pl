@@ -1666,13 +1666,17 @@ sub run_project_actions {
 			my $command = sprintf "%s --project %s", $base_command, $id;
 			print "\n Executing '$command'\n";
 			my $r = system($command);
-			if ($r == 1) {
-				# some failure
-				print "\n ! Incomplete or problems uploading $id\n";
-			}
-			elsif ($r == 2) {
-				# special error where no files were found to upload
-				print "\n > No files to upload for $id\n";
+			if ($r) {
+				# some failure, check return value in low-level error byte code
+				my $v = $CHILD_ERROR >> 8;
+				if ($v == 2) {
+					# special error where no files were found to upload
+					# this is actually acceptable
+					print "\n > No files to upload for $id\n";
+				}
+				else {
+					print "\n ! Incomplete or problems uploading $id\n";
+				}
 			}
 			else {
 				push @success, $id;
