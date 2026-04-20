@@ -1259,7 +1259,12 @@ sub analysis_callback {
 	# this should catch most files, but there's always weirdos and miscellaneous files
 	# this will also dictate zip file status
 	
-	if ( $file =~ /^\./ ) {
+	if ( $file =~ /_FILELIST\.csv$/x) {
+		# file index of a zip file
+		$filetype = 'Text';
+		$zip = 0;
+	}
+	elsif ( $file =~ /^\./ ) {
 		# hidden files
 		if ( $file =~ / \. \w{1,4} \. \w{6} $/xi ) {
 			print "   ! possible rsync temp file '$clean_name'\n";
