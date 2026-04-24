@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 'v9.0.1';
+our $VERSION = 'v9.1.0';
 
 ### Initialize
 
@@ -973,6 +973,9 @@ sub _age_callback {
 	return if -l $file;
 	return if exists $ignore_files{$file};
 	return if $file =~ m/md5/i;   # too small and variable to make a difference
+	
+	# skip depreciated autoanalysis folders since these are destined to be deleted
+	return if $File::Find::name =~ m/ \d+R \/ Depreciated_AutoAnalysis_\w+ \/ /x;
 
 	# for Request projects, don't calculate age if file appears to be a QC folder
 	# these are considered supplementary and can be updated anytime
