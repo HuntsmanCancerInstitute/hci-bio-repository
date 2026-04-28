@@ -408,6 +408,20 @@ sub unhide_zip_files {
 			$fc += $remaining;
 		}	
 
+		# hide the zip list
+		move( $self->ziplist_file, $self->alt_ziplist_file);
+		
+		# remove zip
+		if (-e $self->zip_file) {
+			if ($fc == 0) {
+				printf "  ! Deleting zip file %s\n", $self->zip_file;
+				unlink( $self->zip_file );
+			}
+			else {
+				printf "  ! Leaving zip file %s\n", $self->zip_file;
+			}
+		}
+		
 		return $fc;
 	}
 	else {
