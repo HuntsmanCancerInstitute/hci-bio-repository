@@ -26,6 +26,7 @@ my %ignore_files    = ();
 my $project_age     = 0;
 my $project_size    = 0;
 my $autoanal_age    = 0;
+my $project_count   = 0;
 my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 
 sub new {
@@ -399,7 +400,14 @@ sub unhide_zip_files {
 		my $fc = $self->_move_directory_files('./', $self->given_dir, $filelist);
 		chdir $self->given_dir; # go back
 		$fc += $self->clean_empty_directories($self->zip_folder);
-	
+
+		# check for remaining files
+		my $remaining = $self->directory_file_count($self->zip_folder);
+		if ($remaining) {
+			printf "  ! %d Files remaining in %s\n", $remaining, $self->zip_folder;
+			$fc += $remaining;
+		}	
+
 		return $fc;
 	}
 	else {
@@ -435,6 +443,11 @@ sub unhide_deleted_files {
 		
 		# clean up empty directories
 		$failure_count += $self->clean_empty_directories($self->delete_folder);
+		my $remaining = $self->directory_file_count($self->delete_folder);
+		if ($remaining) {
+			printf "  ! %d Files remaining in %s\n", $remaining, $self->delete_folder;
+			$failure_count += $remaining;
+		}
 		
 		# hide remove list
 		if (-e $self->remove_file) {
@@ -465,6 +478,11 @@ sub delete_zipped_files_folder {
 		my $filelist = $self->get_file_list($self->ziplist_file);
 		my $fc = $self->_delete_directory_files($self->zip_folder, $filelist);
 		$fc += $self->clean_empty_directories($self->zip_folder);
+		my $remaining = $self->directory_file_count($self->zip_folder);
+		if ($remaining) {
+			printf "  ! %d Files remaining in %s\n", $remaining, $self->zip_folder;
+			$fc += $remaining;
+		}
 		return $fc;
 	}
 	else {
@@ -479,6 +497,11 @@ sub delete_hidden_deleted_files {
 		my $filelist = $self->get_file_list($self->remove_file);
 		my $fc = $self->_delete_directory_files($self->delete_folder, $filelist);
 		$fc += $self->clean_empty_directories($self->delete_folder);
+		my $remaining = $self->directory_file_count($self->delete_folder);
+		if ($remaining) {
+			printf "  ! %d Files remaining in %s\n", $remaining, $self->delete_folder;
+			$fc += $remaining;
+		}
 		return $fc;
 	}
 	else {
@@ -768,6 +791,26 @@ sub clean_empty_directories {
 	return 0;
 }
 
+sub directory_file_count {
+	my $self = shift;
+	my $directory = shift;
+	unless ( -e $directory ) {
+		# directory does not exist therefore the count is zero
+		return 0;
+	}
+	$project_count = 0;  # clear any previous count
+	find( {
+			follow => 0, # do not follow symlinks
+			wanted => sub {
+				my $file = $_;
+				return if -d $file;
+				$project_count++;
+			},
+		  }, $directory
+	);
+	return $project_count;
+}
+
 sub get_size_age {
 	my $self = shift;
 	
@@ -885,6 +928,7 @@ sub _move_directory_files {
 		my $sourcefile = $self->_check_file($source, $dir, $basefile);
 		unless ($sourcefile) {
 			printf "   ! Missing or non-file to move: %s\n", $file;
+			$failure_count++;
 			next;
 		}
 		# destination
@@ -1153,6 +1197,13 @@ Calculates the MD5 checksum on a file. Pass the file path.
 These functions gather information about the project folder.
 
 =over 4
+
+=item directory_file_count
+
+Counts the number of files in the given directory, including symlinks
+(but it does not follow symlinks). It will recurse into subdirectories.
+Pass the directory path to be counted. Returns the file count.
+Useful to confirm a directory is empty.
 
 =item get_size_age
 
