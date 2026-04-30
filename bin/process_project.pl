@@ -25,7 +25,7 @@ use constant {
 	ONE_GB => 1073741824,
 };
 
-our $VERSION = 'v9.0.2';
+our $VERSION = 'v9.0.3';
 
 
 
@@ -105,9 +105,9 @@ my @ziplist;
 my %checksums;
 my $failure_count     = 0;
 my $runfolder_warning = 0; # Gigantic Illumina RunFolder present
-my $autoanal_warning  = 0; # warnings about AutoAnalysis folders
 my $upload_warning    = 0; # GNomEx upload folder
 my $xenium_warning    = 0; # Xenium folder
+my %autoanal_warning;      # warnings about AutoAnalysis folders
 my $post_zip_size     = 0;
 my $max_zip_size      = HUNDRED_MB;
 
@@ -713,7 +713,7 @@ sub callback {
 		elsif ($clean_name =~ /^ Fastq.*/) {
 			return request_callback($file, $clean_name);
 		}
-		elsif ($clean_name =~ /^ AutoAnalysis_\w+ \/ /x) {
+		elsif ($clean_name =~ /^ (WGS_)? AutoAnalysis_\w+ \/ /x) {
 			# AutoAnalysis folder
 			return analysis_callback($file, $clean_name);
 		}
@@ -769,19 +769,19 @@ sub request_callback {
 		push @removelist, $clean_name;
 		return;
 	}
-	elsif ($clean_name =~ /^ \w+ _AutoAnalysis _ \w+/x) {
+	elsif ($clean_name =~ /^ ( (?:Depreciated | DontUse) _AutoAnalysis_ \w+ ) /x) {
 		# usually an unwanted or depreciated AutoAnalysis
-		# david puts 'depreciated' or 'DontUse' or some other prefix
+		# david puts 'Depreciated' or 'DontUse' or some other prefix
 		# print a warning, but only once
 		# the warning only works for the first weird AutoAnalysis folder, subsequent ones
 		# do not get another warning, but hopefully that's ok??
-		if ($autoanal_warning) {
+		if ( exists $autoanal_warning{$1} ) {
 			push @removelist, $clean_name;
 			return;
 		}
-		elsif ($clean_name =~ /^ ( \w+ _ AutoAnalysis  _ \w+ ) /x) {
-			print " ! marking contents in $1 for deletion\n";
-			$autoanal_warning = 1;
+		else {
+			printf " ! marking contents in '%s' for deletion\n", $1;
+			$autoanal_warning{$1} = 1;
 			push @removelist, $clean_name;
 			return;
 		}

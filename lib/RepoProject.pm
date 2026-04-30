@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 'v9.1.0';
+our $VERSION = 'v9.1.1';
 
 ### Initialize
 
@@ -860,7 +860,7 @@ sub get_autoanal_folder {
 	return unless ($self->project =~ /^\d+R$/);
 	my $curdir = getcwd();
 	chdir $self->given_dir;
-	my @results = glob("AutoAnalysis_*");
+	my @results = glob("AutoAnalysis_* WGS_AutoAnalysis_*");
 	my $aapath = q();
 	if ( scalar @results == 1 and $results[0] ) {
 		$aapath = $results[0];
@@ -1045,7 +1045,7 @@ sub _age_callback {
 	) {
 		$include_age = 0;
 	}
-	elsif ( $File::Find::name =~ m/ \d+R \/ AutoAnalysis_\w+ \/ /x ) {
+	elsif ( $File::Find::name =~ m/ \d+R \/ \w* AutoAnalysis_\w+ \/ /x ) {
 		$include_age = 2;
 	}
 	
