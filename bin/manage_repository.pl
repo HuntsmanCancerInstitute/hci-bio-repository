@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 'v9.0.5';
+our $VERSION = 'v9.0.6';
 
 
 ######## Documentation
@@ -791,10 +791,13 @@ sub open_import_catalog {
 				if ( 
 					$project_scan and
 					( $Project->has_fastq or $size > 1000000000 ) and
-					(time - $datestamp) > 3600
+					( $datestamp or $aa_datestamp )
 				) {
 					if ( $Entry->scan_datestamp > 1 ) {
-						if ( $datestamp > $Entry->scan_datestamp ) {
+						if (
+							( $datestamp > $Entry->scan_datestamp )
+							 or ( $aa_datestamp > $Entry->scan_datestamp )
+						) {
 							# there is a newer file since last scan
 							$do_scan += 1;
 						}
