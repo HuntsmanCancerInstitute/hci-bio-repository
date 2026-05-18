@@ -25,7 +25,7 @@ use constant {
 	ONE_GB => 1073741824,
 };
 
-our $VERSION = 'v9.0.3';
+our $VERSION = 'v9.0.4';
 
 
 
@@ -707,8 +707,15 @@ sub callback {
 		) {
 			# these are QC samples in a bioanalysis or Sample of Library QC folder
 			# directly under the main project 
-			print "   > skipping QC file $clean_name\n" if $verbose;
-			return;
+			# normally these are small and are skipped, kept on server in perpetuity
+			# except for very large Xenium tiff files - sigh, process those
+			if ( $clean_name =~ /\. ( ome \. tif{1,2} | czi ) $/xn ) {
+				return analysis_callback($file, $clean_name);
+			}
+			else {
+				print "   > skipping QC file $clean_name\n" if $verbose;
+				return;
+			}
 		}
 		elsif ($clean_name =~ /^ Fastq.*/) {
 			return request_callback($file, $clean_name);
@@ -731,11 +738,6 @@ sub callback {
 		elsif ($clean_name =~ / [\w\s\&]+ image s? \/ /xi) {
 			# top level images folder, probably Xenium images
 			# this may be a non-standard folder name, so this may change
-			return analysis_callback($file, $clean_name);
-		}
-		elsif ($clean_name =~ / ( \.tiff | \.czi ) $/xin) {
-			# yet more likely top level Xenium files, sigh....
-			# not inside a recognizable Xenimum folder
 			return analysis_callback($file, $clean_name);
 		}
 		else {
