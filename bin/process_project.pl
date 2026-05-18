@@ -664,13 +664,11 @@ sub callback {
 	elsif ( $file =~ /^ \. nfs \w{24} $/x ) {
 		# strange NFS artifacts which shouldn't exist
 		print "   ! deleting NFS artifact file $clean_name\n" if $verbose;
-		unless (unlink $file) {
-			push @removelist, $clean_name;
-		}
+		push @removelist, $clean_name;
 		return;
 	}
-	elsif ( $file =~ /~$/ ) {
-		# files ending in ~ are typically backup copies of an edited text file
+	elsif ( $file =~ /^ ~/x or $file =~ /~ $/x ) {
+		# files starting or ending in ~ are typically backup copies of an edited file
 		# these can be safely deleted
 		print "   ! deleting backup file $clean_name\n";
 		unless (unlink $file) {
