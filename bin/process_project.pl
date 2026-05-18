@@ -679,7 +679,7 @@ sub callback {
 		return;
 	}
 	elsif ( -l $file  ) {
-		if ( $request and $clean_name =~ /^ AutoAnalysis_\w+ \/ /x ) {
+		if ( $request and $clean_name =~ /AutoAnalysis_\w+ \/ /x ) {
 			# autoanalysis symlinks are temporary and should automatically be cleaned up
 			# ignore for now
 		}
@@ -689,12 +689,12 @@ sub callback {
 		}
 		return;
 	}
-	elsif ( $file eq 'RUNME' and $clean_name =~ /^ AutoAnalysis_\w+ \/ /x ) {
+	elsif ( $file eq 'RUNME' and $clean_name =~ /AutoAnalysis_\w+ \/ /x ) {
 		# temporary AutoAnalysis run script
 		# ignore for now, it should be cleaned up automatically
 		return;
 	}
-	elsif ( $file eq 'COMPLETE' and $clean_name =~ /^ AutoAnalysis_\w+ \/ /x ) {
+	elsif ( $file eq 'COMPLETE' and $clean_name =~ /AutoAnalysis_\w+ \/ /x ) {
 		# an AutoAnalysis control file
 		push @removelist, $clean_name;
 		return;
@@ -720,7 +720,7 @@ sub callback {
 		elsif ($clean_name =~ /^ Fastq.*/) {
 			return request_callback($file, $clean_name);
 		}
-		elsif ($clean_name =~ /^ (WGS_)? AutoAnalysis_\w+ \/ /x) {
+		elsif ($clean_name =~ /^ (WGS_)? AutoAnalysis_\w+ \/ /xn) {
 			# AutoAnalysis folder
 			return analysis_callback($file, $clean_name);
 		}
