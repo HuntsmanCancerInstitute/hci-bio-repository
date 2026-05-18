@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 'v9.1.1';
+our $VERSION = 'v9.1.2';
 
 ### Initialize
 
@@ -321,6 +321,14 @@ sub zip_archive_files {
 		return 1;
 	};
 	
+	# clean up old zip files
+	if ( -e $self->zip_file ) {
+		unlink $self->zip_file;
+	}
+	if ( -e $self->alt_zip_file ) {
+		unlink $self->alt_zip_file;
+	}
+	
 	# Zip the files
 	my $command = sprintf("cat %s | $zipper --names-stdin %s", $self->ziplist_file, 
 		$self->zip_file);
@@ -371,19 +379,34 @@ sub zip_archive_files {
 sub hide_zipped_files {
 	my $self = shift;
 	chdir $self->given_dir; # just in case
-	if (not -e $self->ziplist_file) {
-		print "  ! no zip list file exists! Nothing to move\n" ;
-		return 1;
-	}
-	if (not -e $self->zip_file) {
+	unless ( -e $self->zip_file or -e $self->alt_zip_file ) {
 		print "  ! no zip archive exists! Best not move!\n" ;
 		return 1;
+	}
+	if (not -e $self->ziplist_file) {
+		if ( -e $self->alt_ziplist_file ) {
+			move( $self->alt_ziplist_file, $self->ziplist_file ) or do {
+				printf " ! failed to move zip list file '%s'\n", $self->alt_ziplist_file;
+				return 1;
+			};
+		}
+		else {
+			print "  ! no zip list file exists! Nothing to move\n" ;
+			return 1;
+		}
 	}
 	
 	# move the zipped files
 	my $filelist = $self->get_file_list($self->ziplist_file);
 	mkdir $self->zip_folder;
 	my $failure_count = $self->_move_directory_files('./', $self->zip_folder, $filelist);
+	if ( -e $self->alt_zip_file ) {
+		my $success = move( $self->alt_zip_file, $self->zip_file );
+		unless ($success) {
+			printf "  ! Failure to show hidden zip file '%s'\n", $self->zip_file;
+			$failure_count++;
+		}
+	}
 	
 	# clean up empty directories
 	$failure_count += $self->clean_empty_directories($self->given_dir);
@@ -411,14 +434,15 @@ sub unhide_zip_files {
 		# hide the zip list
 		move( $self->ziplist_file, $self->alt_ziplist_file);
 		
-		# remove zip
+		# hide zip file
 		if (-e $self->zip_file) {
-			if ($fc == 0) {
-				printf "  ! Deleting zip file %s\n", $self->zip_file;
-				unlink( $self->zip_file );
+			my $success = move( $self->zip_file, $self->alt_zip_file );
+			if ($success) {
+				printf "  > Hiding zip file %s\n", $self->zip_file;
 			}
 			else {
-				printf "  ! Leaving zip file %s\n", $self->zip_file;
+				printf "  ! Failure hiding %s\n", $self->zip_file;
+				$fc++;
 			}
 		}
 		
