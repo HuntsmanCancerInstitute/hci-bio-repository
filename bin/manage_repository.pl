@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 'v9.0.6';
+our $VERSION = 'v9.0.7';
 
 
 ######## Documentation
@@ -1744,14 +1744,9 @@ sub run_project_directory_actions {
 
 		# hide the zipped files
 		if ($move_zip_files) {
-			if (-e $Project->ziplist_file) {
-				printf "  > hiding %s zipped files to %s\n", $Project->project, 
-					$Project->zip_folder;
-				$failure_count += $Project->hide_zipped_files;
-			}
-			else {
-				printf "  ! %s has no zipped files to move\n", $Project->project;
-			}
+			printf "  > hiding %s zipped files to %s\n", $Project->project, 
+				$Project->zip_folder;
+			$failure_count += $Project->hide_zipped_files;
 		} 
 
 		# unhide files
