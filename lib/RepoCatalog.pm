@@ -12,7 +12,7 @@ use constant {
 	LAB_ACCT    => 2,     # CORE lab account name
 };
 
-our $VERSION = 'v9.0.0';
+our $VERSION = 'v9.0.1';
 
 
 ### General private values
@@ -655,6 +655,7 @@ sub find_analysis_to_upload {
 			not $E->is_request and
 			$E->core_lab and                            # has division
 			$E->hidden_datestamp == 0 and               # not already hidden
+			$E->upload_datestamp == 0 and               # not yet uploaded
 			$E->size > $min_size and                    # size > minimum
 			$E->age > $min_age and                      # older than min age
 			$E->age < $max_age and                      # less than max age
