@@ -19,7 +19,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 1.4;
+our $VERSION = 1.5;
 
 my $doc = <<END;
 
@@ -441,7 +441,14 @@ sub prepare_list {
 	# generate autoanalysis folder regex using generic or specific prefix
 	my $aa_match = qr|^ AutoAnalysis_ \w+\d{4} / |x;
 	if ( $Entry and my $aa = $Entry->autoanal_folder ) {
-		$aa_match = qr|^$aa/|;
+		if ($aa =~ /,/) {
+			# sigh, multiple autoanalysis folders
+			my $str = join '|', ( split /,/, $aa );
+			$aa_match = qr|^ (?: $str ) /|x;
+		}
+		else {
+			$aa_match = qr|^$aa/|;
+		}
 	}
 
 	# parse manifest
