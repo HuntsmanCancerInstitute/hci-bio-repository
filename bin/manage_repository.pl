@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 'v9.0.7';
+our $VERSION = 'v9.0.8';
 
 
 ######## Documentation
@@ -1889,7 +1889,7 @@ sub run_project_directory_actions {
 		if ($add_notice) {
 			my $failure;
 			if ( $Entry->hidden_datestamp or $Entry->deleted_datestamp ) {
-				if ( $Entry->upload_datestamp and $Entry->prefix ) {
+				if ( $Entry->upload_datestamp ) {
 					printf "  > Writing upload notification file in %s\n",
 						$Project->project;
 					$failure += $Project->write_uploaded_files_notice($Entry);
