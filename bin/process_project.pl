@@ -25,7 +25,7 @@ use constant {
 	ONE_GB => 1073741824,
 };
 
-our $VERSION = 'v9.0.4';
+our $VERSION = 'v9.0.5';
 
 
 
@@ -647,6 +647,14 @@ sub callback {
 	}
 	elsif ($file eq '.DS_Store' or $file eq 'Thumbs.db') {
 		# Windows and Mac file browser devil spawn, delete these immediately
+		print "   ! deleting unnecessary file $clean_name\n" if $verbose;
+		unless (unlink $file) {
+			push @removelist, $clean_name;
+		}
+		return;
+	}
+	elsif ( $file =~ /^\._/ ) {
+		# MacOS-specific file extended attributes metadata
 		print "   ! deleting unnecessary file $clean_name\n" if $verbose;
 		unless (unlink $file) {
 			push @removelist, $clean_name;
