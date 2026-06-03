@@ -13,7 +13,7 @@ use RepoCatalog;
 use RepoProject;
 use Gnomex;
 
-our $VERSION = 1.0;
+our $VERSION = 1.1;
 
 my $doc = <<END;
 
@@ -88,7 +88,9 @@ my $count = 0;
 foreach my $id (@project_ids) {
 	$count += post_project_readme($id);
 }
-printf "\n Put %d readme files\n", $count;
+if ($count > 1) {
+	printf "\n Put %d readme files\n", $count;
+}
 exit 0;
 
 
@@ -240,24 +242,30 @@ sub generate_request_text {
 	
 	%s
 	
-	An inventory of the files from the original Project is found in "%s".
+	An inventory of the files from the original Project is found in the
+	manifest file "%s".
 	
 	Large files by default may be archived in Deep Glacier and will need to
-	be temporarily restored before downloading.
+	be temporarily restored before downloading or accessing.
 	DOC
 	my $final = sprintf $text, $Entry->id, $Entry->name, $date, $Entry->user_first,
 		$Entry->user_last, $Entry->lab_first, $Entry->lab_last, $Entry->group,
 		$Entry->project_gnomex_url, $Project->manifest_file;
 	
 	# add archive stuff as necessary
-	if ( $Entry->autoanal_folder and $Entry->autoanal_up_datestamp ) {
+	if ( $Entry->autoanal_folder and $Entry->autoanal_folder =~ /AutoAnalysis/
+		and $Entry->autoanal_up_datestamp
+	) {
 		
 		$text = <<~DOC;
-		Small files may be compressed into the Zip archive file "%s".
-		A list of the files in the Zip archive is in the file "%s".
 		
+		This project has included analysis files in the folder "%s". 
+		Small files may be compressed into the Zip archive file "%s".
+		A list of these files are in the file "%s".
+		Unzipping this file in place will reconstitute the project.
 		DOC
-		$final .= sprintf $text, $Project->zip_file, $Project->ziplist_file;
+		$final .= sprintf( $text, $Entry->autoanal_folder, $Project->zip_file,
+			$Project->ziplist_file );
 	}
 	
 	# collect samples from the database
@@ -266,11 +274,11 @@ sub generate_request_text {
 	return unless $samples;
 	$final .= <<~DOC;
 	
-	A list of the samples is provided below as a tab-delimited list.
+	A list of the original samples is provided below as a tab-delimited list.
 	
 	DOC
 	foreach my $line ( @{$samples} ) {
-		$final .= sprintf "%s\n", join( "\t", @{ $line } );
+		$final .= sprintf "%s\n", join( "\t", map { $_ || q() } @{ $line } );
 	}
 	return $final;
 }
@@ -296,7 +304,9 @@ sub generate_analysis_text {
 		$Entry->user_last, $Entry->lab_first, $Entry->lab_last, $Entry->group,
 		$Entry->project_gnomex_url;
 	
-	# add information about linked Request
+	# add information about the linked Request project
+	# this information is buried in the GNomEx database but not easy to retrieve
+	# most people put the Request ID in the Analysis name, so use that if available
 	if ( $Entry->name =~ /(\d+R)/ ) {
 		my $Req = $Catalog->entry($1);
 		if ($Req) {
@@ -325,14 +335,18 @@ sub generate_analysis_text {
 	}
 	$text = <<~DOC;
 	
-	An inventory of the files from the original Project is found in "%s".
-	Large files by default may be archived in Deep Glacier and will need to
-	be temporarily restored before downloading.
+	An inventory of the files from the original Project is found in the
+	manifest file "%s".
+	
+	Large files by default may be archived in Deep Glacier and will need
+	to be temporarily restored before downloading.
+	
 	Small files may be compressed into the Zip Archive file "%s".
-	A list of the files in the Zip Archive is in the file "%s".
+	A list of these files are in the file "%s".
+	Unzipping this file in place will reconstitute the project.
 	
 	If you are unable to find a file, try searching for it in either the
-	manifest or zip list files.
+	MANIFEST or ARCHIVE_LIST files.
 	
 	The indicated genome build is %s "%s".
 	
