@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 'v9.1.2';
+our $VERSION = 'v9.1.3';
 
 ### Initialize
 
@@ -723,7 +723,7 @@ sub write_uploaded_files_notice {
 	
 	The project %s, "%s", was removed on %s %02d, %d due to space limitations.
 	
-	The files have been uploaded to the AWS account "%s" in the bucket "%s".
+	The files were uploaded to the AWS account "%s" in the bucket "%s".
 	
 	You may view these files in CORE Browser using the link below:
 	
@@ -803,8 +803,9 @@ sub write_uploaded_files_notice {
 	}
 	my @hide  = localtime( $Entry->hidden_datestamp );
 	$fh->printf( $text1, $Entry->id, $Entry->name, $months[ $hide[4] ], $hide[3],
-		$hide[5] + 1900, $Entry->core_lab, $Entry->bucket, $Entry->project_core_url,
-		$self->manifest_file, $self->remove_file );
+		$hide[5] + 1900, $Entry->core_lab || q(), $Entry->bucket || q(NOT AVAILABLE),
+		$Entry->project_core_url || q(NOT AVAILABLE), $self->manifest_file,
+		$self->remove_file );
 	if ($text2) {
 		$fh->print($text2);
 	}
