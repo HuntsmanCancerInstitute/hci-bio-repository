@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 'v9.1.3';
+our $VERSION = 'v9.1.4';
 
 ### Initialize
 
@@ -868,6 +868,11 @@ sub get_size_age {
 		$self->previous_ziplist_file,
 		$self->notice_file,
 	);
+
+	# add old manifest style name to ignore list just in case
+	my $old_man = $self->manifest_file;
+	$old_man =~ s/csv/txt/;
+	$ignore_files{$old_man} = 1;
 	
 	# collect data for given directory
 	find( {
