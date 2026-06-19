@@ -25,7 +25,7 @@ use constant {
 	ONE_GB => 1073741824,
 };
 
-our $VERSION = 'v9.0.5';
+our $VERSION = 'v9.0.6';
 
 
 
@@ -1235,13 +1235,9 @@ sub analysis_callback {
 		push @removelist, $clean_name;
 		return;
 	}
-	elsif ( $clean_name =~ m| / \. snakemake / |x ) {
-		# snakemake log files do not need be kept - they're temporary
-		push @removelist, $clean_name;
-		return;
-	}
-	elsif ( $clean_name =~ m| / \. GQueryIndex / |x ) {
-		# GQuery index files, it's a hidden directory so temporary and not worth keeping
+	# mark all hidden .directory files for deletion? are any worth keeping?
+	elsif ( $clean_name =~ m| / \. [\w\-\.]+ / |x ) {
+		# this includes .snakemake log files and .GQueryIndex
 		push @removelist, $clean_name;
 		return;
 	}
