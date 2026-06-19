@@ -45,7 +45,7 @@ use constant {
 	TB          => 1099511627776,
 };
 
-our $VERSION = 'v9.1.0';
+our $VERSION = 'v9.1.1';
 
 
 # global private variables, including base urls to browsers
@@ -324,6 +324,9 @@ sub size {
 
 sub last_size {
 	my $self = shift;
+	if (@_ and defined $_[0]) {
+		$self->{data}->[LASTSIZE] = $_[0];
+	}
 	return $self->{data}->[LASTSIZE] || 0;
 }
 
@@ -649,8 +652,6 @@ This gets/sets the current size of the project in bytes. When setting, the
 previous size is automatically stored as the last size.
 
 =item last_size
-
-This a read-only function.
 
 =item youngest_datestamp
 
