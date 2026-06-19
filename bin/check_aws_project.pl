@@ -11,7 +11,7 @@ use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use RepoCatalog;
 
-our $VERSION = 1.2;
+our $VERSION = 1.3;
 
 my $doc = <<END;
 
@@ -72,6 +72,7 @@ my $help;
 if (@ARGV) {
 	GetOptions(
 		'c|catalog=s'           => \$cat_file,
+		'p|project=s'           => \@project_ids,
 		'list=s'                => \$list_file,
 		'update!'               => \$update,
 		'manifest!'             => \$post_manifest,
@@ -177,7 +178,7 @@ sub check_project {
 		my $aws = Net::Amazon::S3::Client->new(
 			aws_access_key_id     => $access_id,
 			aws_secret_access_key => $secret,
-			# retry                 => 0,
+			retry                 => 1,
 		);
 
 		# check bucket
