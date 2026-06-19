@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 'v9.0.8';
+our $VERSION = 'v9.0.9';
 
 
 ######## Documentation
@@ -128,7 +128,7 @@ OPTIONS
     --del_zip                 Delete hidden zipped files
     --delete                  Delete the to-delete files from the project 
                                 directory and/or hidden folder
-    --notice                  Symlink the notice file into the project folder
+    --notice                  Write 'where_are_my_files' file into project folder
     --clean                   Safely remove manifest, list files
   
   Actions to notify:
@@ -812,11 +812,12 @@ sub open_import_catalog {
 							$Entry->scan_datestamp ? sprintf("%.0f",
 							(time - $Entry->scan_datestamp) / 86400) : '-';
 						push @action_list, $id;
-					}
-					# check S3 information
-					if ( $Entry->core_lab and not $Entry->bucket ) {
-						generate_bucket($Entry);
-						generate_prefix($Entry);
+
+						# check S3 information
+						if ( $Entry->core_lab and not $Entry->bucket ) {
+							generate_bucket($Entry);
+							generate_prefix($Entry);
+						}
 					}
 				}
 			}
