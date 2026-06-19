@@ -39,19 +39,28 @@ USAGE:
 OPTIONS:
   
   -c --cat <path>         Path to metadata catalog database
-  -u --update             Update the last_size value in the database
+  -p --project <id>       Check the indicated project. Repeat as necessary.
+                            Or simply append to the end of the command.
+                            Default checks all projects in the Catalog.
+  --list <file>           Provide a list of project IDs.
+  -u --update             Update the last_size value in the Catalog.
+                             Default simply prints the sizes.
   -h --help               Show this help
 
 
 DOC
 
 my $cat_file;
+my @project_ids;
+my $list_file;
 my $update;
 my $help;
 
 if (@ARGV) {
 	GetOptions(
 		'c|catalog=s'           => \$cat_file,
+		'p|project=s'           => \@project_ids,
+		'list=s'                => \$list_file,
 		'u|update!'             => \$update,
 		'h|help!'               => \$help,
 	) or die " bad options! Please check\n $doc\n";
@@ -70,11 +79,35 @@ unless ($cat_file) {
 	print 'FATAL: No catalog provided!\n';
 	exit 1;
 }
-my $Cat      = RepoCatalog->new($cat_file)
+my $Cat = RepoCatalog->new($cat_file)
 	or die "Cannot open catalog file '$cat_file'!\n";
 
+
+# Collect project IDs
+if (@ARGV) {
+	push @project_ids, @ARGV;
+}
+if ($list_file) {
+	my $fh = IO::File->new($list_file);
+	unless ($fh) {
+		printf " Unable to open file '%s': %s\n", $list_file, $OS_ERROR;
+		exit 1;
+	}
+	while ( my $line = $fh->getline ) {
+		if ($line =~ /^ ( A\d+ | \d+R )\b /x) {
+			push @project_ids, $1;
+		}
+	}
+	$fh->close;
+	printf " Loaded %d IDs from file '%s'\n", scalar(@project_ids), $list_file;
+}
+unless (@project_ids) {
+	@project_ids = $Cat->list_all;
+}
+
+
 ## process projects
-foreach my $id ( $Cat->list_all ) {
+foreach my $id ( @project_ids ) {
 	my $Entry = $Cat->entry($id) or next;
 	if ( $Entry->scan_datestamp > 0 and $Entry->deleted_datestamp > 0 ) {
 		process_project($Entry);
