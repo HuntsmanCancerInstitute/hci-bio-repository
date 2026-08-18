@@ -88,17 +88,16 @@ foreach my $given_dir (@ARGV) {
 
 	# report results
 	if ($youngest == 0) {
-		# no files found, can't give reliable time difference
-		printf "-\t%s\n", $given_dir;
-		next;
+		# no files found, set to current time to give an age of zero
+		$youngest = time;
 	}
-	my $youngest_age = (time - $youngest) / $day;
-	my $oldest_age = (time - $oldest) / $day;
-	printf("%.0f\t%s\t%s\n", $youngest_age, _format_size($running_size), $given_dir);
+	my $youngest_age = sprintf "%.0f", (time - $youngest) / $day;
+	my $oldest_age   = sprintf "%.0f", (time - $oldest) / $day;
+	printf("%5s  %7s  %s\n", $youngest_age, _format_size($running_size), $given_dir);
 	if ($verbose) {
-		printf("  oldest file at %.0f days is %s\n", $oldest_age, $oldest_file);
-		printf("  youngest file at %.0f days is %s\n", $youngest_age, $youngest_file);
-		printf("  biggest file at %s is %s\n", _format_size($biggest_size), 
+		printf("    oldest:   %5s days, %s\n", $oldest_age, $oldest_file);
+		printf("    youngest: %5s days, %s\n", $youngest_age, $youngest_file);
+		printf("    biggest:  %5s, %s\n", _format_size($biggest_size), 
 			$biggest_file);
 	}
 }
@@ -107,6 +106,8 @@ exit;
 
 sub age_callback {
 	my $file = $_;
+	my $clean_name = $File::Find::name;
+	$clean_name =~ s|^\./||; # strip the beginning ./ from the name to clean it up
 	
 	# skip specific files, including SB preparation files
 	return if -d $file;
@@ -129,28 +130,28 @@ sub age_callback {
 		# first file! seed with current data
 		$youngest      = $age;
 		$oldest        = $age;
-		$youngest_file = $file;
-		$oldest_file   = $file;
-		$biggest_file  = $file;
+		$youngest_file = $clean_name;
+		$oldest_file   = $clean_name;
+		$biggest_file  = $clean_name;
 		$biggest_size  = $size;
 	}
 	
 	# check for younger
 	elsif ($age > $youngest) {
 		$youngest = $age;
-		$youngest_file = $file;
+		$youngest_file = $clean_name;
 	}
 	
 	# check for older
 	elsif ($age < $oldest) {
 		$oldest = $age;
-		$oldest_file = $file;
+		$oldest_file = $clean_name;
 	}
 	
 	# check file size
 	if ($size > $biggest_size) {
 		$biggest_size = $size;
-		$biggest_file = $file;
+		$biggest_file = $clean_name;
 	}
 }
 
