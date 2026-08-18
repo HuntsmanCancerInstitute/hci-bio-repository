@@ -25,7 +25,7 @@ use constant {
 	ONE_GB => 1073741824,
 };
 
-our $VERSION = 'v9.0.6';
+our $VERSION = 'v9.0.7';
 
 
 
@@ -336,6 +336,12 @@ sub scan_directory {
 		while ( my $data = $csv->getline($fh) ) {
 			my %file         = mesh $header, $data;
 			my $name         = $file{File};
+
+			# skip remnants of previous failed zip process
+			next if $name eq $Project->ziplist_file; 
+			next if $name eq $Project->zip_file;
+
+			# add metadata and store in hash
 			$file{ftime}     = str2time( $file{Date} );
 			$file{status}    = 1;  # default status is to remove
 			$filedata{$name} = \%file;
