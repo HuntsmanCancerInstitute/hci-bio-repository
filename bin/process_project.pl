@@ -434,6 +434,10 @@ sub scan_directory {
 					printf "    generating checksum for %s\n", $f;
 				}
 				$md5 = $Project->calculate_file_checksum($f);
+				if ( not defined($md5) or $md5 eq '1' ) {
+					printf "  ! cannot generate checksum for %s\n", $f;
+					$failure_count++;
+				}
 			}
 			$filedata{$f}{MD5} = $md5;
 		}
