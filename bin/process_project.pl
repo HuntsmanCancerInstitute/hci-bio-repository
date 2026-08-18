@@ -1654,7 +1654,12 @@ sub analysis_callback {
 	elsif ($file =~ /\. ( rda | rdata | rds | pickle | xml | yaml | json | json\.gz | geojson ) $/xin ) {
 		# go ahead and zip other data files
 		$filetype = 'Data';
-		$zip = 1;
+		if ( $size > HUNDRED_MB ) {
+			$zip = 0;
+		}
+		else {
+			$zip = 1;
+		}
 	}
 	elsif ($file =~ /\.html$/i) {
 		# try to discern what kind of html report we have and assign accordingly
