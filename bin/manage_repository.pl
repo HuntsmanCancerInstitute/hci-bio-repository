@@ -17,7 +17,7 @@ use hciCore qw( generate_prefix generate_bucket );
 # Emailer is loaded at run time as necessary
 
 
-our $VERSION = 'v9.0.9';
+our $VERSION = 'v9.0.10';
 
 
 ######## Documentation
@@ -644,10 +644,11 @@ sub open_import_catalog {
 
 					}
 					elsif ( $Entry->scan_datestamp == 0 and
-							($Entry->age and $Entry->age >= 7 )
+							($Entry->age and $Entry->age >= 1 )
 					) {
-						# otherwise wait for project to "settle" for at least
-						# one week before scanning
+						# wait till the project is a day old before scanning
+						# because this is a rounded integer, this works out to at least
+						# 12 hours old (0.5 days)
 						$do_scan += 1;
 					}
 
@@ -996,6 +997,7 @@ sub generate_list {
 	# search for requests with autoanalysis folders
 	elsif ($list_aa) {
 		die "Can't find entries if list provided!\n" if @action_list;
+# !!!! This needs a core lab option!!!! maybe external? maybe emailed?
 		return $Catalog->find_autoanal_req(
 			year     => $year,
 			age      => $min_age,
