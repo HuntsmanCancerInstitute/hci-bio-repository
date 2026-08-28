@@ -1758,6 +1758,11 @@ sub analysis_callback {
 		$filetype = 'Analysis';
 		$zip = 1;
 	}
+	elsif ( $file =~ /\.pod5$/i ) {
+		# nanopore raw sequencing format
+		$filetype = 'Sequence';
+		$zip = 0;
+	}
 	else {
 		# catchall
 		$filetype = 'Other';
