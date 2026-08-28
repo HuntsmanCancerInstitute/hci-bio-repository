@@ -405,23 +405,28 @@ sub scan_directory {
 			$failure_count++;
 		}
 		elsif ($filedata{$f}{status} == 1) {
+			# file originally in manifest but not found upon scanning
 			$removed_file_count++;
 			next;
 		}
 		elsif ($filedata{$f}{status} == 2) {
+			# existing file with identical file size and date
 			$existing_file_count++;
 		}
 		elsif ($filedata{$f}{status} == 3) {
+			# a new file or an existing file with different file size or date
 			$new_file_count++;
 			$filedata{$f}{Date} = strftime( "%B %d, %Y %H:%M:%S",
 				localtime( $filedata{$f}{ftime} ) );
 		}
 		
 		# first check for md5 checksum
+		# checksums should already be calculated for existing files and analysis files
 		my $md5 = $filedata{$f}{MD5} || q();
-		if (not $md5) {
+		if ( not $md5 or $md5 eq '1' ) {
 			# we don't have a checksum for this file yet
-			# this happens with Fastq files because it's usually already calculated
+			# this happens with all Request files
+			# Fastq files are pre-calculated by demultiplexing pipeline
 			# check in the checksums hash for the file name without the path
 			my (undef, undef, $filename) = File::Spec->splitpath($f);
 			if (exists $checksums{$filename}) {
