@@ -759,7 +759,7 @@ sub callback {
 			}
 			return analysis_callback($file, $clean_name);
 		}
-		elsif ($clean_name =~ / [\w\s\&]+ image s? \/ /xi) {
+		elsif ($clean_name =~ / [\w\s\&]+ imag ( es | ing ) [\w\s]* \/ /xin) {
 			# top level images folder, probably Xenium images
 			# this may be a non-standard folder name, so this may change
 			return analysis_callback($file, $clean_name);
@@ -1650,7 +1650,7 @@ sub analysis_callback {
 		$filetype = 'Image';
 		$zip = 0;
 	}
-	elsif ($file =~ /\. ( pdf | ps | eps | png | jpg | jpeg | gif | tif{1,2} | svg | ai ) $/xin) {
+	elsif ($file =~ /\. ( pdf | ps | eps | png | jpg | jpeg | gif | tif{1,2} | svg | ai | czi ) $/xin) {
 		$filetype = 'Image';
 		$zip = 1;
 	}
