@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 'v9.1.4';
+our $VERSION = 'v9.1.5';
 
 ### Initialize
 
@@ -100,6 +100,7 @@ sub new {
 	$self->{ziplist}      = $project . '_ARCHIVE_LIST.txt';
 	$self->{prevziplist}  = $project . '_PREVIOUS_ARCHIVE_LIST.txt';
 	$self->{zip}          = $project . '_ARCHIVE.zip';
+	$self->{readme}       = $project . '_README.txt';
 	$self->{notice}       = 'where_are_my_files.txt';
 
 	# hidden file names in parent directory
@@ -214,6 +215,9 @@ sub verbose {
 	return shift->{verbose};
 }
 
+sub readme_file {
+	return shift->{readme};
+}
 
 
 
@@ -1207,6 +1211,11 @@ Returns the path and name to the original notice text file that is
 linked to the project folder. A notice file is kept at the root of 
 both Repository volumes, F<MicroarrayData> and F<AnalysisData>. 
 Example: F</Repository/MicroarrayData/missing_file_notice.txt>.
+
+=item readme_file
+
+Returns the name of the "readme" file. Example: F<1234R_README.txt>.
+Typically only seen on AWS buckets.
 
 =item verbose
 
