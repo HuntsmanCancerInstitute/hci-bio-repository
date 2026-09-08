@@ -4,6 +4,7 @@ use warnings;
 use strict;
 use English qw(-no_match_vars);
 use Getopt::Long;
+use File::Spec;
 use IO::File;
 use Config::Tiny;
 use Net::Amazon::S3::Client;
@@ -13,7 +14,7 @@ use RepoCatalog;
 use RepoProject;
 use Gnomex;
 
-our $VERSION = 1.1;
+our $VERSION = 1.2;
 
 my $doc = <<END;
 
@@ -39,8 +40,8 @@ Options:
                               or simply append to the end of the command.
                               Multiple projects may be specified.
     --list <file>           List of project IDs
-    --mock                  Do not upload, but leave the readme file in the
-                              current directory.
+    --gnomex                Do not upload, write the file to the GNomEx path
+    --mock                  Do not upload, write the file in current directory
     --cred <path>           Path to AWS credentials file. 
                                Default is ~/.aws/credentials. 
     -h --help               Show this help
@@ -52,6 +53,7 @@ my $cat_file;
 my @project_ids;
 my $list_file;
 my $mock;
+my $do_gnomex;
 my $aws_cred_file = sprintf "%s/.aws/credentials", $ENV{HOME};
 my $help;
 my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
@@ -62,6 +64,7 @@ if (@ARGV) {
 		'c|catalog=s'           => \$cat_file,
 		'p|project=s'           => \@project_ids,
 		'list=s'                => \$list_file,
+		'gnomex!'               => \$do_gnomex,
 		'mock!'                 => \$mock,
 		'cred=s'                => \$aws_cred_file,
 		'h|help!'               => \$help,
@@ -150,13 +153,16 @@ sub post_project_readme {
 	}
 	
 	# check that project has been uploaded
-	unless ( $Entry->core_lab ) {
-		printf " ! Project %s does not have a CORE AWS account! skipping\n", $id;
-		return 0;
-	}
-	unless ( $Entry->upload_datestamp ) {
-		printf " ! Project %s has not been uploaded yet! skipping\n", $id;
-		return 0;
+	# unless user requested to write a mock file or to write back to GNomEx path
+	unless ( $mock or $do_gnomex ) {
+		unless ( $Entry->core_lab ) {
+			printf " ! Project %s does not have a CORE AWS account! skipping\n", $id;
+			return 0;
+		}
+		unless ( $Entry->upload_datestamp ) {
+			printf " ! Project %s has not been uploaded yet! skipping\n", $id;
+			return 0;
+		}
 	}
 	
 	# generate the readme text
@@ -169,14 +175,17 @@ sub post_project_readme {
 	}
 	
 	# write this as a temporary file
-	my $file = sprintf "%s_README.txt", $id;
+	my $file = $Project->readme_file;
+	if ($do_gnomex) {
+		$file = File::Spec->catfile( $Project->given_dir, $Project->readme_file );
+	}
 	my $fh = IO::File->new($file, '>')
 		or die "Cannot write to file $file! $OS_ERROR";
 	$fh->print($text);
 	$fh->close;
 	
-	# if this was a mock attempt then we are done
-	if ($mock) {
+	# if this was a mock attempt or directed to write to GNomEx path, then we are done
+	if ( $mock or $do_gnomex ) {
 		printf " > wrote file %s\n", $file;
 		return 1;
 	}
@@ -201,7 +210,7 @@ sub post_project_readme {
 		return 0;
 	}
 	my $bucket = $aws->bucket( name => $Entry->bucket );
-	my $key    = sprintf "%s/%s_README.txt", $Entry->prefix, $id;
+	my $key    = sprintf "%s/%s", $Entry->prefix, $Project->readme_file;
 	my $object = $bucket->object(
 		key => $key,
 		content_type => 'text/plain'
