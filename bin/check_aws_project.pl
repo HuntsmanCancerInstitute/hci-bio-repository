@@ -11,7 +11,7 @@ use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use RepoCatalog;
 
-our $VERSION = 1.3;
+our $VERSION = 1.4;
 
 my $doc = <<END;
 
@@ -143,16 +143,17 @@ sub check_options {
 sub check_project {
 	my $id = shift;
 	my $Entry = $Catalog->entry($id);
+	unless ($Entry) {
+		printf "$id\tNo Catalog entry\n";
+		return;
+	}
 	my $status;
 	my $access_id;
 	my $secret;
 	my $bucket;
 
 	# check metadata first
-	if ( $Entry->external eq 'Y') {
-		$status = 'external';
-	}
-	elsif ( not $Entry->core_lab ) {
+	if ( not $Entry->core_lab ) {
 		$status = 'no account';
 	}
 	elsif ( not $Entry->upload_datestamp ) {
@@ -161,9 +162,8 @@ sub check_project {
 	elsif ( not $Entry->bucket ) {
 		$status = 'no bucket/prefix set';
 	}
-	else {
+	elsif ( my $profile = $Entry->profile ) {
 		# get credentials
-		my $profile   = $Entry->profile;
 		if ($profile) {
 			$access_id = $Credentials->{$profile}{'aws_access_key_id'} || q();
 			$secret    = $Credentials->{$profile}{'aws_secret_access_key'} || q();
@@ -171,6 +171,12 @@ sub check_project {
 		unless ($access_id and $secret) {
 			$status = 'no credentials';
 		}
+	}
+	elsif ( $Entry->external eq 'Y') {
+		$status = 'external';
+	}
+	else {
+		$status = 'unrecognized';
 	}
 
 	# check remote if still good
