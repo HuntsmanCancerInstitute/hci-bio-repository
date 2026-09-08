@@ -25,7 +25,7 @@ use constant {
 	ONE_GB => 1073741824,
 };
 
-our $VERSION = 'v9.0.7';
+our $VERSION = 'v9.0.8';
 
 
 
@@ -254,7 +254,7 @@ my $project_manifest_file      = $Project->manifest_file;
 my $project_prev_manifest_file = $Project->previous_manifest_file;
 my $project_prev_remove_file   = $Project->previous_remove_file;
 my $project_prev_zip_file      = $Project->previous_ziplist_file;
-
+my $project_readme_file        = $Project->readme_file;
 
 
 ######## Main functions
@@ -635,6 +635,9 @@ sub callback {
 		return;
 	}
 	elsif ($file eq $project_prev_zip_file) {
+		return;
+	}
+	elsif ($file eq $project_readme_file) {
 		return;
 	}
 	elsif ($file eq 'where_are_my_files.txt') {
