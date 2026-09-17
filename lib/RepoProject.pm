@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 'v9.1.5';
+our $VERSION = 'v9.1.6';
 
 ### Initialize
 
@@ -21,7 +21,6 @@ our $VERSION = 'v9.1.5';
 my $Digest = Digest::MD5->new;
 
 # Initialize global find variables
-my $current_project = undef;
 my %ignore_files    = ();
 my $project_age     = 0;
 my $project_size    = 0;
@@ -858,7 +857,6 @@ sub get_size_age {
 	my $self = shift;
 	
 	# set global values, because File::Find sucks and can't take private data
-	$current_project = $self;
 	$project_size    = 0;
 	$project_age     = 0;
 	$autoanal_age    = 0;
@@ -871,6 +869,7 @@ sub get_size_age {
 		$self->previous_remove_file,
 		$self->previous_ziplist_file,
 		$self->notice_file,
+		$self->readme_file
 	);
 
 	# add old manifest style name to ignore list just in case
@@ -894,14 +893,24 @@ sub get_autoanal_folder {
 	return unless ($self->project =~ /^\d+R$/);
 	my $curdir = getcwd();
 	chdir $self->given_dir;
-	my @results = glob("AutoAnalysis_* WGS_AutoAnalysis_*");
-	my $aapath = q();
-	if ( scalar @results == 1 and $results[0] ) {
-		$aapath = $results[0];
+	my @results = glob("AutoAnalysis_* WGS_AutoAnalysis_* ");
+	
+	# check each result for contents
+	# this avoids empty AutoAnalysis folders which occur occasionally
+	my @accepted;
+	foreach my $dir (@results) {
+		next unless -d $dir;
+		# count the contents of the directory
+		my @count = grep { !/( COMPLETE | RUNME ) $/xn } glob("$dir/*");
+		if ( scalar(@count) >= 1) {
+			push @accepted, $dir;
+		}
 	}
-	elsif ( scalar @results > 1 ) {
-		printf "   ! more than one AutoAnalysis folders found for %s\n", $self->project;
-		$aapath = join(',', @results);
+	
+	# finish up
+	my $aapath = q();
+	if (@accepted) {
+		$aapath = join(',', @accepted);
 	}
 	chdir $curdir;
 	return $aapath;
