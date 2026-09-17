@@ -12,7 +12,7 @@ use constant {
 	LAB_ACCT    => 2,     # CORE lab account name
 };
 
-our $VERSION = 'v9.0.1';
+our $VERSION = 'v9.0.2';
 
 
 ### General private values
@@ -766,6 +766,7 @@ sub find_analysis_to_delete {
 			$E->deleted_datestamp == 0 and              # not yet deleted
 			$E->hidden_age > $min_age and               # hidden for min number days
 			$E->hidden_age < $max_age and               # hidden for max number days
+			$E->size > $min_size and                    # size > minimum
 			$E->lab_last !~ $internal_org and           # not hidden lab
 			substr($E->date, 0, 4) >= $year and         # current year
 			( ( $email == -1 ) or ( $email == 0 && $E->emailed_datestamp == 0 ) or
@@ -793,14 +794,16 @@ sub find_analysis_to_delete {
 }
 
 sub find_autoanal_req {
-# !!!!! This needs a core lab option!!!!!
 	my $self = shift;
 	my %opts = @_;
 	my $year = (exists $opts{year} and defined $opts{year}) ? $opts{year} : $repo_epoch;
+	my $core    = (exists $opts{core} and defined $opts{core}) ? $opts{core} : undef;
 	my $min_age = (exists $opts{age} and defined $opts{age}) ? $opts{age} :
 		$req_up_min_age; 
 	my $max_age = (exists $opts{maxage} and defined $opts{maxage}) ? $opts{maxage} :
 		$req_up_max_age; 
+	my $ext  = (exists $opts{external} and $opts{external}) ? $opts{external} : 'N';
+	my $min_size = (exists $opts{size} and $opts{size} =~ /^\d+$/) ? $opts{size} : 0;
 
 	# scan through list
 	my @list;
@@ -818,13 +821,26 @@ sub find_autoanal_req {
 		if (
 			$E->is_request and
 			$E->autoanal_folder and
-			$E->hidden_datestamp == 0 and 
 			$E->age > $min_age and
 			$E->age < $max_age and
 			substr($E->date, 0, 4) >= $year and
+			$E->size > $min_size and
 			$E->lab_last !~ $internal_org
 		) {
-			push @list, $key;
+			# we have a candidate
+			# check core status
+			if (defined $core) {
+				if ($core and $E->core_lab) {
+					push @list, $key;
+				}
+				elsif (not $core and not $E->core_lab) {
+					push @list, $key if $E->external eq $ext;
+				}
+				# else doesn't match
+			}
+			else {
+				push @list, $key;
+			}
 		}
 		$key = $self->{db}->next_key($key);
 	}
