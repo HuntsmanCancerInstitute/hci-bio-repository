@@ -19,7 +19,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 1.5;
+our $VERSION = 1.6;
 
 my $doc = <<END;
 
@@ -460,9 +460,14 @@ sub prepare_list {
 	my $zipcnt = 0;
 	my $upcnt  = 0;
 	my $aacnt  = 0;
+	my %seenit;
 	while ( my $data = $csv->getline($fh) ) {
 		my %file = mesh $header, $data;
 		my $fname = $file{File};
+		if ( exists $seenit{$fname} ) {
+			printf " ! Duplicate files '%s' exist in %s\n", $fname, $manifest_file;
+			exit 1;
+		}
 		
 		# generate alternate name, old Request projects uploaded to Seven Bridges did
 		# not maintain directories, so skip the Fastq directory to maintain consistency
@@ -526,6 +531,7 @@ sub prepare_list {
 		}
 		$count++;
 		$size += $file{Size};
+		$seenit{$fname} = 1;
 	}
 	$fh->close;
 	
