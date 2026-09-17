@@ -25,7 +25,7 @@ use constant {
 	ONE_GB => 1073741824,
 };
 
-our $VERSION = 'v9.0.8';
+our $VERSION = 'v9.0.9';
 
 
 
@@ -568,7 +568,7 @@ sub scan_directory {
 				$fh->printf("%s\n", $_);
 			}
 			$fh->close;
-			printf "  > wrote %d files to remove list %s\n", scalar(@removelist), 
+			printf " > Wrote %d files to remove list %s\n", scalar(@removelist), 
 				$alt_file;
 		}
 	}
@@ -587,7 +587,7 @@ sub scan_directory {
 				$fh->printf("%s\n", $_);
 			}
 			$fh->close;
-			printf "  > wrote %d files to zip list %s\n", scalar(@ziplist), 
+			printf " > Wrote %d files to zip list %s\n", scalar(@ziplist), 
 				$zip_file;
 		}
 	}
@@ -748,20 +748,33 @@ sub callback {
 			# AutoAnalysis folder
 			return analysis_callback($file, $clean_name);
 		}
-		elsif ($clean_name =~ /output\-XETG00516__\d{7}__Region_\d+__20\d{6}__\d{6}\//x) {
-			# Xenium result folder
+		elsif ($clean_name =~ /^xenium/i) {
+			# top-level Xenium project folder
 			unless ($xenium_warning) {
 				# need to store the parent directory for recording later
 				# split path into parts, just need first item, ignore filename
 				my @bits = File::Spec->splitdir($clean_name);
-				printf "   ! Detected a Xenium results folder in '%s'\n", $bits[0];
+				printf "   > Detected a Xenium project folder in '%s'\n", $bits[0];
 				$xenium_warning = $bits[0];
 			}
 			return analysis_callback($file, $clean_name);
 		}
-		elsif ($clean_name =~ / [\w\s\&]+ imag ( es | ing ) [\w\s]* \/ /xin) {
+		elsif ($clean_name =~ /output\-XETG00516__\d{7}__Region_\d+__20\d{6}__\d{6}\//x) {
+			# actual Xenium sample result folder
+			# this should be inside a top-level folder
+			unless ($xenium_warning) {
+				# need to store the parent directory for recording later
+				# split path into parts, just need first item, ignore filename
+				my @bits = File::Spec->splitdir($clean_name);
+				printf "   > Detected a Xenium results folder in '%s'\n", $bits[0];
+				$xenium_warning = $bits[0];
+			}
+			return analysis_callback($file, $clean_name);
+		}
+		elsif ($clean_name =~ / [\w\s\&]* imag ( es | ing ) [\w\s]* \/ /xin) {
 			# top level images folder, probably Xenium images
 			# this may be a non-standard folder name, so this may change
+			print "   > Detected images folder in Request\n" if $verbose;
 			return analysis_callback($file, $clean_name);
 		}
 		else {
@@ -1607,7 +1620,7 @@ sub analysis_callback {
 		$filetype = 'Analysis';
 		$zip = 1;
 	}
-	elsif ($file =~ /\. bismark \. cov (\.gz)? $/xi) {
+	elsif ($file =~ / \. cov (\.gz)? $/xi) {
 		if ($file !~ /\.gz$/) {
 			my $command = sprintf "%s \"%s\"", $gzipper, $file;
 			if (system($command)) {
@@ -1624,9 +1637,8 @@ sub analysis_callback {
 			}
 		}
 		$filetype = 'Analysis';
-		$zip = 0;
 	}
-	elsif ($file =~ /\. ( mpileup | motif | cov | mtx | mtx\.gz | mat | mat\.gz ) $/xin) {
+	elsif ($file =~ /\. ( mpileup | motif | mtx | mtx\.gz | mat | mat\.gz ) $/xin) {
 		$filetype = 'Analysis';
 		if ($file =~ /\.gz$/ and $size > HUNDRED_MB) {
 			# do not archive if compressed and bigger 100 MB
@@ -1650,9 +1662,19 @@ sub analysis_callback {
 		$filetype = 'Image';
 		$zip = 0;
 	}
-	elsif ($file =~ /\. ( pdf | ps | eps | png | jpg | jpeg | gif | tif{1,2} | svg | ai | czi ) $/xin) {
+	elsif ($file =~ /\. czi $/x) {
+		# Carl Zeiss raw image, do not zip
 		$filetype = 'Image';
-		$zip = 1;
+		$zip = 0;
+	}
+	elsif ($file =~ /\. ( pdf | ps | eps | png | jpg | jpeg | gif | tif{1,2} | svg | ai ) $/xin) {
+		$filetype = 'Image';
+		if ( $size > HUNDRED_MB ) {
+			$zip = 0;
+		}
+		else {
+			$zip = 1;
+		}
 	}
 	elsif ($file =~ /\. ( h5 | hd5 | hdf5 | h5ad ) $/xin) {
 		# leave HDF5 data files from zip archive just to be nice
@@ -1704,11 +1726,6 @@ sub analysis_callback {
 		$zip = 0;
 	}
 	elsif ($file =~ /\. zarr \. zip $/xi) {
-		# Xenium archive file
-		$filetype = 'Analysis';
-		$zip = 0;
-	}
-	elsif ($file =~ /\. czi $/xi) {
 		# Xenium archive file
 		$filetype = 'Analysis';
 		$zip = 0;
