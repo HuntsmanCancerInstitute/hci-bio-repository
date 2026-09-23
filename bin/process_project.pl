@@ -1832,8 +1832,13 @@ sub analysis_callback {
 	}
 	
 	# Check for sample ID
-	if ( $clean_name =~ / (\d{4,6}x\d{1,3}) [\.\-_\/] /xi ) {
+	if ( $clean_name =~ / ( \d{4,6} [xX] \d{1,3} ) [\.\-_\/] /x ) {
 		$filedata{$clean_name}{sample_id} = $1;
+	}
+	elsif ( $clean_name =~ / ( \d{4,6} [PG] \d{1,3} ) [\.\-_\/] /x ) {
+		my $sample = $1;
+		$sample =~ s/[PG]/X/;
+		$filedata{$clean_name}{sample_id} = $sample;
 	}
 	else {
 		$filedata{$clean_name}{sample_id} = q();
