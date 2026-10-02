@@ -19,7 +19,7 @@ use RepoProject;
 use RepoCatalog;
 
 
-our $VERSION = 1.6;
+our $VERSION = 1.7;
 
 my $doc = <<END;
 
@@ -411,6 +411,24 @@ sub prepare_list {
 		if ($verbose) {
 			printf "  > loaded %d files from zip list file '%s'\n",
 				scalar( keys %zipped ),
+				$ziplist;
+		}
+	}
+	
+	# check for previous zip list and load those contents
+	if ( -e $Project->previous_ziplist_file ) {
+		$ziplist = $Project->previous_ziplist_file;
+		my $prev = scalar( keys %zipped );
+		my $fh = IO::File->new($ziplist)
+			or die " Cannot read zip list file '$ziplist'! $OS_ERROR";
+		while ( my $line = $fh->getline ) {
+			chomp $line;
+			$zipped{$line} = 1;
+		}
+		$fh->close;
+		if ($verbose) {
+			printf "  > loaded %d files from zip list file '%s'\n",
+				scalar( keys %zipped ) - $prev,
 				$ziplist;
 		}
 	}
