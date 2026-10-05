@@ -450,15 +450,32 @@ sub unhide_zip_files {
 		# hide the zip list
 		move( $self->ziplist_file, $self->alt_ziplist_file);
 		
-		# hide zip file
-		if (-e $self->zip_file) {
-			my $success = move( $self->zip_file, $self->alt_zip_file );
-			if ($success) {
-				printf "  > Hiding zip file %s\n", $self->zip_file;
+		# remove zip file
+		if ( -e $self->zip_file or -e $self->zip2_file ) {
+			if (not $fc) {
+				if ( -e $self->zip_file ) {
+					my $success = unlink($self->zip_file);
+					if ($success) {
+						printf "  > Removed zip file %s\n", $self->zip_file;
+					}
+					else {
+						printf "  ! Failure removing %s\n", $self->zip_file;
+						$fc++;
+					}
+				}
+				else {
+					my $success = unlink($self->zip2_file);
+					if ($success) {
+						printf "  > Removed zip file %s\n", $self->zip2_file;
+					}
+					else {
+						printf "  ! Failure removing %s\n", $self->zip2_file;
+						$fc++;
+					}
+				}
 			}
 			else {
-				printf "  ! Failure hiding %s\n", $self->zip_file;
-				$fc++;
+				printf "  ! Due to errors retaining the ARCHIVE zip file\n";
 			}
 		}
 		
