@@ -297,13 +297,14 @@ else {
 				if ($xenium_warning) {
 					if ( not $Entry->autoanal_folder ) {
 						$Entry->autoanal_folder( $xenium_warning );
-						printf " > Setting AutoAnalysis folder to the Xenium folder %s\n",
+						printf " > Setting AutoAnalysis folder to the Xenium folder '%s'\n",
 							$xenium_warning;
 					}
 					elsif ( $Entry->autoanal_folder ne $xenium_warning ) {
+						printf
+						" > Updating AutoAnalysis folder from '%s' to Xenium folder '%s'\n",
+							$Entry->autoanal_folder, $xenium_warning;
 						$Entry->autoanal_folder( $xenium_warning );
-						printf " ! Updated AutoAnalysis folder to the Xenium folder %s\n",
-							$xenium_warning;
 					}
 				}
 			}
@@ -453,7 +454,7 @@ sub scan_directory {
 		# by their nature, so we're really only interested in the big ones
 		if ($filedata{$f}{Size} > ONE_MB ) {
 			if ( exists $dupmd5{$md5} ) {
-				printf "  ! duplicate md5 checksum $md5 for $f\n";
+				printf "  = duplicate md5 checksum $md5 for $f\n";
 			}
 			else {
 				$dupmd5{$md5} += 1;
@@ -668,7 +669,7 @@ sub callback {
 	}
 	elsif ($file =~ /libsnappyjava\.so$/xi) {
 		# devil java spawn, delete!!!!
-		print "   ! deleting java file $clean_name\n";
+		print "   > deleting java file $clean_name\n";
 		unless (unlink $file) {
 			push @removelist, $clean_name;
 		}
@@ -676,7 +677,7 @@ sub callback {
 	}
 	elsif ($file =~ m/( fdt | fdtCommandLine ) \.jar $/xn) {
 		# fdt files, don't need
-		print "   ! deleting java file $clean_name\n";
+		print "   > deleting java file $clean_name\n";
 		unless (unlink $file) {
 			push @removelist, $clean_name;
 		}
@@ -684,7 +685,7 @@ sub callback {
 	}
 	elsif ($file eq '.DS_Store' or $file eq 'Thumbs.db') {
 		# Windows and Mac file browser devil spawn, delete these immediately
-		print "   ! deleting unnecessary file $clean_name\n" if $verbose;
+		print "   > deleting unnecessary file $clean_name\n" if $verbose;
 		unless (unlink $file) {
 			push @removelist, $clean_name;
 		}
@@ -692,7 +693,7 @@ sub callback {
 	}
 	elsif ( $file =~ /^\._/ ) {
 		# MacOS-specific file extended attributes metadata
-		print "   ! deleting unnecessary file $clean_name\n" if $verbose;
+		print "   > deleting unnecessary file $clean_name\n" if $verbose;
 		unless (unlink $file) {
 			push @removelist, $clean_name;
 		}
@@ -700,7 +701,7 @@ sub callback {
 	}
 	elsif ($file eq '.snakemake_timestamp') {
 		# Auto Analysis snakemake droppings
-		print "   ! deleting unnecessary file $clean_name\n" if $verbose;
+		print "   > deleting unnecessary file $clean_name\n" if $verbose;
 		unless (unlink $file) {
 			push @removelist, $clean_name;
 		}
@@ -715,7 +716,7 @@ sub callback {
 	elsif ( $file =~ /^ ~/x or $file =~ /~ $/x ) {
 		# files starting or ending in ~ are typically backup copies of an edited file
 		# these can be safely deleted
-		print "   ! deleting backup file $clean_name\n";
+		print "   > deleting backup file $clean_name\n";
 		unless (unlink $file) {
 			push @removelist, $clean_name;
 		}
@@ -727,7 +728,7 @@ sub callback {
 			# ignore for now
 		}
 		else {
-			print "   ! marking to delete symbolic link $clean_name\n";
+			print "   > marking to delete symbolic link $clean_name\n";
 			push @removelist, $clean_name;
 		}
 		return;
@@ -822,7 +823,7 @@ sub request_callback {
 			print "   ! possible rsync temp file '$clean_name'\n";
 		}
 		else {
-			print "   ! deleting hidden file $clean_name\n";
+			print "   > marking to delete hidden file $clean_name\n";
 		}
 		push @removelist, $clean_name;
 		return;
@@ -838,7 +839,7 @@ sub request_callback {
 			return;
 		}
 		else {
-			printf " ! marking contents in '%s' for deletion\n", $1;
+			printf " > marking contents in '%s' for deletion\n", $1;
 			$autoanal_warning{$1} = 1;
 			push @removelist, $clean_name;
 			return;
@@ -870,10 +871,10 @@ sub request_callback {
 		# left over file droppings, usually rsync output, that certain people like to 
 		# leave behind without cleaning up after themselves - how rude
 		if (unlink $file) {
-			printf "   ! deleted %s\n", $clean_name;
+			printf "   > deleted %s\n", $clean_name;
 		}
 		else {
-			printf "   ! unable to delete %s\n", $clean_name;
+			printf "   > marking to delete %s\n", $clean_name;
 			push @removelist, $clean_name;
 		}
 		return;
@@ -1210,7 +1211,7 @@ sub analysis_callback {
 	# special file types to delete
 	if ($file =~ /\.sra$/i) {
 		# what the hell are SRA files doing in here!!!????
-		print "   ! marking to delete SRA file $clean_name\n";
+		print "   > marking to delete SRA file $clean_name\n";
 		push @removelist, $clean_name;
 		return;
 	}
@@ -1218,7 +1219,7 @@ sub analysis_callback {
 		# these are left over 10X Genomics temporary processing files
 		# they are not needed and do not need to be saved
 		# add to custom remove list
-		print "   ! marking to delete 10X Genomics temporary file\n" if $verbose;
+		print "   > marking to delete 10X Genomics temporary file\n" if $verbose;
 		push @removelist, $clean_name;
 		return;
 	}
@@ -1241,47 +1242,47 @@ sub analysis_callback {
 		# these should be automatically deleted unless the pipeline failed
 		# attempt to delete immediately because we don't want these taking up space
 		if (unlink $file) {
-			printf "   ! deleted temp fastq %s\n", $clean_name;
+			printf "   > deleted temp fastq %s\n", $clean_name;
 		}
 		else {
-			printf "   ! marking to delete temp fastq %s\n", $clean_name;
+			printf "   > marking to delete temp fastq %s\n", $clean_name;
 			push @removelist, $clean_name;
 		}
 		return;
 	}
 	elsif ( $file eq 'Aligned.sortedByCoord.out.bam' ) {
 		# STAR output bam file, normally removed by hciR alignment pipeline
-		printf "   ! marking to delete temp STAR bam %s\n", $clean_name;
+		printf "   > marking to delete temp STAR bam %s\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
 	elsif ( $file eq 'Aligned.toTranscriptome.out.bam' ) {
 		# STAR output bam file, normally removed by hciR alignment pipeline
-		printf "   ! marking to delete temp STAR bam %s\n", $clean_name;
+		printf "   > marking to delete temp STAR bam %s\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
 	elsif ( $file eq 'Signal.Unique.str1.out.bg' ) {
 		# STAR output bedgraph file, normally removed by hciR alignment pipeline
-		printf "   ! marking to delete temp STAR bedgraph %s\n", $clean_name;
+		printf "   > marking to delete temp STAR bedgraph %s\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
 	elsif ( $file eq 'Signal.UniqueMultiple.str1.out.bg' ) {
 		# STAR output bedgraph file, normally removed by hciR alignment pipeline
-		printf "   ! marking to delete temp STAR bedgraph %s\n", $clean_name;
+		printf "   > marking to delete temp STAR bedgraph %s\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
 	elsif ( $file eq 'uniq.bg' ) {
 		# STAR output bedgraph file, normally removed by hciR alignment pipeline
-		printf "   ! marking to delete temp bedgraph %s\n", $clean_name;
+		printf "   > marking to delete temp bedgraph %s\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
 	elsif ( $file eq 'mult.bg' ) {
 		# STAR output bedgraph file, normally removed by hciR alignment pipeline
-		printf "   ! marking to delete temp bedgraph %s\n", $clean_name;
+		printf "   > marking to delete temp bedgraph %s\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
@@ -1293,7 +1294,7 @@ sub analysis_callback {
 	}
 	elsif ( $clean_name =~ /\b te?mp \b/xi ) {
 		# some sort of temporary file
-		printf "   ! marking to delete temp file '%s'\n", $clean_name;
+		printf "   > marking to delete temp file '%s'\n", $clean_name;
 		push @removelist, $clean_name;
 		return;
 	}
@@ -1321,7 +1322,7 @@ sub analysis_callback {
 	elsif ( $file =~ /^\./ ) {
 		# hidden files
 		if ( $file =~ / \. \w{1,4} \. \w{6} $/xi ) {
-			print "   ! possible rsync temp file '$clean_name'\n";
+			print "   > possible rsync temp file '$clean_name'\n";
 		}
 		$filetype = 'Hidden';
 		if ($size > HUNDRED_MB) {
@@ -1491,7 +1492,7 @@ sub analysis_callback {
 			elsif ( $file =~
 				/^ \d{4,6} X \d{1,3} _ \d{6,8} _ .+ _[IR]\d_001 \.fastq \.gz $/x )
 			{
-				print "   ! marking to delete probable HCI Fastq file $clean_name\n";
+				print "   > marking to delete probable HCI Fastq file $clean_name\n";
 				push @removelist, $clean_name;
 				return;
 			}
@@ -1499,14 +1500,14 @@ sub analysis_callback {
 				/^ \d{4,6} X \d{1,3} _ S\d+ _ L\d+ _[IR]\d _001 \.fastq \.(gz|ora) $/xn )
 			{
 				# a simplified HCI fastq for 10X pipelines
-				print "   ! marking to delete probable HCI Fastq file $clean_name\n";
+				print "   > marking to delete probable HCI Fastq file $clean_name\n";
 				push @removelist, $clean_name;
 				return;
 			}
 			elsif ( $file =~
 				/^ \d{4,6} X \d{1,3} _ \d{6,8} _ .+ R\-interleaved_001 \.fastq \.ora $/x )
 			{
-				print "   ! marking to delete probable HCI Fastq file $clean_name\n";
+				print "   > marking to delete probable HCI Fastq file $clean_name\n";
 				push @removelist, $clean_name;
 				return;
 			}
