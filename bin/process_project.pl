@@ -25,7 +25,7 @@ use constant {
 	ONE_GB => 1073741824,
 };
 
-our $VERSION = 'v9.0.9';
+our $VERSION = 'v9.0.10';
 
 
 
@@ -514,13 +514,30 @@ sub scan_directory {
 	}
 
 	# add contents of previous manifest file if it exists
-	if ( scalar(@manifest) and -e $Project->previous_manifest_file ) {
+	if ( scalar(@manifest) and -e $project_prev_manifest_file ) {
 		my $csv = Text::CSV->new();
-		my $fh  = IO::File->new( $Project->previous_manifest_file );
+		my $fh  = IO::File->new( $project_prev_manifest_file );
 		if ($fh) {
-			my $header = $csv->getline($fh);
+			my $header    = $csv->getline($fh);
+			my $old_count = 0;
 			while ( my $data = $csv->getline($fh) ) {
 				my %file = mesh $header, $data;
+				
+				# skip files we may already have found
+				# these may be bigwig files left behind for example
+				if ( exists $filedata{ $file{File} } ) {
+					if ( $filedata{ $file{File} }{status} == 2 ) {
+						next;
+					}
+				}
+				
+				# rename previous list file
+				# this would've been skipped in the scan 
+				if ( $file{File} eq $Project->ziplist_file ) {
+					$file{File} = $Project->previous_ziplist_file;
+				}
+				
+				# update manifest
 				push @manifest, join(
 					',',
 					sprintf( qq("%s"), $file{File} ),
@@ -534,8 +551,10 @@ sub scan_directory {
 					sprintf( qq("%s"), $file{platform} || q() ),
 					$file{platform_unit_id} || q()
 				);
+				$old_count++;
 			}
 			$fh->close;
+			printf "  > Imported %d files from previous manifest file\n", $old_count;
 		}
 		else {
 			printf " ! Cannot read previous manifest file %s: %s\n",
