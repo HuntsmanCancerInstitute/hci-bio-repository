@@ -13,7 +13,7 @@ use File::Find;
 use Digest::MD5;
 use POSIX qw(strftime);
 
-our $VERSION = 'v9.1.6';
+our $VERSION = 'v9.2.0';
 
 ### Initialize
 
@@ -99,6 +99,7 @@ sub new {
 	$self->{ziplist}      = $project . '_ARCHIVE_LIST.txt';
 	$self->{prevziplist}  = $project . '_PREVIOUS_ARCHIVE_LIST.txt';
 	$self->{zip}          = $project . '_ARCHIVE.zip';
+	$self->{zip2}         = $project . '_ARCHIVE_2.zip';
 	$self->{readme}       = $project . '_README.txt';
 	$self->{notice}       = 'where_are_my_files.txt';
 
@@ -172,6 +173,10 @@ sub previous_remove_file {
 
 sub zip_file {
 	return shift->{zip};
+}
+
+sub zip2_file {
+	return shift->{zip2};
 }
 
 sub ziplist_file {
@@ -324,24 +329,32 @@ sub zip_archive_files {
 		return 1;
 	};
 	
+	# determine name of the zip file based on whether there is a previous zip list
+	# this happens when a doofus adds new files to a project already zipped and uploaded
+	my $zipfile = $self->zip_file;
+	if ( -e $self->previous_ziplist_file ) {
+		$zipfile = $self->zip2_file;
+	}
+	
 	# clean up old zip files
-	if ( -e $self->zip_file ) {
-		unlink $self->zip_file;
+	if ( -e $zipfile ) {
+		unlink $zipfile;
 	}
 	if ( -e $self->alt_zip_file ) {
 		unlink $self->alt_zip_file;
 	}
 	
+	
 	# Zip the files
 	my $command = sprintf("cat %s | $zipper --names-stdin %s", $self->ziplist_file, 
-		$self->zip_file);
+		$zipfile);
 	print "  > executing: $command\n";
 	my $result = system($command);
 	if ($result) {
 		print "     failed!\n";
 		return 1;
 	}
-	elsif (not $result and -e $self->zip_file) {
+	elsif ( not $result and -e $zipfile ) {
 		# zip appears successful
 		# need to add these files to the manifest file
 		my @zl_st  = stat($self->ziplist_file);
@@ -369,7 +382,7 @@ sub zip_archive_files {
 				$self->alt_remove_file;
 			return 1;
 		};
-		$fh->printf("%s\n", $self->zip_file);
+		$fh->printf("%s\n", $zipfile);
 		$fh->close;
 		
 		# finish up by hiding the zipped files
@@ -382,7 +395,7 @@ sub zip_archive_files {
 sub hide_zipped_files {
 	my $self = shift;
 	chdir $self->given_dir; # just in case
-	unless ( -e $self->zip_file or -e $self->alt_zip_file ) {
+	unless ( -e $self->zip_file or -e $self->zip2_file or -e $self->alt_zip_file ) {
 		print "  ! no zip archive exists! Best not move!\n" ;
 		return 1;
 	}
@@ -863,6 +876,7 @@ sub get_size_age {
 	%ignore_files    = map { $_ => 1 } (
 		$self->manifest_file,
 		$self->zip_file,
+		$self->zip2_file,
 		$self->ziplist_file,
 		$self->remove_file,
 		$self->previous_manifest_file,
@@ -1169,6 +1183,13 @@ Returns name of the remove list file. Example: F<1234R_REMOVE_LIST.txt>
 =item zip_file
 
 Returns name of the zip archive file. Example: F<1234R_ARCHIVE.zip>.
+
+=item zip2_file
+
+Returns name of the second zip archive file. Example: F<1234R_ARCHIVE_2.zip>.
+This only exists when new files are (mistakenly) added to an uploaded,
+archived project and a new archive zip file must be prepared for a new
+upload to avoid overwriting the old one.
 
 =item ziplist_file
 
