@@ -339,7 +339,7 @@ sub scan_directory {
 
 			# skip remnants of previous failed zip process
 			next if $name eq $Project->ziplist_file; 
-			next if $name eq $Project->zip_file;
+			next if ( $name eq $Project->zip_file or $name eq $Project->zip2_file );
 
 			# add metadata and store in hash
 			$file{ftime}     = str2time( $file{Date} );
