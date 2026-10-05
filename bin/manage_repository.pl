@@ -1752,17 +1752,31 @@ sub run_project_directory_actions {
 			$failure_count += $Project->hide_zipped_files;
 		} 
 
-		# unhide files
-		if ($unhide_zip_files) {
-			if (-e $Project->zip_folder) {
-				printf "  > unhiding %s zipped files from directory %s to %s\n",
-					$Project->project, $Project->zip_folder, $Project->given_dir;
-				$failure_count += $Project->unhide_zip_files;
+		# hide the deleted files
+		if ($move_del_files) {
+			if (-e $Project->alt_remove_file) {
+				printf "  > hiding %s deleted files to %s\n", $Project->project, 
+					$Project->delete_folder;
+				my $failure = $Project->hide_deleted_files;
+				if (not $failure) {
+					$Entry->hidden_datestamp(time);
+					print "    updated catalog hidden timestamp\n";
+					if ( $Entry->upload_datestamp ) {
+						$failure += $Project->write_uploaded_files_notice($Entry);
+					}
+					else {
+						$failure += $Project->write_deleted_files_notice($Entry);
+					}
+					unless ($failure) {
+						print "    wrote notification file\n";
+					}
+				}
+				$failure_count += $failure;
 			}
 			else {
-				printf "  ! Zip folder %s doesn't exist!\n", $Project->zip_folder;
+				printf "  ! %s has no deleted files to hide!\n", $Project->project;
 			}
-		}
+		} 
 
 		# restore hidden files
 		if ($unhide_del_files) {
@@ -1783,19 +1797,17 @@ sub run_project_directory_actions {
 			}
 		}
 
-		# delete zipped files
-		if ($delete_zip_files) {
+		# restore files
+		if ($unhide_zip_files) {
 			if (-e $Project->zip_folder) {
-				printf "  > deleting %s zipped files in %s\n", $Project->project, 
-					$Project->zip_folder;
-				$failure_count += $Project->delete_zipped_files_folder;
+				printf "  > unhiding %s zipped files from directory %s to %s\n",
+					$Project->project, $Project->zip_folder, $Project->given_dir;
+				$failure_count += $Project->unhide_zip_files;
 			}
 			else {
-				printf "  ! no hidden zip folder for %s to delete\n", 
-					$Project->project;
+				printf "  ! Zip folder %s doesn't exist!\n", $Project->zip_folder;
 			}
-		} 
-
+		}
 
 		# restore the zip archive
 		if ($restore_zip_files) {
@@ -1825,29 +1837,16 @@ sub run_project_directory_actions {
 		}
 
 
-		# move the deleted files
-		if ($move_del_files) {
-			if (-e $Project->alt_remove_file) {
-				printf "  > hiding %s deleted files to %s\n", $Project->project, 
-					$Project->delete_folder;
-				my $failure = $Project->hide_deleted_files;
-				if (not $failure) {
-					$Entry->hidden_datestamp(time);
-					print "    updated catalog hidden timestamp\n";
-					if ( $Entry->upload_datestamp ) {
-						$failure += $Project->write_uploaded_files_notice($Entry);
-					}
-					else {
-						$failure += $Project->write_deleted_files_notice($Entry);
-					}
-					unless ($failure) {
-						print "    wrote notification file\n";
-					}
-				}
-				$failure_count += $failure;
+		# delete zipped files
+		if ($delete_zip_files) {
+			if (-e $Project->zip_folder) {
+				printf "  > deleting %s zipped files in %s\n", $Project->project, 
+					$Project->zip_folder;
+				$failure_count += $Project->delete_zipped_files_folder;
 			}
 			else {
-				printf "  ! %s has no deleted files to hide!\n", $Project->project;
+				printf "  ! no hidden zip folder for %s to delete\n", 
+					$Project->project;
 			}
 		} 
 
