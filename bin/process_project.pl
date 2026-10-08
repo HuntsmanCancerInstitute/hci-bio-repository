@@ -25,7 +25,7 @@ use constant {
 	ONE_GB => 1073741824,
 };
 
-our $VERSION = 'v9.0.10';
+our $VERSION = 'v9.0.11';
 
 
 
@@ -430,8 +430,12 @@ sub scan_directory {
 			# Fastq files are pre-calculated by demultiplexing pipeline
 			# check in the checksums hash for the file name without the path
 			my (undef, undef, $filename) = File::Spec->splitpath($f);
-			if (exists $checksums{$filename}) {
-				# we have it
+			if (exists $checksums{$f}) {
+				# we have it under full path
+				$md5 = $checksums{$f};
+			}
+			elsif (exists $checksums{$filename}) {
+				# we have it under filename only sans path
 				$md5 = $checksums{$filename};
 			}
 			else {
@@ -1123,14 +1127,31 @@ sub request_callback {
 	elsif ($file =~ 
 m/^ ( \d{4} \. \d\d \. \d\d _ \d\d \. \d\d \. \d\d \. )? md5 (sum)? .* \. (txt | out ) $/xn
 	) {
+		my (undef, $md5_dir, undef) = File::Spec->splitpath($clean_name);
 		my $fh = IO::File->new($file);
 		while (my $line = $fh->getline) {
 			my ($md5, $fastqpath) = split(/\s+/, $line);
-			# unfortunately, this may or may not be the current given file path
-			# so we must go solely on the filename, with the assumption that there 
-			# are not additional files with the same name!!!!
-			my (undef, undef, $fastqname) = File::Spec->splitpath($fastqpath);
-			$checksums{$fastqname} = $md5;
+			# unfortunately the files herein may or may not have a path associated
+			# with it, since this md5 file may be subsequently moved
+			# or it may inherit the path of the md5 file, e.g. in Fastq folder
+			# or it may be something irrelevent, e.g. absolute path from root
+			# This may become especially problematic with subsequent demuxing and
+			# both files (same name) are kept but in different directories but no path
+			# is given in the md5 file.
+			# Sigh. So we store the md5 under multiple variations and hope for the best.
+			# Avoid overwriting existing entry, but honestly its bad no matter what.
+			my (undef, $fq_dir, $fastqname) = File::Spec->splitpath($fastqpath);
+			unless ($fq_dir) {
+				# inherit the md5 checksum directory and store that as well
+				my $inherit_fqpath = File::Spec->catfile($md5_dir, $fastqname);
+				$checksums{$inherit_fqpath} = $md5 unless exists
+					$checksums{$inherit_fqpath};
+			}
+			# name only
+			$checksums{$fastqname} = $md5 unless exists $checksums{$fastqname};
+			if ($fastqname ne $fastqpath) {
+				$checksums{$fastqpath} = $md5 unless exists $checksums{$fastqpath};
+			}
 		}
 		$fh->close;
 		print "   > processed md5 file $clean_name\n" if $verbose;
